@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { generateCompletion } from '@/lib/ai';
+import { generateCompletionWithUsage } from '@/lib/ai';
 // @ts-ignore - pdf-parse lacks modern TS definitions but is the most stable for Node PDF scraping.
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 
@@ -91,20 +91,22 @@ export async function POST(req: NextRequest) {
         const systemPrompt = `You are an expert AI Alignment Lead and Quality Assurance Analyst for the ${projectName} project.`;
 
         // CALL LLM
-        const evaluation = await generateCompletion(prompt, systemPrompt);
+        const result = await generateCompletionWithUsage(prompt, systemPrompt);
 
         // 4. PERSISTENCE: Save the result back to the record for future fast-loads.
         await prisma.dataRecord.update({
             where: { id: recordId },
-            data: { alignmentAnalysis: evaluation }
+            data: { alignmentAnalysis: result.content }
         });
 
         return NextResponse.json({
-            evaluation,
+            evaluation: result.content,
             recordContent: record.content,
             projectName,
             recordType: record.type,
-            metadata: record.metadata
+            metadata: record.metadata,
+            usage: result.usage,
+            provider: result.provider
         });
     } catch (error: any) {
         console.error('Comparison API Error:', error);

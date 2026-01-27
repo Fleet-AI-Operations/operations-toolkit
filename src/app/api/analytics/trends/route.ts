@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { generateCompletion } from '@/lib/ai';
+import { generateCompletionWithUsage } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,16 +57,20 @@ export async function POST(req: NextRequest) {
 
         const systemPrompt = `You are an expert AI ${type === 'TASK' ? 'Prompt Engineer' : 'Feedback Analyst'}. Provide concise, high-impact insights.`;
 
-        const analysis = await generateCompletion(prompt, systemPrompt);
+        const result = await generateCompletionWithUsage(prompt, systemPrompt);
 
         // Save the analysis to the project
         const updateField = type === 'TASK' ? 'lastTaskAnalysis' : 'lastFeedbackAnalysis';
         await prisma.project.update({
             where: { id: projectId },
-            data: { [updateField]: analysis }
+            data: { [updateField]: result.content }
         });
 
-        return NextResponse.json({ analysis });
+        return NextResponse.json({
+            analysis: result.content,
+            usage: result.usage,
+            provider: result.provider
+        });
     } catch (error: any) {
         console.error('Trends API Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

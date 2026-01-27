@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LayoutDashboard, FileCheck, ArrowLeft, RefreshCcw, Sparkles, Target, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, FileCheck, ArrowLeft, RefreshCcw, Sparkles, Target, MessageSquare, Coins } from 'lucide-react';
 import Link from 'next/link';
 
 function CompareContent() {
@@ -13,6 +13,13 @@ function CompareContent() {
     const [evaluation, setEvaluation] = useState<string | null>(null);
     const [recordData, setRecordData] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+    const [usage, setUsage] = useState<{
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+        cost?: number;
+    } | null>(null);
+    const [provider, setProvider] = useState<string>('');
 
     const fetchComparison = async (force = false) => {
         if (!recordId) return;
@@ -28,6 +35,8 @@ function CompareContent() {
             if (res.ok) {
                 setEvaluation(data.evaluation);
                 setRecordData(data);
+                setUsage(data.usage || null);
+                setProvider(data.provider || '');
             } else {
                 setError(data.error || 'Failed to generate comparison');
             }
@@ -99,9 +108,30 @@ function CompareContent() {
                     {/* Evaluation Results */}
                     <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
                         <div style={{ background: 'rgba(0, 112, 243, 0.1)', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <Sparkles size={20} color="var(--accent)" />
-                                <span style={{ fontWeight: 700, letterSpacing: '1px', color: 'var(--accent)' }}>AI EVALUATION REPORT</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <Sparkles size={20} color="var(--accent)" />
+                                    <span style={{ fontWeight: 700, letterSpacing: '1px', color: 'var(--accent)' }}>AI EVALUATION REPORT</span>
+                                </div>
+                                {usage && provider === 'openrouter' && (
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        fontSize: '0.75rem',
+                                        color: 'rgba(255,255,255,0.5)',
+                                        paddingLeft: '16px',
+                                        borderLeft: '1px solid rgba(255,255,255,0.1)'
+                                    }}>
+                                        <span>Tokens: {usage.totalTokens.toLocaleString()}</span>
+                                        {usage.cost !== undefined && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#00ff88' }}>
+                                                <Coins size={12} />
+                                                ${usage.cost.toFixed(6)}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <button
                                 onClick={() => fetchComparison(true)}

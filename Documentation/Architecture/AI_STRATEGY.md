@@ -40,3 +40,27 @@ The `src/lib/ai.ts` layer standardizes logic across the app:
 - **Dynamic Configuration**: Easily switch between LLM models (e.g., Llama 3.1) and Embedding models (e.g., Qwen 3) via `.env`.
 - **Error Resilience**: Automatic fallback to empty vectors on AI timeout to prevent database ingestion hangs.
 - **Local Proxy-Ready**: Designed to connect to any OpenAI-compatible API host (Defaulting to `http://localhost:1234/v1`).
+
+## Cost Tracking Architecture
+
+When using OpenRouter, the system tracks API costs at multiple levels:
+
+### Response-Level Tracking
+- OpenRouter includes `usage` data in each API response (prompt tokens, completion tokens, cost)
+- The `generateCompletionWithUsage()` function extracts and returns this data alongside the content
+- Per-operation costs are displayed in the UI after each AI call
+
+### Balance Monitoring
+- A dedicated `/api/ai/balance` endpoint queries OpenRouter's key info API
+- Returns current credits, usage, and limits
+- Dashboard polls this on load to show real-time balance
+
+### Data Flow
+```
+User Action -> API Route -> ai.ts (captures usage) -> Response with cost
+                                                           |
+Dashboard <- /api/ai/balance <- OpenRouter Key API <------+
+```
+
+### Privacy Note
+Cost data is displayed transiently after each operation and is not persisted to the database.

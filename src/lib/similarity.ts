@@ -29,12 +29,7 @@ export async function findSimilarRecords(targetId: string, limit: number = 5) {
         similarity: cosineSimilarity(targetRecord.embedding, record.embedding)
     }));
 
-    const resolvedResults = await Promise.all(results.map(async (r: { record: any, similarity: Promise<number> }) => ({
-        ...r,
-        similarity: await r.similarity
-    })));
-
-    return resolvedResults
+    return results
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit);
 }

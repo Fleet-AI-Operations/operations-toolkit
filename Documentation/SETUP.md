@@ -6,11 +6,15 @@ This guide will help you get the Percentage Tool up and running on your local ma
 
 - **Node.js** (v18 or higher)
 - **PostgreSQL** database
-- **LM Studio** (for local AI analysis)
+- **AI Provider** (choose one):
+  - **LM Studio** - Local AI, privacy-first (default)
+  - **OpenRouter** - Cloud API, no local setup required
 
 ## 1. Environment Configuration
 
-Create a `.env` file in the root directory. Use the following structure:
+Create a `.env` file in the root directory. Copy from `.env.example` and configure for your chosen AI provider.
+
+### Option A: LM Studio (Local - Default)
 
 ```env
 DATABASE_URL="postgres://user:password@localhost:5432/pertool"
@@ -20,6 +24,19 @@ EMBEDDING_MODEL="text-embedding-qwen3-embedding-0.6b"
 ```
 
 *Note: Ensure the model names match exactly what you have loaded in LM Studio.*
+
+### Option B: OpenRouter (Cloud)
+
+```env
+DATABASE_URL="postgres://user:password@localhost:5432/pertool"
+OPENROUTER_API_KEY="sk-or-v1-your-key-here"
+OPENROUTER_LLM_MODEL="anthropic/claude-3.5-sonnet"
+OPENROUTER_EMBEDDING_MODEL="openai/text-embedding-3-small"
+```
+
+Get your API key from [openrouter.ai/keys](https://openrouter.ai/keys). See [openrouter.ai/models](https://openrouter.ai/models) for available models.
+
+*Note: Setting `OPENROUTER_API_KEY` automatically switches the provider to OpenRouter.*
 
 ## 2. Install Dependencies
 
@@ -36,7 +53,11 @@ npx prisma generate
 npx prisma db push
 ```
 
-## 4. Local AI Setup (LM Studio)
+## 4. AI Provider Setup
+
+Choose **one** of the following options:
+
+### Option A: LM Studio (Local)
 
 1. Open **LM Studio**.
 2. **Search & Download**:
@@ -45,6 +66,28 @@ npx prisma db push
 3. **Load Models**: Load both a Chat model and an Embedding model.
 4. **Start Server**: Start the **Local Server** in LM Studio on port 1234.
 5. **GPU Acceleration**: Recommended for faster vectorization phases.
+
+### Option B: OpenRouter (Cloud)
+
+1. Create an account at [openrouter.ai](https://openrouter.ai).
+2. Generate an API key at [openrouter.ai/keys](https://openrouter.ai/keys).
+3. Add to your `.env` file:
+   ```env
+   OPENROUTER_API_KEY="sk-or-v1-your-key-here"
+   ```
+4. (Optional) Configure models:
+   ```env
+   OPENROUTER_LLM_MODEL="anthropic/claude-3.5-sonnet"
+   OPENROUTER_EMBEDDING_MODEL="openai/text-embedding-3-small"
+   ```
+
+No local AI setup required - the system will automatically use OpenRouter when the API key is present.
+
+5. **Cost Tracking**: When using OpenRouter, the dashboard will display:
+   - Your current API balance in the header
+   - Per-query costs after each AI analysis
+
+   This helps you monitor usage and avoid unexpected charges.
 
 ## 5. Running the Application
 

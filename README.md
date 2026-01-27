@@ -20,7 +20,8 @@ Detailed documentation for developers and users can be found in the `Documentati
 - **🚀 Parallel Ingestion Pipeline**: Decouples high-speed data loading from AI vectorization. Ingest thousands of records instantly while embeddings generate in the background.
 - **🧠 AI-Powered Alignment Analysis**: Automatically evaluate Tasks and Feedback against project-specific guidelines using local LLM models (Llama 3.1, Qwen, etc.).
 - **📊 Bulk Analytics Engine**: Process entire datasets sequentially in the background. Includes real-time progress tracking and job cancellation support.
-- **🛡️ Local-First Privacy**: Built specifically for local AI integration via LM Studio. No data leaves your machine during vectorization or analysis.
+- **🛡️ Flexible AI Providers**: Supports both local AI (LM Studio) for maximum privacy and cloud AI (OpenRouter) for convenience. Switch providers with a single environment variable.
+- **💰 Cost Tracking**: Real-time OpenRouter API cost tracking with per-query costs and account balance display on the dashboard.
 - **🎯 Semantic Search**: Find similar prompts and feedback across projects using vector embeddings (Cosine Similarity).
 - **🛠️ Admin Console**: Centralized management for bulk data wipes, project context switching, and advanced maintenance tasks.
 - **💎 Premium UI/UX**: Fully responsive, high-fidelity glassmorphism interface with interactive data visualizations and real-time status polling.
@@ -34,7 +35,9 @@ Detailed documentation for developers and users can be found in the `Documentati
    ```
 
 2. **Configure Environment**:
-   Copy `.env.example` to `.env` and update your `DATABASE_URL` and `LM Studio` settings.
+   Copy `.env.example` to `.env` and update your `DATABASE_URL`. Choose your AI provider:
+   - **LM Studio** (local): Configure `AI_HOST`, `LLM_MODEL`, `EMBEDDING_MODEL`
+   - **OpenRouter** (cloud): Set `OPENROUTER_API_KEY` (get one at [openrouter.ai/keys](https://openrouter.ai/keys))
 
 3. **Initialize Database**:
    ```bash
@@ -52,6 +55,16 @@ Detailed documentation for developers and users can be found in the `Documentati
    ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+### 💰 Cost Tracking (OpenRouter)
+
+When using OpenRouter as your AI provider, the tool automatically tracks API costs:
+- **Per-query costs**: See the cost of each alignment analysis displayed after completion
+- **Account balance**: View your remaining OpenRouter credits in the dashboard header
+
+Cost information appears after each AI operation. Balance refreshes when the dashboard loads.
+
+*Note: Cost tracking is only available with OpenRouter. LM Studio operations are free (local compute).*
 
 ### 🐳 Running with Docker (Portable Mode)
 
@@ -81,7 +94,7 @@ The easiest way to run the entire stack (App + Database) without manual setup:
 
 - **Framework**: Next.js 15
 - **Database**: PostgreSQL with Prisma ORM
-- **AI**: Local LLM/Embedding integration (via LM Studio)
+- **AI**: LM Studio (local) or OpenRouter (cloud) - configurable via environment
 - **Styling**: Premium Glassmorphism UI
 - **Ingestion**: Decoupled parallel pipeline (Fast Data Load + Async Vectorization)
 

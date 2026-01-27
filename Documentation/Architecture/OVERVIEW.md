@@ -37,8 +37,9 @@ graph TD
 - **Processing**: Decoupled ingestion pipeline (Fast load + Async AI).
 
 ### AI Service Layer
-- **Host**: Any OpenAI-compatible server (LM Studio validated).
+- **Host**: Any OpenAI-compatible server (LM Studio validated, OpenRouter supported).
 - **Logic**: RAG-based extraction, batch vectorization, and content sanitation.
+- **Cost Tracking**: OpenRouter usage costs are captured from API responses and displayed in the UI.
 
 ## Core Data Models
 

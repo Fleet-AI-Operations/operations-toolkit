@@ -1,8 +1,89 @@
 /**
  * AI SERVICE LAYER
  * Abstraction layer for interacting with LLM and Embedding models.
- * Defaults to LM Studio (localhost:1234) but configurable via environment variables.
+ * Supports multiple providers:
+ *   - LM Studio (default, localhost:1234)
+ *   - OpenRouter (cloud, requires API key)
  */
+
+export type AIProvider = 'lmstudio' | 'openrouter';
+
+export interface UsageInfo {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cost?: number;
+}
+
+export interface CompletionResult {
+  content: string;
+  usage?: UsageInfo;
+  provider: AIProvider;
+}
+
+export interface BalanceInfo {
+  credits: number;
+  usage: number;
+  limit?: number;
+}
+
+interface ProviderConfig {
+  provider: AIProvider;
+  baseUrl: string;
+  llmModel: string;
+  embeddingModel: string;
+  apiKey?: string;
+}
+
+/**
+ * Detects and returns the active AI provider configuration.
+ * Priority: OpenRouter (if key provided) > LM Studio (default)
+ */
+function getProviderConfig(): ProviderConfig {
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+
+  if (openRouterKey) {
+    return {
+      provider: 'openrouter',
+      baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      llmModel: process.env.OPENROUTER_LLM_MODEL || 'anthropic/claude-3.5-sonnet',
+      embeddingModel: process.env.OPENROUTER_EMBEDDING_MODEL || 'openai/text-embedding-3-small',
+      apiKey: openRouterKey,
+    };
+  }
+
+  // Default to LM Studio
+  return {
+    provider: 'lmstudio',
+    baseUrl: process.env.AI_HOST || 'http://localhost:1234/v1',
+    llmModel: process.env.LLM_MODEL || 'meta-llama-3-8b-instruct',
+    embeddingModel: process.env.EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5',
+  };
+}
+
+/**
+ * Builds request headers based on the provider.
+ */
+function getHeaders(config: ProviderConfig): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (config.provider === 'openrouter' && config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+    headers['HTTP-Referer'] = process.env.OPENROUTER_REFERER || 'http://localhost:3000';
+    headers['X-Title'] = process.env.OPENROUTER_TITLE || 'Percentage Tool';
+  }
+
+  return headers;
+}
+
+/**
+ * Returns the current active provider name for diagnostics.
+ */
+export function getActiveProvider(): AIProvider {
+  return getProviderConfig().provider;
+}
 
 /**
  * Generates a vector embedding for a given string.
@@ -16,10 +97,10 @@ export async function getEmbedding(text: string): Promise<number[]> {
 /**
  * Generates vector embeddings for a batch of strings.
  * Significantly faster than individual requests for large datasets.
+ * Supports both LM Studio and OpenRouter providers.
  */
 export async function getEmbeddings(texts: string[]): Promise<number[][]> {
-  const model = process.env.EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5';
-  const aiHost = process.env.AI_HOST || 'http://localhost:1234/v1';
+  const config = getProviderConfig();
 
   // SANITIZE: Remove empty strings and handle malformed inputs to reduce tokenizer warnings.
   // This prevents the "last token is not SEP" warning from common embedding models (like Qwen).
@@ -30,47 +111,42 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   }
 
   try {
-    const response = await fetch(`${aiHost}/embeddings`, {
+    const response = await fetch(`${config.baseUrl}/embeddings`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(config),
       body: JSON.stringify({
-        model: model,
+        model: config.embeddingModel,
         input: sanitizedInput,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`LM Studio error: ${response.statusText} ${JSON.stringify(errorData)}`);
+      throw new Error(`${config.provider} error: ${response.statusText} ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
     return data.data.map((item: any) => item.embedding);
   } catch (error) {
-    console.error('Error getting embeddings batch:', error);
+    console.error(`Error getting embeddings batch (${config.provider}):`, error);
     // Return empty embeddings for the batch if one fails
     return texts.map(() => []);
   }
 }
 
 /**
- * Standard Chat Completion entry point.
- * Used for summarizing trends and performing guideline alignment checks.
+ * Chat Completion with usage tracking.
+ * Returns content along with token usage and cost information (when available from OpenRouter).
  */
-export async function generateCompletion(prompt: string, systemPrompt?: string): Promise<string> {
-  const model = process.env.LLM_MODEL || 'meta-llama-3-8b-instruct';
-  const aiHost = process.env.AI_HOST || 'http://localhost:1234/v1';
+export async function generateCompletionWithUsage(prompt: string, systemPrompt?: string): Promise<CompletionResult> {
+  const config = getProviderConfig();
 
   try {
-    const response = await fetch(`${aiHost}/chat/completions`, {
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(config),
       body: JSON.stringify({
-        model: model,
+        model: config.llmModel,
         messages: [
           ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
           { role: 'user', content: prompt }
@@ -81,25 +157,92 @@ export async function generateCompletion(prompt: string, systemPrompt?: string):
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`LM Studio error: ${response.statusText} ${JSON.stringify(errorData)}`);
+      throw new Error(`${config.provider} error: ${response.statusText} ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    const content = data.choices?.[0]?.message?.content || '';
+
+    return {
+      content,
+      usage: data.usage ? {
+        promptTokens: data.usage.prompt_tokens || 0,
+        completionTokens: data.usage.completion_tokens || 0,
+        totalTokens: data.usage.total_tokens || 0,
+        cost: data.usage.cost,
+      } : undefined,
+      provider: config.provider,
+    };
   } catch (error: any) {
-    console.error('Error in completion:', error);
-    return `Analysis Error: ${error.message}. Please verify that LM Studio is running at ${aiHost} and that the model "${model}" is loaded.`;
+    console.error(`Error in completion (${config.provider}):`, error);
+
+    const errorMessage = config.provider === 'openrouter'
+      ? `Analysis Error: ${error.message}. Please verify your OpenRouter API key and that the model "${config.llmModel}" is available.`
+      : `Analysis Error: ${error.message}. Please verify that LM Studio is running at ${config.baseUrl} and that the model "${config.llmModel}" is loaded.`;
+
+    return {
+      content: errorMessage,
+      provider: config.provider,
+    };
   }
+}
+
+/**
+ * Standard Chat Completion entry point.
+ * Used for summarizing trends and performing guideline alignment checks.
+ * Supports both LM Studio and OpenRouter providers.
+ */
+export async function generateCompletion(prompt: string, systemPrompt?: string): Promise<string> {
+  const result = await generateCompletionWithUsage(prompt, systemPrompt);
+  return result.content;
 }
 
 /**
  * Math utility for semantic distance.
  * 1.0 = identical meaning, 0.0 = completely unrelated.
  */
-export async function cosineSimilarity(vecA: number[], vecB: number[]): Promise<number> {
+export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
   const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
   const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
   if (magA === 0 || magB === 0) return 0;
   return dotProduct / (magA * magB);
+}
+
+/**
+ * Fetches the current OpenRouter API key balance.
+ * Returns null if not using OpenRouter or if the request fails.
+ */
+export async function getOpenRouterBalance(): Promise<BalanceInfo | null> {
+  const config = getProviderConfig();
+
+  if (config.provider !== 'openrouter' || !config.apiKey) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch OpenRouter balance:', response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    const usage = data.data?.usage || 0;
+    const limit = data.data?.limit;
+
+    return {
+      credits: limit ? limit - usage : 0,
+      usage,
+      limit,
+    };
+  } catch (error) {
+    console.error('Error fetching OpenRouter balance:', error);
+    return null;
+  }
 }

@@ -63,6 +63,15 @@ npx prisma db push
 
 ---
 
+## Cost Monitoring (OpenRouter)
+
+When deployed with OpenRouter, monitor your API costs:
+- The dashboard displays your current balance
+- Each AI operation shows its cost after completion
+- Consider setting up OpenRouter spending alerts at [openrouter.ai/settings](https://openrouter.ai/settings)
+
+---
+
 ## Performance Optimization
 
 Because Vercel uses Serverless Functions, the "Background Ingestion" feature relies on sequential processing that may be interrupted if the function times out. 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getEmbedding, cosineSimilarity } from '../ai';
 
 // Mock fetch
@@ -43,25 +43,52 @@ describe('AI Library Utilities', () => {
     });
 
     describe('cosineSimilarity', () => {
-        it('should correctly calculate similarity between identical vectors', async () => {
+        it('should correctly calculate similarity between identical vectors', () => {
             const vecA = [1, 0, 0];
             const vecB = [1, 0, 0];
-            const similarity = await cosineSimilarity(vecA, vecB);
+            const similarity = cosineSimilarity(vecA, vecB);
             expect(similarity).toBeCloseTo(1.0);
         });
 
-        it('should correctly calculate similarity between orthogonal vectors', async () => {
+        it('should correctly calculate similarity between orthogonal vectors', () => {
             const vecA = [1, 0, 0];
             const vecB = [0, 1, 0];
-            const similarity = await cosineSimilarity(vecA, vecB);
+            const similarity = cosineSimilarity(vecA, vecB);
             expect(similarity).toBe(0);
         });
 
-        it('should return 0 for zero vectors', async () => {
+        it('should return 0 for zero vectors', () => {
             const vecA = [0, 0, 0];
             const vecB = [1, 1, 1];
-            const similarity = await cosineSimilarity(vecA, vecB);
+            const similarity = cosineSimilarity(vecA, vecB);
             expect(similarity).toBe(0);
+        });
+    });
+
+    describe('Provider Selection', () => {
+        const originalEnv = process.env;
+
+        beforeEach(() => {
+            vi.resetModules();
+            process.env = { ...originalEnv };
+        });
+
+        afterEach(() => {
+            process.env = originalEnv;
+        });
+
+        it('should default to lmstudio when NO OpenRouter key is present', async () => {
+            delete process.env.OPENROUTER_API_KEY;
+            // We intentionally re-import to trigger the module to read the env var again if it were cached, 
+            // though getActiveProvider reads it on every call, so this is safe.
+            const { getActiveProvider } = await import('../ai');
+            expect(getActiveProvider()).toBe('lmstudio');
+        });
+
+        it('should switch to openrouter when OpenRouter key IS present', async () => {
+            process.env.OPENROUTER_API_KEY = 'sk-or-test-key';
+            const { getActiveProvider } = await import('../ai');
+            expect(getActiveProvider()).toBe('openrouter');
         });
     });
 });

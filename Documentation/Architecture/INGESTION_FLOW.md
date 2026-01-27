@@ -60,3 +60,11 @@ Unlike typical sequential queues, this system allows **Phase 1 (Data Loading)** 
 - **Initial Load**: Using a `CHUNK_SIZE` of 100 for database insertions.
 - **AI Batching**: We use a `BATCH_SIZE` of 25 for embeddings, significantly reducing network overhead to the local AI server.
 - **Deduplication**: Every record is checked for uniqueness using `task_id` or `id` before insertion.
+
+### 6. Cost Considerations (OpenRouter)
+
+When using OpenRouter for embeddings:
+- Each batch of 25 records incurs an API cost based on token count
+- Large ingestion jobs may accumulate significant embedding costs
+- Consider using LM Studio for high-volume ingestion to avoid costs
+- The dashboard displays your remaining balance for monitoring

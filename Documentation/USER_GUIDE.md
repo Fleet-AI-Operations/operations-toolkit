@@ -55,6 +55,27 @@ The "View All" page allows you to browse, search, and filter your entire project
 
 ---
 
+## Cost Tracking (OpenRouter Only)
+
+If you're using OpenRouter as your AI provider, the tool provides real-time cost visibility:
+
+### Balance Display
+- The dashboard header shows your current OpenRouter credit balance
+- Balance updates when the page loads
+
+### Per-Query Costs
+- After each alignment analysis, the cost is displayed in the report header
+- Costs are shown in USD with high precision (6 decimal places)
+
+### Cost Optimization Tips
+- Use cached analyses when possible (the tool automatically caches alignment results)
+- Choose cost-effective models in your `.env` configuration
+- Monitor your balance regularly to avoid service interruption
+
+*Note: LM Studio users see no cost information since local AI is free.*
+
+---
+
 ## Best Practices
 
 - **Guideline Clarity**: Ensure your PDF is text-readable (not just images) for the best AI grounding results.
