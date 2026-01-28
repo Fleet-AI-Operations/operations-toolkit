@@ -5,7 +5,9 @@ This guide will help you get the Percentage Tool up and running on your local ma
 ## Prerequisites
 
 - **Node.js** (v18 or higher)
-- **PostgreSQL** database
+- **Database** (choose one):
+  - **PostgreSQL** (Local)
+  - **Supabase** (Cloud) - Recommended for production or easy setup
 - **AI Provider** (choose one):
   - **LM Studio** - Local AI, privacy-first (default)
   - **OpenRouter** - Cloud API, no local setup required
@@ -18,6 +20,10 @@ Create a `.env` file in the root directory. Copy from `.env.example` and configu
 
 ```env
 DATABASE_URL="postgres://user:password@localhost:5432/pertool"
+# Optional: Supabase Config
+NEXT_PUBLIC_SUPABASE_URL=""
+NEXT_PUBLIC_SUPABASE_ANON_KEY=""
+
 AI_HOST="http://localhost:1234/v1"
 LLM_MODEL="meta-llama-3.1-8b-instruct"
 EMBEDDING_MODEL="text-embedding-qwen3-embedding-0.6b"

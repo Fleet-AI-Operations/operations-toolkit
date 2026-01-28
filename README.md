@@ -92,10 +92,11 @@ The easiest way to run the entire stack (App + Database) without manual setup:
 
 ## 🛠 Tech Stack
 
-- **Framework**: Next.js 15
-- **Database**: PostgreSQL with Prisma ORM
+- **Framework**: Next.js 15 (App Router)
+- **Database**: PostgreSQL (Prisma ORM) / Supabase
+- **Observability**: Vercel Analytics & Speed Insights
 - **AI**: LM Studio (local) or OpenRouter (cloud) - configurable via environment
-- **Styling**: Premium Glassmorphism UI
+- **Styling**: Premium Glassmorphism UI (Tailwind CSS)
 - **Ingestion**: Decoupled parallel pipeline (Fast Data Load + Async Vectorization)
 
 ---
