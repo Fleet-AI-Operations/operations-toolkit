@@ -6,24 +6,39 @@ This guide will help you get the Percentage Tool up and running on your local ma
 
 - **Node.js** (v18 or higher)
 - **Database** (choose one):
-  - **PostgreSQL** (Local)
-  - **Supabase** (Cloud) - Recommended for production or easy setup
+  - **Supabase** (Cloud) - Recommended for production and easy setup
+  - **PostgreSQL** (Local) - For offline or self-hosted deployments
 - **AI Provider** (choose one):
-  - **LM Studio** - Local AI, privacy-first (default)
-  - **OpenRouter** - Cloud API, no local setup required
+  - **LM Studio** - Local AI, privacy-first (default for local development)
+  - **OpenRouter** - Cloud API, recommended for production deployments
 
 ## 1. Environment Configuration
 
-Create a `.env` file in the root directory. Copy from `.env.example` and configure for your chosen AI provider.
+Create a `.env` file in the root directory. Copy from `.env.example` and configure for your chosen database and AI provider.
 
-### Option A: LM Studio (Local - Default)
+### Database Setup
+
+**Supabase (Recommended)**:
+1. Create a free project at [supabase.com](https://supabase.com)
+2. Get your database password and connection string from Project Settings → Database
+3. Get your Project URL and Anon Key from Project Settings → API
 
 ```env
-DATABASE_URL="postgres://user:password@localhost:5432/pertool"
-# Optional: Supabase Config
-NEXT_PUBLIC_SUPABASE_URL=""
-NEXT_PUBLIC_SUPABASE_ANON_KEY=""
+DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+NEXT_PUBLIC_SUPABASE_URL="https://[PROJECT-REF].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+```
 
+**Local PostgreSQL**:
+```env
+DATABASE_URL="postgres://user:password@localhost:5432/pertool"
+```
+
+### AI Provider Setup
+
+**Option A: LM Studio (Local - For Development)**
+
+```env
 AI_HOST="http://localhost:1234/v1"
 LLM_MODEL="meta-llama-3.1-8b-instruct"
 EMBEDDING_MODEL="text-embedding-qwen3-embedding-0.6b"
@@ -31,10 +46,9 @@ EMBEDDING_MODEL="text-embedding-qwen3-embedding-0.6b"
 
 *Note: Ensure the model names match exactly what you have loaded in LM Studio.*
 
-### Option B: OpenRouter (Cloud)
+**Option B: OpenRouter (Cloud - For Production)**
 
 ```env
-DATABASE_URL="postgres://user:password@localhost:5432/pertool"
 OPENROUTER_API_KEY="sk-or-v1-your-key-here"
 OPENROUTER_LLM_MODEL="anthropic/claude-3.5-sonnet"
 OPENROUTER_EMBEDDING_MODEL="openai/text-embedding-3-small"

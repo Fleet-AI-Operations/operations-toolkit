@@ -4,9 +4,10 @@ This guide covers how to deploy the Percentage Tool to Vercel.
 
 ## ⚠️ Important Note on AI Models
 
-The Percentage Tool is designed for **Local AI** (via LM Studio). When deploying to Vercel:
-1. **AI_HOST**: You must point this to a publicly accessible endpoint (e.g., an OpenAI-compatible API, a tunneling service like Ngrok for your local machine, or a cloud-hosted LLM).
-2. **Serverless Limits**: Long-running ingestion jobs may exceed Vercel's Serverless Function timeout (10-60s on Hobby/Pro). For massive datasets, local execution is recommended.
+When deploying to Vercel, **use OpenRouter** (cloud-based AI) instead of local LM Studio:
+1. **LM Studio (localhost)**: Cannot be accessed from Vercel's servers
+2. **OpenRouter (Recommended)**: Cloud-based, works perfectly with Vercel
+3. **Serverless Limits**: Long-running ingestion jobs may exceed Vercel's timeout (10-60s on Hobby/Pro). For massive datasets, consider Vercel Pro or Enterprise.
 
 ---
 
@@ -48,13 +49,16 @@ These will automatically start collecting data once deployed to Vercel. Enable t
 
 ## 4. Build Configuration
 
-To ensure Prisma works correctly in the serverless environment, update your `package.json` scripts if they don't already include `prisma generate`:
+The `package.json` is already configured for Vercel deployment with:
 
 ```json
 "scripts": {
-  "build": "prisma generate && next build"
+  "build": "prisma generate && next build",
+  "postinstall": "prisma generate"
 }
 ```
+
+No changes needed - Prisma will automatically generate on deployment.
 
 ## 5. Deployment Steps
 

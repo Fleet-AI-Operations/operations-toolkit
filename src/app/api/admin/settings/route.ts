@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const settings = await prisma.systemSetting.findMany();
-        const map = settings.reduce((acc, s) => ({ ...acc, [s.key]: s.value }), {} as Record<string, string>);
+        const map = settings.reduce((acc: Record<string, string>, s) => ({ ...acc, [s.key]: s.value }), {} as Record<string, string>);
 
         return NextResponse.json({
             ai_provider: map['ai_provider'] || (process.env.OPENROUTER_API_KEY ? 'openrouter' : 'lmstudio'),
