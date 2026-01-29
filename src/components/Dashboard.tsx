@@ -73,12 +73,28 @@ export default function Dashboard() {
         try {
             const res = await fetch('/api/projects');
             const data = await res.json();
+
+            // Check if the response is an error object
+            if (data.error) {
+                console.error('API Error:', data.error);
+                setProjects([]);
+                return;
+            }
+
+            // Ensure data is an array
+            if (!Array.isArray(data)) {
+                console.error('Invalid response format:', data);
+                setProjects([]);
+                return;
+            }
+
             setProjects(data);
             if (data.length > 0 && !selectedProject) {
                 setSelectedProject(data[0]);
             }
         } catch (err) {
             console.error('Failed to fetch projects', err);
+            setProjects([]);
         } finally {
             setLoading(false);
         }
