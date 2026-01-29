@@ -11,9 +11,9 @@ export async function POST() {
     }
 
     try {
-        console.log(`[Reset Password API] Attempting to clear reset flag. ID: ${user.id}, Email: ${user.email}`)
+        console.log(`[Reset Password API] DEEP DIAGNOSTIC - User ID: ${user.id}, Email: ${user.email}`)
         
-        // Use updateMany to be resilient to ID mismatches if email matches
+        // 1. Try standard Prisma update first
         const updateResult = await prisma.profile.updateMany({
             where: {
                 OR: [
@@ -24,20 +24,47 @@ export async function POST() {
             data: { mustResetPassword: false }
         })
 
-        console.log(`[Reset Password API] Update result:`, updateResult)
+        console.log(`[Reset Password API] Prisma updateMany count: ${updateResult.count}`)
+
+        // 2. If ORM didn't catch it, try RAW SQL (Force case-sensitive identifier)
+        let rawCount = 0
+        if (updateResult.count === 0) {
+            console.log(`[Reset Password API] Prisma failed to find record. Trying RAW SQL...`)
+            rawCount = await prisma.$executeRawUnsafe(
+                `UPDATE public.profiles SET "mustResetPassword" = false WHERE id = $1::uuid OR email = $2`,
+                user.id,
+                user.email
+            )
+            console.log(`[Reset Password API] Raw SQL affected rows: ${rawCount}`)
+        }
+
+        // 3. Final verification - fetch the actual state
+        const finalProfile = await prisma.profile.findFirst({
+            where: {
+                OR: [
+                    { id: user.id },
+                    { email: user.email }
+                ]
+            }
+        })
 
         return NextResponse.json({ 
             success: true, 
-            updated: updateResult.count
+            updated: updateResult.count || rawCount,
+            found: !!finalProfile,
+            currentState: finalProfile?.mustResetPassword,
+            diagnostics: {
+                id: user.id,
+                email: user.email,
+                prismaCount: updateResult.count,
+                rawCount: rawCount
+            }
         })
     } catch (error: any) {
-        console.error('[Reset Password API] Update error:', error)
-        
-        // If Prisma fails, it might be because the record doesn't exist or schema mismatch
+        console.error('[Reset Password API] Fatal Error:', error)
         return NextResponse.json({ 
             error: error.message,
-            code: error.code,
-            meta: error.meta
+            stack: error.stack
         }, { status: 500 })
     }
 }

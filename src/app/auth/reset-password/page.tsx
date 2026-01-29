@@ -60,10 +60,15 @@ export default function ResetPasswordPage() {
             }
 
             const data = await res.json();
-            console.log('[Reset Password] API Success:', data);
+            console.log('[Reset Password] API Response Detail:', data);
 
-            if (data.updated === 0) {
-                throw new Error('Your password was updated, but we could not find your profile to clear the "Reset Password" flag. Please contact an administrator.');
+            if (data.updated === 0 || data.currentState === true) {
+                const diag = data.diagnostics || {};
+                const msg = data.updated === 0 
+                    ? `Update failed (0 rows affected). ID: ${diag.id}, Email: ${diag.email}.`
+                    : `Update ran, but the flag remained TRUE. State: ${data.currentState}, Found: ${data.found}.`;
+                
+                throw new Error(`${msg} Please check if you have duplicate records in your profiles table.`);
             }
 
             setSuccess(true);
