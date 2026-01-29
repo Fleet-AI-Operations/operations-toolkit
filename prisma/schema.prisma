@@ -71,6 +71,9 @@ model DataRecord {
   content       String         @db.Text
   metadata      Json?          // Stores all original fields from the source file
   embedding     Float[]        // Vector representation for similarity searches
+  hasBeenReviewed Boolean      @default(false) // Whether a human rater has reviewed this record
+  isCategoryCorrect Boolean?    // Rater's agreement: true if they agree with TOP_10/BOTTOM_10 classification
+  reviewedBy    String?        // TODO: Update to authenticated user once auth is implemented
   
   // AI-generated comparison against the project guidelines
   alignmentAnalysis String?    @db.Text
