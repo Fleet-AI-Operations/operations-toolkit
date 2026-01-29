@@ -141,6 +141,10 @@ export default function Dashboard() {
                     <Link href="/ingest" className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
                         <Database size={18} /> Ingest
                     </Link>
+                    
+                    <Link href={`/topbottom10?projectId=${selectedProject?.id}`} className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
+                        <FileCheck size={18} /> Top/Bottom 10
+                    </Link>
 
                     <Link href="/manage" className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
                         <Settings size={18} /> Manage
