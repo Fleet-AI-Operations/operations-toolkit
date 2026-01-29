@@ -24,7 +24,18 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- 3. Enable RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- 4. Create Policies
+-- 4. Create a helper function to check admin status without recursion
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'ADMIN'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Create Policies
 -- Users can view their own profile
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 
@@ -34,17 +45,9 @@ SELECT USING (auth.uid () = id);
 -- Admins can view and manage all profiles
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.profiles;
 
-CREATE POLICY "Admins can manage all profiles" ON public.profiles FOR ALL USING (
-    EXISTS (
-        SELECT 1
-        FROM public.profiles
-        WHERE
-            id = auth.uid ()
-            AND role = 'ADMIN'
-    )
-);
+CREATE POLICY "Admins can manage all profiles" ON public.profiles FOR ALL USING (public.is_admin ());
 
--- 5. Create a function to handle new user signups
+-- 6. Create a function to handle new user signups
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN

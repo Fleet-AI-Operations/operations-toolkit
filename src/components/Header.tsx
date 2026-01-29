@@ -10,12 +10,20 @@ export default async function Header() {
 
     let profile = null
     if (user) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error } = await supabase
             .from('profiles')
             .select('role')
             .eq('id', user.id)
             .single()
-        profile = profileData as any
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 is 'no rows returned'
+            console.error('[Header] Profile fetch error:', error.message)
+        }
+        
+        // Fallback to role in JWT metadata if DB lookup fails/is empty
+        profile = {
+            role: profileData?.role || user.user_metadata?.role || 'USER'
+        }
     }
 
     return (
