@@ -148,6 +148,14 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
   }
 
   try {
+    console.log(`[AI] Generating embeddings for ${texts.length} items using ${config.provider} (${config.embeddingModel})`);
+
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 60000); // 60 second timeout
+
     const response = await fetch(`${config.baseUrl}/embeddings`, {
       method: 'POST',
       headers: getHeaders(config),
@@ -155,17 +163,26 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
         model: config.embeddingModel,
         input: sanitizedInput,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error(`[AI] Embedding API error (${response.status}):`, errorData);
       throw new Error(`${config.provider} error: ${response.statusText} ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
+    console.log(`[AI] Successfully generated ${data.data?.length || 0} embeddings`);
     return data.data.map((item: any) => item.embedding);
-  } catch (error) {
-    console.error(`Error getting embeddings batch (${config.provider}):`, error);
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error(`[AI] Embedding request timeout after 60s (${config.provider})`);
+    } else {
+      console.error(`[AI] Error getting embeddings batch (${config.provider}):`, error);
+    }
     // Return empty embeddings for the batch if one fails
     return texts.map(() => []);
   }

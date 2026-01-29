@@ -140,11 +140,17 @@ async function vectorizeJob(jobId: string, projectId: string) {
     // We prioritize records with empty embeddings to ensure 100% coverage.
     // Using cursor-based pagination for stability during updates.
     let cursor: string | undefined;
+    let totalProcessed = 0;
+
+    console.log(`[Vectorize] Starting vectorization for job ${jobId}, project ${projectId}`);
 
     while (true) {
         // Check for cancellation
         const job = await prisma.ingestJob.findUnique({ where: { id: jobId }, select: { status: true } });
-        if (job?.status === 'CANCELLED') break;
+        if (job?.status === 'CANCELLED') {
+            console.log(`[Vectorize] Job ${jobId} was cancelled`);
+            break;
+        }
 
         const batch = await prisma.dataRecord.findMany({
             where: {
@@ -157,13 +163,19 @@ async function vectorizeJob(jobId: string, projectId: string) {
             orderBy: { id: 'asc' } // Stable ordering
         });
 
-        if (batch.length === 0) break;
+        if (batch.length === 0) {
+            console.log(`[Vectorize] No more records to process. Total processed: ${totalProcessed}`);
+            break;
+        }
+
+        console.log(`[Vectorize] Processing batch of ${batch.length} records (total so far: ${totalProcessed})`);
 
         // Generate embeddings
         const contents = batch.map(r => r.content);
         const embeddings = await getEmbeddings(contents);
 
         // Save back to DB
+        let savedCount = 0;
         for (let i = 0; i < batch.length; i++) {
             const vector = embeddings[i];
             if (vector && vector.length > 0) {
@@ -171,11 +183,19 @@ async function vectorizeJob(jobId: string, projectId: string) {
                     where: { id: batch[i].id },
                     data: { embedding: vector }
                 });
+                savedCount++;
+            } else {
+                console.warn(`[Vectorize] Empty embedding for record ${batch[i].id}`);
             }
         }
 
+        totalProcessed += savedCount;
+        console.log(`[Vectorize] Saved ${savedCount} embeddings in this batch`);
+
         cursor = batch[batch.length - 1].id;
     }
+
+    console.log(`[Vectorize] Vectorization complete for job ${jobId}. Total: ${totalProcessed} records`);
 }
 
 /**
