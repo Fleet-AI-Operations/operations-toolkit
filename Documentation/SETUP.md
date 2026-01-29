@@ -21,12 +21,18 @@ Create a `.env` file in the root directory. Copy from `.env.example` and configu
 **Supabase (Recommended)**:
 1. Create a free project at [supabase.com](https://supabase.com)
 2. Get your database password and connection string from Project Settings → Database
-3. Get your Project URL and Anon Key from Project Settings → API
+3. Get your Project URL and Publishable Key from Project Settings → API
 
 ```env
+# For Prisma database access
+# Local development: Use direct connection (port 5432)
 DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+# Production (Vercel): Use Transaction Pooler (port 6543)
+# DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+
+# For Supabase client SDK
 NEXT_PUBLIC_SUPABASE_URL="https://[PROJECT-REF].supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
 ```
 
 **Local PostgreSQL**:

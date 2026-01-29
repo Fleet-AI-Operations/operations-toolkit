@@ -17,8 +17,8 @@ For production deployments, **Supabase** is highly recommended as it pairs perfe
 
 ### Option A: Supabase (Recommended)
 1. Create a project at [supabase.com](https://supabase.com).
-2. Go to **Project Settings > Data API** to get your URL and Anon Key.
-3. Go to **Project Settings > Database** to get your Connection String (URI).
+2. Go to **Project Settings > API** to get your Project URL and Publishable Key.
+3. Go to **Project Settings > Database** to get your Connection Pooling string (Transaction Pooler with port 6543).
 4. Add these to your Vercel Environment Variables (see below).
 
 ### Option B: Vercel Postgres
@@ -32,12 +32,12 @@ In your Vercel Project Settings, add the following Environment Variables:
 
 | Variable | Description |
 | :--- | :--- |
-| `DATABASE_URL` | Your full Postgres connection string (Supabase or Vercel Postgres). |
+| `DATABASE_URL` | Your Postgres Transaction Pooler connection string (use port 6543 for Vercel). |
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase Project URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase Project Anon Key. |
-| `AI_HOST` | Public URL of your AI provider (e.g., `https://api.openai.com/v1`). |
-| `LLM_MODEL` | The model name (e.g., `gpt-4o` or your local model id). |
-| `EMBEDDING_MODEL` | The embedding model name. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Your Supabase Publishable Key (format: `sb_publishable_...`). |
+| `OPENROUTER_API_KEY` | Your OpenRouter API key (required for Vercel). |
+| `OPENROUTER_LLM_MODEL` | The LLM model name (e.g., `anthropic/claude-3.5-sonnet`). |
+| `OPENROUTER_EMBEDDING_MODEL` | The embedding model name (e.g., `openai/text-embedding-3-small`). |
 
 ## 3. Analytics & Speed Insights
 
