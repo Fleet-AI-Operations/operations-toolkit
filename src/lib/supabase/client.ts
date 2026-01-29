@@ -14,7 +14,7 @@ export function createClient() {
     }
 
     if (!supabaseUrl || !supabaseKey) {
-        const errorMsg = 'SUPABASE_URL or ANAL_KEY/PUBLISHABLE_KEY is missing. Check your NEXT_PUBLIC_ variables.'
+        const errorMsg = 'Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY) are missing in the browser. Please add them to your Vercel Environment Variables.'
         console.error('[Supabase Client]', errorMsg)
         return null;
     }
