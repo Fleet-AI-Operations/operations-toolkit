@@ -58,7 +58,9 @@ export async function middleware(request: NextRequest) {
         // no user, redirect to login page
         const url = request.nextUrl.clone()
         url.pathname = '/login'
-        return NextResponse.redirect(url)
+        const response = NextResponse.redirect(url)
+        response.headers.set('Cache-Control', 'no-store, max-age=0')
+        return response
     }
 
     if (user) {
@@ -72,13 +74,17 @@ export async function middleware(request: NextRequest) {
         if (profile?.role === 'PENDING' && !request.nextUrl.pathname.startsWith('/waiting-approval') && !request.nextUrl.pathname.startsWith('/auth')) {
             const url = request.nextUrl.clone()
             url.pathname = '/waiting-approval'
-            return NextResponse.redirect(url)
+            const response = NextResponse.redirect(url)
+            response.headers.set('Cache-Control', 'no-store, max-age=0')
+            return response
         }
 
         if (profile?.mustResetPassword && !request.nextUrl.pathname.startsWith('/auth/reset-password') && !request.nextUrl.pathname.startsWith('/auth/callback')) {
             const url = request.nextUrl.clone()
             url.pathname = '/auth/reset-password'
-            return NextResponse.redirect(url)
+            const response = NextResponse.redirect(url)
+            response.headers.set('Cache-Control', 'no-store, max-age=0')
+            return response
         }
     }
 
