@@ -1,6 +1,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { signOut } from '@/app/api/auth/actions'
+import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 
 export default async function Header() {
@@ -8,6 +9,11 @@ export default async function Header() {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) return null
+
+    // Fetch user profile to get the role
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id }
+    })
 
     return (
         <header style={{ 
@@ -22,14 +28,27 @@ export default async function Header() {
             top: 0,
             zIndex: 100
         }}>
-            <Link href="/" style={{ fontSize: '1.2rem', fontWeight: 'bold' }} className="premium-gradient">
-                Percentage Tool
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                <Link href="/" style={{ fontSize: '1.2rem', fontWeight: 'bold' }} className="premium-gradient">
+                    Percentage Tool
+                </Link>
+                
+                {profile?.role === 'ADMIN' && (
+                    <Link href="/admin/users" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
+                        Admin
+                    </Link>
+                )}
+            </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <span style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.6)' }}>
-                    {user.email}
-                </span>
+                <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#fff' }}>
+                        {user.email}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {profile?.role || 'USER'}
+                    </div>
+                </div>
                 <form action={signOut}>
                     <button type="submit" style={{ 
                         fontSize: '0.9rem', 

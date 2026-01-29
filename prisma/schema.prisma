@@ -13,6 +13,8 @@ datasource db {
 model Project {
   id           String        @id @default(cuid())
   name         String        @unique
+  ownerId      String?
+  owner        Profile?      @relation(fields: [ownerId], references: [id])
   records      DataRecord[]
   ingestJobs   IngestJob[]
   analyticsJobs AnalyticsJob[]
@@ -29,6 +31,28 @@ model Project {
   updatedAt    DateTime      @updatedAt
 
   @@map("projects")
+}
+
+enum UserRole {
+  USER
+  MANAGER
+  ADMIN
+}
+
+/**
+ * PROFILE: Application-specific user data.
+ * The id field must match the Supabase auth.users(id).
+ */
+model Profile {
+  id        String   @id
+  email     String   @unique
+  role      UserRole @default(USER)
+  projects  Project[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
 }
 
 // ... (existing RecordType/RecordCategory)

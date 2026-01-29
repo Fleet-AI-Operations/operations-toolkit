@@ -15,6 +15,8 @@ services:
       - .:/app
       - /app/node_modules
       - /app/.next
+    env_file:
+      - .env
     environment:
       - HOSTNAME=0.0.0.0
       # Use the internal docker service name 'db' as the host
