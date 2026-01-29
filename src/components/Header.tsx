@@ -10,9 +10,12 @@ export default async function Header() {
 
     let profile = null
     if (user) {
-        profile = await prisma.profile.findUnique({
-            where: { id: user.id }
-        })
+        const { data: profileData } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+        profile = profileData as any
     }
 
     return (

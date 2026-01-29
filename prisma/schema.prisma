@@ -13,7 +13,7 @@ datasource db {
 model Project {
   id           String        @id @default(cuid())
   name         String        @unique
-  ownerId      String?
+  ownerId      String?       @db.Uuid
   owner        Profile?      @relation(fields: [ownerId], references: [id])
   records      DataRecord[]
   ingestJobs   IngestJob[]
@@ -45,14 +45,14 @@ enum UserRole {
  * The id field must match the Supabase auth.users(id).
  */
 model Profile {
-  id        String   @id
+  id        String   @id @db.Uuid
   email     String   @unique
   role      UserRole @default(PENDING)
-  mustResetPassword Boolean @default(false)
+  mustResetPassword Boolean @default(false) @map("mustResetPassword")
   projects  Project[]
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
 
   @@map("profiles")
 }

@@ -12,18 +12,22 @@ export async function updateUserRole(userId: string, role: UserRole) {
     if (!user) throw new Error('Unauthorized')
 
     // Check if the current user is an admin
-    const adminProfile = await prisma.profile.findUnique({
-        where: { id: user.id }
-    })
+    const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
 
-    if (adminProfile?.role !== 'ADMIN') {
+    if ((adminProfile as any)?.role !== 'ADMIN') {
         throw new Error('Forbidden: Only admins can delegate roles')
     }
 
-    await prisma.profile.update({
-        where: { id: userId },
-        data: { role }
-    })
+    const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ role })
+        .eq('id', userId)
+
+    if (updateError) throw updateError
 
     revalidatePath('/admin/users')
 }

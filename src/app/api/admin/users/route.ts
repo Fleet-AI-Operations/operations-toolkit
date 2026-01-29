@@ -12,11 +12,13 @@ export async function GET() {
     }
 
     // Check if the requesting user is an ADMIN
-    const adminProfile = await prisma.profile.findUnique({
-        where: { id: user.id }
-    })
+    const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
 
-    if (adminProfile?.role !== 'ADMIN') {
+    if ((adminProfile as any)?.role !== 'ADMIN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -38,11 +40,13 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const adminProfile = await prisma.profile.findUnique({
-        where: { id: user.id }
-    })
+    const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
 
-    if (adminProfile?.role !== 'ADMIN') {
+    if ((adminProfile as any)?.role !== 'ADMIN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -53,10 +57,14 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ error: 'Missing userId or role' }, { status: 400 })
         }
 
-        const updatedProfile = await prisma.profile.update({
-            where: { id: userId },
-            data: { role }
-        })
+        const { data: updatedProfile, error: updateError } = await supabase
+            .from('profiles')
+            .update({ role })
+            .eq('id', userId)
+            .select()
+            .single()
+
+        if (updateError) throw updateError
 
         return NextResponse.json(updatedProfile)
     } catch (error: any) {
@@ -72,11 +80,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const adminProfile = await prisma.profile.findUnique({
-        where: { id: adminUser.id }
-    })
+    const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', adminUser.id)
+        .single()
 
-    if (adminProfile?.role !== 'ADMIN') {
+    if ((adminProfile as any)?.role !== 'ADMIN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -100,13 +110,17 @@ export async function POST(req: Request) {
         if (authError) throw authError
 
         // 2. Update the profile created by the trigger to set role and forced reset
-        const updatedProfile = await prisma.profile.update({
-            where: { id: authData.user.id },
-            data: { 
-                role: role as any,
+        const { data: updatedProfile, error: updateError } = await adminClient
+            .from('profiles')
+            .update({ 
+                role,
                 mustResetPassword: true 
-            }
-        })
+            })
+            .eq('id', authData.user.id)
+            .select()
+            .single()
+
+        if (updateError) throw updateError
 
         return NextResponse.json(updatedProfile)
     } catch (error: any) {

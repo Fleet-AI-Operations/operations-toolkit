@@ -13,10 +13,12 @@ export async function POST() {
 
     try {
         // Update the profile to clear the reset flag
-        await prisma.profile.update({
-            where: { id: user.id },
-            data: { mustResetPassword: false }
-        })
+        const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ mustResetPassword: false })
+            .eq('id', user.id)
+
+        if (updateError) throw updateError
 
         return NextResponse.json({ success: true })
     } catch (error: any) {
