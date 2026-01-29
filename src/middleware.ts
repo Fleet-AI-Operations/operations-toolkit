@@ -7,15 +7,15 @@ export async function middleware(request: NextRequest) {
     })
 
     // Exhaustive log of ALL environment variable keys to see what Vercel is actually passing to the Edge Runtime
-    const allKeys = Object.keys(process.env)
+    const allKeys = Object.keys(process.env).sort()
     if (request.nextUrl.pathname !== '/favicon.ico' && !request.nextUrl.pathname.startsWith('/_next')) {
         console.log('[Middleware] Total env keys:', allKeys.length)
         console.log('[Middleware] Environment Fingerprint:', {
             isVercel: !!process.env.VERCEL,
-            isEdge: true, // Middleware always runs in Edge or Node-like env in Next.js
             nodeEnv: process.env.NODE_ENV,
         })
-        console.log('[Middleware] Supabase/Next Keys Found:', allKeys.filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('next_public')).join(', '))
+        console.log('[Middleware] Supabase/Next Any Case Search:', allKeys.filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('next_public')).join(', '))
+        console.log('[Middleware] Other Auth/Key Search:', allKeys.filter(k => k.toLowerCase().includes('auth') || k.toLowerCase().includes('api') || k.toLowerCase().includes('secret')).join(', '))
     }
 
     // Unified environment variable extraction

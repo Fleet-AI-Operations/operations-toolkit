@@ -6,16 +6,18 @@ export async function createClient() {
     const cookieStore = await cookies()
 
     // Exhaustive log of ALL environment variable keys to see what Vercel is actually passing
-    const allKeys = Object.keys(process.env)
+    const allKeys = Object.keys(process.env).sort()
     console.log('[Supabase Server] Total env keys:', allKeys.length)
-    console.log('[Supabase Server] Node Version:', process.version)
+    console.log('[Supabase Server] First 5 keys:', allKeys.slice(0, 5).join(', '))
+    console.log('[Supabase Server] Last 5 keys:', allKeys.slice(-5).join(', '))
     console.log('[Supabase Server] Environment Fingerprint:', {
         isVercel: !!process.env.VERCEL,
-        isDocker: !!process.env.DOCKER_CONTAINER || !!process.env.HOSTNAME?.includes('-'),
+        vercelUrl: process.env.VERCEL_URL,
         nodeEnv: process.env.NODE_ENV,
         vercelEnv: process.env.VERCEL_ENV
     })
-    console.log('[Supabase Server] Supabase/Next Keys Found:', allKeys.filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('next_public')).join(', '))
+    console.log('[Supabase Server] Supabase/Next Any Case Search:', allKeys.filter(k => k.toLowerCase().includes('supabase') || k.toLowerCase().includes('next_public')).join(', '))
+    console.log('[Supabase Server] Other Auth/Key Search:', allKeys.filter(k => k.toLowerCase().includes('auth') || k.toLowerCase().includes('api') || k.toLowerCase().includes('secret')).join(', '))
 
     // Direct access instead of dynamic lookup for maximum compatibility
     const supabaseUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim()?.replace(/['"]/g, '')
