@@ -73,12 +73,18 @@ export default function Dashboard() {
         try {
             const res = await fetch('/api/projects');
             const data = await res.json();
-            setProjects(data);
-            if (data.length > 0 && !selectedProject) {
-                setSelectedProject(data[0]);
+            if (Array.isArray(data)) {
+                setProjects(data);
+                if (data.length > 0 && !selectedProject) {
+                    setSelectedProject(data[0]);
+                }
+            } else {
+                console.error('Failed to fetch projects:', data.error || 'Unknown error');
+                setProjects([]);
             }
         } catch (err) {
             console.error('Failed to fetch projects', err);
+            setProjects([]);
         } finally {
             setLoading(false);
         }
