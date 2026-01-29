@@ -5,14 +5,16 @@ import { cookies } from 'next/headers'
 export async function createClient() {
     const cookieStore = await cookies()
 
-    // Standardize env var extraction
-    const getEnv = (name: string) => process.env[name]?.trim()?.replace(/['"]/g, '')
+    // Exhaustive log of ALL environment variable keys to see what Vercel is actually passing
+    const allKeys = Object.keys(process.env)
+    console.log('[Supabase Server] All available env keys:', allKeys.filter(k => k.includes('SUPABASE') || k.includes('NEXT_PUBLIC')).join(', '))
 
-    const supabaseUrl = getEnv('SUPABASE_URL') || getEnv('NEXT_PUBLIC_SUPABASE_URL')
-    const supabaseKey = getEnv('SUPABASE_PUBLISHABLE_KEY') ||
-                        getEnv('SUPABASE_ANON_KEY') ||
-                        getEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') ||
-                        getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+    // Direct access instead of dynamic lookup for maximum compatibility
+    const supabaseUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.trim()?.replace(/['"]/g, '')
+    const supabaseKey = (process.env.SUPABASE_PUBLISHABLE_KEY || 
+                        process.env.SUPABASE_ANON_KEY || 
+                        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
+                        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)?.trim()?.replace(/['"]/g, '')
 
     console.log('[Supabase Server] URL:', supabaseUrl ? `Set (len: ${supabaseUrl.length})` : 'MISSING')
     console.log('[Supabase Server] Key:', supabaseKey ? `Set (len: ${supabaseKey.length})` : 'MISSING')
