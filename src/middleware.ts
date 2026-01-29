@@ -61,6 +61,21 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url)
     }
 
+    if (user) {
+        // Check for PENDING role
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+        if (profile?.role === 'PENDING' && !request.nextUrl.pathname.startsWith('/waiting-approval') && !request.nextUrl.pathname.startsWith('/auth')) {
+            const url = request.nextUrl.clone()
+            url.pathname = '/waiting-approval'
+            return NextResponse.redirect(url)
+        }
+    }
+
     return supabaseResponse
 }
 

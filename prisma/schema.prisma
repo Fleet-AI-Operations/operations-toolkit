@@ -34,6 +34,7 @@ model Project {
 }
 
 enum UserRole {
+  PENDING
   USER
   MANAGER
   ADMIN
@@ -46,7 +47,7 @@ enum UserRole {
 model Profile {
   id        String   @id
   email     String   @unique
-  role      UserRole @default(USER)
+  role      UserRole @default(PENDING)
   projects  Project[]
   
   createdAt DateTime @default(now())
