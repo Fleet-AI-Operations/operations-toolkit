@@ -90,31 +90,6 @@ npx prisma generate
 npx prisma db push
 ```
 
-### Supabase Profile Trigger (Required)
-
-If using Supabase, you must create a database trigger to automatically create user profiles when users sign up. Run this SQL in the **Supabase SQL Editor** (Dashboard → SQL Editor → New Query):
-
-```sql
--- 1. Create a function to handle new user signups
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (new.id, new.email, 'USER');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 2. Create the trigger to execute the function on signup
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-```
-
-This trigger is located at `prisma/migrations/profile_trigger.sql` for reference.
-
-**Note:** This is a one-time setup. The trigger persists in Supabase and doesn't need to be re-run.
-
 ## 4. AI Provider Setup
 
 Choose **one** of the following options:
@@ -199,15 +174,3 @@ npm run test:e2e
 - **Re-Generation**: If you pull new updates, run `npx prisma generate` to ensure the background job types are synced.
 - **Port Conflict**: If port 3000 is busy, use `PORT=3001 npm run dev`.
 - **Worker Recovery**: The system automatically attempts to resume `QUEUED_FOR_VEC` jobs on startup if a project is active.
-
-## Database Migrations
-
-When making schema changes to `prisma/schema.prisma`, use the proper migration workflow instead of `db push`:
-
-```bash
-npx prisma migrate dev --name descriptive_migration_name
-```
-
-This creates a versioned migration file that will be automatically deployed to production via GitHub Actions when merged to `main`.
-
-See [MIGRATION_AUTOMATION.md](./MIGRATION_AUTOMATION.md) for the complete migration workflow and CI/CD setup.

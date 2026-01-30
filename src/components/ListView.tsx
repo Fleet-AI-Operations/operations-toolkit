@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, LayoutDashboard, FileCheck, Sparkles, ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, FileCheck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 interface Record {
@@ -41,75 +41,30 @@ function ListContent() {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
-    const [sortBy, setSortBy] = useState<'createdAt' | 'alignmentScore' | 'environment'>('createdAt');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
     const pageSize = 10;
 
-    // Reset page to 1 when filter params change
     useEffect(() => {
-        setPage(1);
-    }, [projectId, type, category]);
+        if (projectId && type && category) {
+            fetchRecords();
+        }
+    }, [projectId, type, category, page]);
 
-    useEffect(() => {
-        // Handle missing required params
-        if (!projectId || !type || !category) {
-            setLoading(false);
+    const fetchRecords = async () => {
+        setLoading(true);
+        try {
+            const skip = (page - 1) * pageSize;
+            const res = await fetch(`/api/records?projectId=${projectId}&type=${type}&category=${category}&skip=${skip}&take=${pageSize}`);
+            const data = await res.json();
+            setRecords(data.records || []);
+            setTotal(data.total || 0);
+        } catch (err) {
+            console.error('Failed to fetch records', err);
             setRecords([]);
             setTotal(0);
-            return;
+        } finally {
+            setLoading(false);
         }
-
-        const abortController = new AbortController();
-
-        const fetchRecords = async () => {
-            setLoading(true);
-            try {
-                const skip = (page - 1) * pageSize;
-                const params = new URLSearchParams({
-                    projectId,
-                    type,
-                    category,
-                    skip: String(skip),
-                    take: String(pageSize),
-                    sortBy,
-                    sortOrder,
-                });
-
-                const res = await fetch(`/api/records?${params.toString()}`, {
-                    signal: abortController.signal,
-                });
-                const data = await res.json();
-                setRecords(data.records || []);
-                setTotal(data.total || 0);
-            } catch (err) {
-                // Ignore abort errors
-                if (err instanceof Error && err.name === 'AbortError') return;
-                console.error('Failed to fetch records', err);
-                setRecords([]);
-                setTotal(0);
-            } finally {
-                if (!abortController.signal.aborted) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchRecords();
-
-        return () => {
-            abortController.abort();
-        };
-    }, [projectId, type, category, page, sortBy, sortOrder]);
-
-    const handleSortChange = (newSortBy: typeof sortBy) => {
-        setSortBy(newSortBy);
-        setPage(1); // Reset to first page on sort change
-    };
-
-    const toggleSortOrder = () => {
-        setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
-        setPage(1);
     };
 
 
@@ -132,53 +87,8 @@ function ListContent() {
             <main>
 
                 <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
-                    <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                        <span style={{ fontSize: '0.9rem', opacity: 0.6 }}>
-                            {total === 0
-                                ? 'No records found'
-                                : `Showing ${((page - 1) * pageSize) + 1} - ${Math.min(page * pageSize, total)} of ${total}`
-                            }
-                        </span>
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                            {/* Sort Controls */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                <ArrowUpDown size={16} style={{ opacity: 0.6 }} />
-                                <select
-                                    aria-label="Sort by"
-                                    value={sortBy}
-                                    onChange={(e) => handleSortChange(e.target.value as typeof sortBy)}
-                                    style={{
-                                        background: 'none',
-                                        color: 'white',
-                                        border: 'none',
-                                        outline: 'none',
-                                        fontSize: '0.85rem',
-                                        cursor: 'pointer',
-                                        padding: '2px 4px',
-                                    }}
-                                >
-                                    <option value="createdAt" style={{ background: '#1a1a1a' }}>Date Created</option>
-                                    <option value="alignmentScore" style={{ background: '#1a1a1a' }}>Alignment Score</option>
-                                    <option value="environment" style={{ background: '#1a1a1a' }}>Environment</option>
-                                </select>
-                                <button
-                                    type="button"
-                                    onClick={toggleSortOrder}
-                                    style={{
-                                        background: 'rgba(0, 112, 243, 0.1)',
-                                        border: '1px solid rgba(0, 112, 243, 0.2)',
-                                        borderRadius: '4px',
-                                        padding: '4px 6px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                    }}
-                                    title={sortOrder === 'desc' ? 'Descending (highest first)' : 'Ascending (lowest first)'}
-                                >
-                                    {sortOrder === 'desc' ? <ArrowDown size={14} color="var(--accent)" /> : <ArrowUp size={14} color="var(--accent)" />}
-                                </button>
-                            </div>
-                        </div>
+                    <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.9rem', opacity: 0.6 }}>Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, total)} of {total}</span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                                 className="btn-outline"

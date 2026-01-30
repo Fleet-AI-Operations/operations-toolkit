@@ -129,143 +129,52 @@ async function processJobs(projectId: string) {
 /**
  * Phase 2: Vectorization
  * Iterates through records in the project that lack embeddings and generates them using the active AI provider.
- *
- * Key improvements:
- * - Progress tracking: Updates job.totalRecords and job.savedCount for UI visibility
- * - Batch transactions: Uses prisma.$transaction for efficient bulk updates
- * - Infinite loop prevention: Tracks failed record IDs to exclude from subsequent queries
- * - Error handling: Wraps AI calls in try/catch with retry logic
+ * 
+ * Note: Scoped to the Project ID. This serves as a self-healing mechanism: any record in the project
+ * missing an embedding (from this job or previous failed jobs) will be processed.
  */
 async function vectorizeJob(jobId: string, projectId: string) {
     const RECORDS_BATCH_SIZE = 50;
-    const MAX_CONSECUTIVE_FAILURES = 3;
 
-    // Track IDs that fail to vectorize to prevent infinite loops
-    const failedRecordIds = new Set<string>();
-
-    // Count total records needing embeddings for progress tracking
-    const totalNeedingEmbeddings = await prisma.dataRecord.count({
-        where: {
-            projectId,
-            embedding: { equals: [] }
-        }
-    });
-
-    // Update job with total count for UI progress bar
-    await prisma.ingestJob.update({
-        where: { id: jobId },
-        data: {
-            totalRecords: totalNeedingEmbeddings,
-            savedCount: 0  // Reset for vectorization phase
-        }
-    });
-
-    let processedCount = 0;
-    let consecutiveFailures = 0;
+    // Fetch records that need embeddings (empty arrays)
+    // We prioritize records with empty embeddings to ensure 100% coverage.
+    // Using cursor-based pagination for stability during updates.
+    let cursor: string | undefined;
 
     while (true) {
         // Check for cancellation
         const job = await prisma.ingestJob.findUnique({ where: { id: jobId }, select: { status: true } });
         if (job?.status === 'CANCELLED') break;
 
-        // Fetch records that still need embeddings, excluding known failures
         const batch = await prisma.dataRecord.findMany({
             where: {
                 projectId,
-                embedding: { equals: [] },
-                ...(failedRecordIds.size > 0 ? { id: { notIn: Array.from(failedRecordIds) } } : {})
+                embedding: { equals: [] }
             },
             take: RECORDS_BATCH_SIZE,
-            orderBy: { id: 'asc' }
+            cursor: cursor ? { id: cursor } : undefined,
+            skip: cursor ? 1 : 0,
+            orderBy: { id: 'asc' } // Stable ordering
         });
 
         if (batch.length === 0) break;
 
-        // Generate embeddings with error handling
-        let embeddings: number[][];
-        try {
-            const contents = batch.map(r => r.content);
-            embeddings = await getEmbeddings(contents);
-        } catch (error) {
-            consecutiveFailures++;
-            console.error(`Vectorization API error (attempt ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}):`, error);
+        // Generate embeddings
+        const contents = batch.map(r => r.content);
+        const embeddings = await getEmbeddings(contents);
 
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                await prisma.ingestJob.update({
-                    where: { id: jobId },
-                    data: {
-                        status: 'FAILED',
-                        error: `Embedding API error: ${error instanceof Error ? error.message : 'Unknown error'}. Check AI provider connection.`
-                    }
-                });
-                return;
-            }
-
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            continue;
-        }
-
-        // Check if embedding generation completely failed (all empty)
-        const allFailed = embeddings.every(e => !e || e.length === 0);
-        if (allFailed) {
-            consecutiveFailures++;
-            console.error(`Vectorization batch returned empty (attempt ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`);
-
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                await prisma.ingestJob.update({
-                    where: { id: jobId },
-                    data: {
-                        status: 'FAILED',
-                        error: `Embedding generation failed after ${MAX_CONSECUTIVE_FAILURES} consecutive attempts. Check AI provider connection.`
-                    }
-                });
-                return;
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            continue;
-        }
-
-        // Reset consecutive failures on any success
-        consecutiveFailures = 0;
-
-        // Prepare batch updates - collect successful embeddings
-        const updates: { id: string; embedding: number[] }[] = [];
+        // Save back to DB
         for (let i = 0; i < batch.length; i++) {
             const vector = embeddings[i];
             if (vector && vector.length > 0) {
-                updates.push({ id: batch[i].id, embedding: vector });
-            } else {
-                // Track failed records to skip in future batches (prevents infinite loop)
-                failedRecordIds.add(batch[i].id);
+                await prisma.dataRecord.update({
+                    where: { id: batch[i].id },
+                    data: { embedding: vector }
+                });
             }
         }
 
-        // Batch update using transaction for performance (avoids N+1 problem)
-        if (updates.length > 0) {
-            await prisma.$transaction(
-                updates.map(u =>
-                    prisma.dataRecord.update({
-                        where: { id: u.id },
-                        data: { embedding: u.embedding }
-                    })
-                )
-            );
-        }
-
-        processedCount += updates.length;
-
-        // Update progress for UI polling (Nielsen heuristic: visibility of system status)
-        await prisma.ingestJob.update({
-            where: { id: jobId },
-            data: { savedCount: processedCount }
-        });
-    }
-
-    // Log if any records permanently failed
-    if (failedRecordIds.size > 0) {
-        console.warn(`Vectorization completed with ${failedRecordIds.size} records that could not be embedded.`);
+        cursor = batch[batch.length - 1].id;
     }
 }
 

@@ -9,7 +9,6 @@ Detailed documentation for developers and users can be found in the `Documentati
 - [**Setup Guide**](./Documentation/SETUP.md) - How to configure your environment, database, and local AI (LM Studio).
 - [**User Guide**](./Documentation/USER_GUIDE.md) - How to manage projects, ingest data, and interpret AI alignment scores.
 - [**User Management**](./Documentation/USER_MANAGEMENT.md) - Approval flows, roles, and access delegation.
-- [**Database Migrations**](./Documentation/MIGRATION_AUTOMATION.md) - Prisma migration workflow and automated CI/CD deployment.
 - [**Vercel Deployment**](./Documentation/VERCEL.md) - Instructions for deploying to a Vercel serverless environment.
 
 ### 🏗 Architecture
