@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide covers how to run and write tests for the Percentage Tool with the local Supabase setup.
+This guide covers how to run and write tests for the Operations Tools with the local Supabase setup.
 
 ## 📋 Table of Contents
 

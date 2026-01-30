@@ -1,4 +1,4 @@
-# Authentication in Percentage Tool
+# Authentication in Operations Tools
 
 The project uses **Supabase Auth (SSR)** as its core authentication and authorization engine.
 

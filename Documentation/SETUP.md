@@ -1,6 +1,6 @@
 # Setup Guide
 
-This guide will help you get the Percentage Tool up and running on your local machine.
+This guide will help you get the Operations Tools up and running on your local machine.
 
 ## Prerequisites
 

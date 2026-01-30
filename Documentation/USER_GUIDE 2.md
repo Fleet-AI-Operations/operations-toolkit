@@ -1,10 +1,10 @@
 # User Guide
 
-Welcome to the Percentage Tool! This guide explains how to use the application to analyze task and feedback data against project guidelines.
+Welcome to the Operations Tools! This guide explains how to use the application to analyze task and feedback data against project guidelines.
 
 ## Overview
 
-The Percentage Tool is designed to help quality assurance leads and AI alignment experts evaluate large datasets. It uses local AI models to provide high-quality analysis without your data leaving your machine.
+The Operations Tools is designed to help quality assurance leads and AI alignment experts evaluate large datasets. It uses local AI models to provide high-quality analysis without your data leaving your machine.
 
 ## Getting Started
 

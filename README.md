@@ -1,4 +1,4 @@
-# Percentage Tool
+# Operations Tools
 
 A local-first AI alignment and data ingestion tool for evaluating task and feedback data.
 

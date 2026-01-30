@@ -38,7 +38,7 @@ export default async function WaitingApprovalPage() {
                 }}>⏳</div>
                 <h1 className="premium-gradient" style={{ marginBottom: '16px', fontSize: '2rem' }}>Account Pending</h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.7)', lineHeight: '1.6', marginBottom: '32px' }}>
-                    Welcome to the <b>Percentage Tool</b>. Your account has been created successfully, but it requires approval from an administrator before you can access the dashboard.
+                    Welcome to the <b>Operations Tools</b>. Your account has been created successfully, but it requires approval from an administrator before you can access the dashboard.
                 </p>
                 <div style={{ 
                     background: 'rgba(0, 112, 243, 0.1)', 

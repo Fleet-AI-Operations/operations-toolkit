@@ -1,6 +1,6 @@
 # Architectural Overview
 
-The Percentage Tool is built with a **Local-First AI** philosophy. Heavy lifting (LLM analysis and Vector Embeddings) runs on local hardware via LM Studio, ensuring data privacy and zero API costs.
+The Operations Tools is built with a **Local-First AI** philosophy. Heavy lifting (LLM analysis and Vector Embeddings) runs on local hardware via LM Studio, ensuring data privacy and zero API costs.
 
 ## System Diagram
 

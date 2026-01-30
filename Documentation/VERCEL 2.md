@@ -1,6 +1,6 @@
 # Vercel Deployment Guide
 
-This guide covers how to deploy the Percentage Tool to Vercel.
+This guide covers how to deploy the Operations Tools to Vercel.
 
 ## ⚠️ Important Note on AI Models
 

@@ -1,6 +1,6 @@
 # Docker Deployment
 
-This directory contains Docker configuration for running the Percentage Tool in a containerized environment.
+This directory contains Docker configuration for running the Operations Tools in a containerized environment.
 
 ## 🚀 Quick Start
 

@@ -41,7 +41,7 @@ export default async function Header() {
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                 <Link href="/" style={{ fontSize: '1.2rem', fontWeight: 'bold' }} className="premium-gradient">
-                    Percentage Tool
+                    Operations Tools
                 </Link>
                 
                 {profile?.role === 'ADMIN' && (

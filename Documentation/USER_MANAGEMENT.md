@@ -1,6 +1,6 @@
 # User Management & Access Delegation
 
-The Percentage Tool uses a hybrid authentication and authorization system. **Supabase Auth** handles identities (emails/passwords), while a **Prisma-managed `profiles` table** handles application-specific roles and access states.
+The Operations Tools uses a hybrid authentication and authorization system. **Supabase Auth** handles identities (emails/passwords), while a **Prisma-managed `profiles` table** handles application-specific roles and access states.
 
 ## 1. Automated Onboarding (The Approval Flow)
 

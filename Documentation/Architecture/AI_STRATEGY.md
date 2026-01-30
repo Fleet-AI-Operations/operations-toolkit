@@ -1,6 +1,6 @@
 # AI Strategy & Alignment Logic
 
-The core value of the Percentage Tool is its ability to ground AI analysis in specific project guidelines using local-first processing.
+The core value of the Operations Tools is its ability to ground AI analysis in specific project guidelines using local-first processing.
 
 ## Guideline Alignment Check (RAG)
 

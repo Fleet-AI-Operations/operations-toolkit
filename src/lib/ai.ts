@@ -109,7 +109,7 @@ function getHeaders(config: ProviderConfig): Record<string, string> {
   if (config.provider === 'openrouter' && config.apiKey) {
     headers['Authorization'] = `Bearer ${config.apiKey}`;
     headers['HTTP-Referer'] = process.env.OPENROUTER_REFERER || 'http://localhost:3000';
-    headers['X-Title'] = process.env.OPENROUTER_TITLE || 'Percentage Tool';
+    headers['X-Title'] = process.env.OPENROUTER_TITLE || 'Operations Tools';
   }
 
   return headers;
