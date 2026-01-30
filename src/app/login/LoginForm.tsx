@@ -1,12 +1,18 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 
-export function LoginForm({ error: initialError, message }: { error?: string; message?: string }) {
-  const router = useRouter()
-  const [error, setError] = useState(initialError)
+export function LoginForm() {
+  const searchParams = useSearchParams()
+  const [error, setError] = useState<string | undefined>()
+  const [message, setMessage] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setError(searchParams.get('error') || undefined)
+    setMessage(searchParams.get('message') || undefined)
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

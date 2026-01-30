@@ -1,12 +1,7 @@
+import { Suspense } from 'react'
 import { LoginForm } from './LoginForm'
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ message: string; error: string }>
-}) {
-  const { message, error } = await searchParams
-
+export default function LoginPage() {
   return (
     <div style={{
       display: 'flex',
@@ -15,7 +10,9 @@ export default async function LoginPage({
       minHeight: '100vh',
       padding: '20px'
     }}>
-      <LoginForm error={error} message={message} />
+      <Suspense fallback={<div>Loading...</div>}>
+        <LoginForm />
+      </Suspense>
     </div>
   )
 }
