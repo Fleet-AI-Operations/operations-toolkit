@@ -5,6 +5,33 @@ import { findSimilarRecords } from '@/lib/similarity';
 
 export const dynamic = 'force-dynamic';
 
+// Valid enum values matching Prisma schema
+const VALID_TYPES = ['TASK', 'FEEDBACK'] as const;
+const VALID_CATEGORIES = ['TOP_10', 'BOTTOM_10'] as const;
+const VALID_SORT_FIELDS = ['createdAt', 'alignmentScore', 'environment'] as const;
+const VALID_SORT_ORDERS = ['asc', 'desc'] as const;
+
+type SortField = typeof VALID_SORT_FIELDS[number];
+type SortOrder = typeof VALID_SORT_ORDERS[number];
+
+interface DataRecordRow {
+    id: string;
+    projectId: string;
+    type: string;
+    category: string;
+    source: string;
+    content: string;
+    metadata: Record<string, unknown> | null;
+    embedding: number[] | null;
+    hasBeenReviewed: boolean;
+    isCategoryCorrect: boolean | null;
+    reviewedBy: string | null;
+    alignmentAnalysis: string | null;
+    ingestJobId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get('projectId');
