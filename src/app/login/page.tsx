@@ -1,6 +1,3 @@
-
-import { login, signup } from '../api/auth/actions'
-
 export default async function LoginPage({
   searchParams,
 }: {
@@ -9,10 +6,10 @@ export default async function LoginPage({
     const { message, error } = await searchParams
 
     return (
-        <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
+        <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             minHeight: '100vh',
             padding: '20px'
         }}>
@@ -22,7 +19,7 @@ export default async function LoginPage({
                     Sign in to manage your bonus windows.
                 </p>
 
-                <form action={login} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <form action="/api/auth/login" method="POST" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label htmlFor="email" style={{ fontSize: '0.9rem', fontWeight: '500' }}>Email Address</label>
                         <input
@@ -75,8 +72,14 @@ export default async function LoginPage({
                         <button type="submit" className="btn-primary">
                             Sign In
                         </button>
-                        <button formAction={signup} style={{ 
-                            color: 'rgba(255, 255, 255, 0.6)', 
+                        <button type="button" formAction="/api/auth/signup" onClick={(e) => {
+                            const form = e.currentTarget.closest('form');
+                            if (form) {
+                                form.action = '/api/auth/signup';
+                                form.submit();
+                            }
+                        }} style={{
+                            color: 'rgba(255, 255, 255, 0.6)',
                             fontSize: '0.9rem',
                             textAlign: 'center',
                             marginTop: '8px'
