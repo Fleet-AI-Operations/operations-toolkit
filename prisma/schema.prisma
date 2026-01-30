@@ -153,7 +153,7 @@ model IngestJob {
 
   @@map("ingest_jobs")
   @@schema("public")
-}
+  }
 
 model SystemSetting {
   key         String   @id
@@ -162,4 +162,6 @@ model SystemSetting {
   updatedAt   DateTime @updatedAt @map("updatedAt")
 
   @@map("system_settings")
+  @@schema("public")
+}
 
