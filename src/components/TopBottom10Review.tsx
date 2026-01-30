@@ -96,7 +96,7 @@ export default function TopBottom10Review() {
         body: JSON.stringify({
           recordId: currentRecord.id,
           isCategoryCorrect: agreeWithRating,
-          reviewedBy: "admin", // TODO: Update to use authenticated user once auth is implemented
+          reviewedBy: "admin", // TODO: Fetch actual user from Supabase session (auth.getUser())
         }),
       });
 

@@ -8,6 +8,7 @@ WORKDIR /app
 # Install dependencies
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 RUN npm ci
 
 # Rebuild the source code only when needed
@@ -16,10 +17,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Copy prisma config
+COPY prisma.config.ts ./
+
 # Generate Prisma Client
 RUN npx prisma generate
 
 # Build Next.js
+ENV SKIP_ENV_VALIDATION=1
 RUN npm run build
 
 # Production image, copy all the files and run next
@@ -37,7 +42,11 @@ COPY package.json package-lock.json* ./
 
 # Install only production dependencies
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 RUN npm ci --only=production
+
+# Generate Prisma Client for runtime
+RUN npx prisma generate
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next

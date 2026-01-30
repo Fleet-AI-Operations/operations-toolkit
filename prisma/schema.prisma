@@ -39,7 +39,8 @@ enum UserRole {
   MANAGER
   ADMIN
 
-  }
+  
+}
 
 /**
  * PROFILE: Application-specific user data.
@@ -76,13 +77,15 @@ enum RecordType {
   TASK        // Individual prompt/request
   FEEDBACK    // Human or AI evaluation of a task
 
-  }
+  
+}
 
 enum RecordCategory {
   TOP_10      // High quality/aligned
   BOTTOM_10   // Low quality/unaligned
 
-  }
+  
+}
 
 /**
  * DATA RECORD: The core data unit.

@@ -1,4 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load test environment variables
+dotenv.config({ path: path.resolve(__dirname, '.env.test') });
+dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 
 export default defineConfig({
     testDir: './e2e',
@@ -21,5 +27,7 @@ export default defineConfig({
         command: 'npm run dev',
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
+        // Give the server more time to start with Supabase
+        timeout: 120 * 1000,
     },
 });

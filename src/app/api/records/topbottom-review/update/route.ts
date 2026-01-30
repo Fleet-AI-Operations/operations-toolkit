@@ -19,7 +19,8 @@ export async function PUT(req: NextRequest) {
         hasBeenReviewed: true,
         isCategoryCorrect: Boolean(isCategoryCorrect),
         updatedAt: new Date(),
-        // TODO: Update to use authenticated user once auth is implemented
+        // TODO: Update to track actual authenticated user from Supabase session
+        // Auth is implemented via Supabase, but user tracking in review flow is pending
         reviewedBy: reviewedBy || 'admin',
       },
     });

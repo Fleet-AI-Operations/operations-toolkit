@@ -4,12 +4,19 @@ A local-first AI alignment and data ingestion tool for evaluating task and feedb
 
 ## 📚 Documentation
 
-Detailed documentation for developers and users can be found in the `Documentation` directory:
+### Getting Started
+- [**Deployment Options**](./DEPLOYMENT_OPTIONS.md) - Compare Local, Docker, and Production deployments
+- [**Local Development Quick Start**](./LOCALDEV_QUICKSTART.md) - Get up and running in 5 minutes
+- [**Production vs Local**](./PRODUCTION_VS_LOCAL.md) - What's deployed to production vs local only
 
-- [**Setup Guide**](./Documentation/SETUP.md) - How to configure your environment, database, and local AI (LM Studio).
-- [**User Guide**](./Documentation/USER_GUIDE.md) - How to manage projects, ingest data, and interpret AI alignment scores.
-- [**User Management**](./Documentation/USER_MANAGEMENT.md) - Approval flows, roles, and access delegation.
-- [**Vercel Deployment**](./Documentation/VERCEL.md) - Instructions for deploying to a Vercel serverless environment.
+### Guides
+- [**Setup Guide**](./Documentation/SETUP.md) - How to configure your environment, database, and local AI (LM Studio)
+- [**Local Development Guide**](./Documentation/LOCAL_DEVELOPMENT.md) - Detailed guide for local development with Supabase
+- [**Testing Guide**](./Documentation/TESTING.md) - How to run and write tests
+- [**Docker Deployment**](./docker/README.md) - Running with Docker Compose
+- [**User Guide**](./Documentation/USER_GUIDE.md) - How to manage projects, ingest data, and interpret AI alignment scores
+- [**User Management**](./Documentation/USER_MANAGEMENT.md) - Approval flows, roles, and access delegation
+- [**Vercel Deployment**](./Documentation/VERCEL.md) - Instructions for deploying to production
 
 ### 🏗 Architecture
 
@@ -33,6 +40,21 @@ Detailed documentation for developers and users can be found in the `Documentati
 
 ## 🚀 Quick Start
 
+### Local Development (New!)
+
+**See [LOCALDEV_QUICKSTART.md](./LOCALDEV_QUICKSTART.md) for local development with Supabase.**
+
+Quick commands:
+```bash
+npm install
+npm run dev:supabase  # Start local Supabase
+npm run dev           # Start app
+```
+
+Open http://localhost:3000
+
+### Production Setup
+
 1. **Install Dependencies**:
 
    ```bash
@@ -50,7 +72,7 @@ Detailed documentation for developers and users can be found in the `Documentati
 
    ```bash
    npx prisma generate
-   npx prisma db push
+   # Note: For local development, use Supabase migrations instead
    ```
 
 4. **Run Tests**:
@@ -61,7 +83,7 @@ Detailed documentation for developers and users can be found in the `Documentati
 5. **Launch**:
 
    ```bash
-   npm run dev
+   npm run dev:next  # Or npm run dev for Vercel Dev
    ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
@@ -81,29 +103,22 @@ Cost information appears after each AI operation. Balance refreshes when the das
 
 The easiest way to run the entire stack (App + Database) without manual setup:
 
-1. **Configure Environment**:
+```bash
+cd docker
+docker-compose up -d
+```
 
-   Copy `.env.example` to `.env`. The database URL is pre-configured for Docker.
+This will:
+- Start PostgreSQL with auth schema
+- Run database migrations automatically
+- Start the Next.js app on port 3000
 
-2. **Start Services**:
+**Documentation**: See [docker/README.md](./docker/README.md) for detailed Docker instructions.
 
-   ```bash
-   docker-compose up -d
-   ```
-
-   This will start the Postgres database and the Next.js app on port 3000.
-
-3. **Initialize DB**:
-
-   ```bash
-   docker-compose exec app npx prisma db push
-   ```
-
-4. **Stop**:
-
-   ```bash
-   docker-compose down
-   ```
+**Stop Services**:
+```bash
+docker-compose down
+```
 
 ## 🛠 Tech Stack
 

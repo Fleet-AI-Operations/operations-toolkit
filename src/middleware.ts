@@ -1,13 +1,28 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+/**
+ * Authentication Middleware
+ *
+ * Handles authentication and authorization for all routes:
+ * - Redirects unauthenticated users to /login
+ * - Redirects PENDING users to /waiting-approval
+ * - Forces password reset when mustResetPassword is true
+ * - Refreshes Supabase session on each request
+ *
+ * Environment Configuration:
+ * - Local Dev: Uses .env.local with local Supabase
+ * - Production: Uses Vercel environment variables with Supabase Cloud
+ * - Tests: Uses .env.test with local Supabase
+ */
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
         request,
     })
 
     // Unified environment variable extraction
-    const supabaseUrl = (process.env.SUPABASE_URL || 
+    // Supports both server-side and public environment variables
+    const supabaseUrl = (process.env.SUPABASE_URL ||
                          process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/['"]/g, '')
     const supabaseKey = (process.env.SUPABASE_PUBLISHABLE_KEY ||
                         process.env.SUPABASE_ANON_KEY ||
@@ -43,8 +58,8 @@ export async function middleware(request: NextRequest) {
     )
 
     // IMPORTANT: Avoid writing any logic between createServerClient and
-    // getUser(). A simple mistake could make it very hard to debug
-    // if you're oblivious to the middleware refreshing the user's session.
+    // getUser(). A simple mistake could make it very hard to debug issues
+    // related to the middleware refreshing the user's session.
 
     const {
         data: { user },
