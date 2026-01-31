@@ -58,17 +58,13 @@ export default function AISettingsPage() {
 
     const openRouterModels = {
         llm: [
-            'anthropic/claude-3.5-sonnet',
-            'anthropic/claude-3-haiku',
-            'openai/gpt-4-turbo',
-            'openai/gpt-4o-mini',
-            'google/gemini-2.0-flash-exp',
-            'google/gemini-flash-1.5',
-            'meta-llama/llama-3.1-70b-instruct',
-            'meta-llama/llama-3.3-70b-instruct',
-            'qwen/qwen-2.5-72b-instruct',
-            'mistralai/mistral-large'
-        ],
+            'google/gemini-3-flash-preview',
+            'anthropic/claude-sonnet-4.5',
+            'deepseek/deepseek-v3.2',
+            'anthropic/claude-opus-4.5',
+            'x-ai/grok-4.1-fast',
+            'openai/gpt-oss-120b',
+            'moonshotai/kimi-k2.5'],
         embedding: [
             'openai/text-embedding-3-small',
             'openai/text-embedding-3-large',
