@@ -72,7 +72,8 @@ export async function proxy(request: NextRequest) {
     if (
         !user &&
         !request.nextUrl.pathname.startsWith('/login') &&
-        !request.nextUrl.pathname.startsWith('/auth')
+        !request.nextUrl.pathname.startsWith('/auth') &&
+        !request.nextUrl.pathname.startsWith('/status')
     ) {
         // no user, redirect to login page
         console.log('[Proxy] No user found, redirecting to /login from', request.nextUrl.pathname)

@@ -29,7 +29,7 @@ A local-first AI alignment and data ingestion tool for evaluating task and feedb
 - **🚀 Parallel Ingestion Pipeline**: Decouples high-speed data loading from AI vectorization. Ingest thousands of records instantly while embeddings generate in the background.
 - **🧠 AI-Powered Alignment Analysis**: Automatically evaluate Tasks and Feedback against project-specific guidelines using local LLM models (Llama 3.1, Qwen, etc.).
 - **📊 Bulk Analytics Engine**: Process entire datasets sequentially in the background. Includes real-time progress tracking and job cancellation support.
-- **🛡️ Authentication & RBAC**: Secure login with Supabase Auth, role-based access control (Admin, Manager, User), and an automated approval workflow for new signups.
+- **🛡️ Authentication & RBAC**: Secure login with Supabase Auth, role-based access control (Admin, Manager, User), and admin-controlled user creation.
 - **🛡️ Flexible AI Providers**: Supports both local AI (LM Studio) for maximum privacy and cloud AI (OpenRouter) for convenience. Switch providers with a single environment variable.
 - **💰 Cost Tracking**: Real-time OpenRouter API cost tracking with per-query costs and account balance display on the dashboard.
 - **🎯 Semantic Search**: Find similar prompts and feedback across projects using vector embeddings (Cosine Similarity).

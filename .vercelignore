@@ -1,43 +1,4 @@
-# Vercel Ignore File
-# Files and directories that should NOT be deployed to Vercel
-
-# Local development files
+# Prevent Vercel from overriding local development
+.env
 .env.local
-.env.docker
-.env.test
-
-# Supabase local development
-supabase/.branches
-supabase/.temp
-supabase/config.toml
-supabase/seed.sql
-
-# Docker files (not needed for Vercel)
-docker/
-Dockerfile
-docker-compose*.yml
-
-# Local development documentation
-LOCALDEV_QUICKSTART.md
-Documentation/LOCAL_DEVELOPMENT.md
-
-# Test files
-**/*.test.ts
-**/*.test.tsx
-**/*.spec.ts
-**/*.spec.tsx
-e2e/
-playwright.config.ts
-vitest.config.ts
-vitest.setup.ts
-
-# Development tools
-.vscode/
-.idea/
-
-# Documentation (optional - remove if you want docs in production)
-# Documentation/
-
-# Duplicate files
-*" 2"*
-*" 2."*
+.env.development.local

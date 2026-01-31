@@ -43,9 +43,13 @@ export default async function Header() {
                 <Link href="/" style={{ fontSize: '1.2rem', fontWeight: 'bold' }} className="premium-gradient">
                     Operations Tools
                 </Link>
-                
+
+                <Link href="/links" style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>
+                    Links
+                </Link>
+
                 {profile?.role === 'ADMIN' && (
-                    <Link href="/admin/users" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
+                    <Link href="/admin" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
                         Admin
                     </Link>
                 )}

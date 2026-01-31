@@ -2,8 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserCheck, UserX, Shield, User as UserIcon, Loader2, ArrowLeft, UserPlus } from 'lucide-react';
-import Link from 'next/link';
+import { Shield, User as UserIcon, Loader2, UserPlus, KeyRound } from 'lucide-react';
 
 interface Profile {
     id: string;
@@ -17,13 +16,21 @@ export default function UserManagementPage() {
     const [users, setUsers] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
     const [actioningId, setActioningId] = useState<string | null>(null);
-    
+
     // Create User Form State
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newEmail, setNewEmail] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState('USER');
     const [isCreating, setIsCreating] = useState(false);
+
+    // Password Reset State
+    const [showResetModal, setShowResetModal] = useState(false);
+    const [resetUserId, setResetUserId] = useState<string | null>(null);
+    const [resetUserEmail, setResetUserEmail] = useState<string>('');
+    const [resetPassword, setResetPassword] = useState('');
+    const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
 
     useEffect(() => {
         fetchUsers();
@@ -88,6 +95,52 @@ export default function UserManagementPage() {
         }
     };
 
+    const openResetModal = (user: Profile) => {
+        setResetUserId(user.id);
+        setResetUserEmail(user.email);
+        setResetPassword('');
+        setResetConfirmPassword('');
+        setShowResetModal(true);
+    };
+
+    const handleResetPassword = async (e: any) => {
+        e.preventDefault();
+
+        if (resetPassword !== resetConfirmPassword) {
+            alert('Passwords do not match');
+            return;
+        }
+
+        if (resetPassword.length < 8) {
+            alert('Password must be at least 8 characters long');
+            return;
+        }
+
+        setIsResetting(true);
+        try {
+            const res = await fetch('/api/admin/users/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: resetUserId, password: resetPassword })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setUsers(users.map(u => u.id === resetUserId ? { ...u, mustResetPassword: true } : u));
+                setShowResetModal(false);
+                alert(`Password reset for ${resetUserEmail}. They will be required to change it on next login.`);
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to reset password');
+            }
+        } catch (err) {
+            console.error('Reset password error:', err);
+            alert('Failed to reset password');
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -96,37 +149,56 @@ export default function UserManagementPage() {
         );
     }
 
-    const pendingUsers = users.filter(u => u.role === 'PENDING');
-    const activeUsers = users.filter(u => u.role !== 'PENDING');
-
     return (
-        <div className="container" style={{ maxWidth: '1000px', padding: '40px 20px' }}>
-            <header style={{ marginBottom: '40px' }}>
-                <Link href="/" style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px', 
-                    color: 'rgba(255,255,255,0.5)', 
-                    fontSize: '0.9rem',
-                    marginBottom: '16px',
-                    textDecoration: 'none'
-                }}>
-                    <ArrowLeft size={16} /> Back to Dashboard
-                </Link>
+        <div>
+            <header style={{ marginBottom: '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                     <div>
-                        <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>User Management</h1>
-                        <p style={{ color: 'rgba(255,255,255,0.6)' }}>Approve new sign-ups and manage permissions.</p>
+                        <h1 className="premium-gradient" style={{ fontSize: '2rem', marginBottom: '8px' }}>User Management</h1>
+                        <p style={{ color: 'rgba(255,255,255,0.6)' }}>Create new users and manage roles and permissions.</p>
                     </div>
-                    <button 
+                    <button
                         onClick={() => setShowCreateForm(!showCreateForm)}
-                        className="btn-primary" 
+                        className="btn-primary"
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px' }}
                     >
                         <UserPlus size={18} /> {showCreateForm ? 'Cancel' : 'Add New User'}
                     </button>
                 </div>
             </header>
+
+            {/* Role Descriptions */}
+            <div className="glass-card" style={{ padding: '24px', marginBottom: '32px', background: 'rgba(0,112,243,0.03)' }}>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '16px', color: 'var(--accent)' }}>
+                    Role Permissions
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00ff88' }}>
+                            USER
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Standard access to view and interact with projects. Can access main features but cannot manage users.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00d2ff' }}>
+                            MANAGER
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Enhanced permissions for managing projects and data. Can perform administrative tasks but cannot manage users.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#ff4d4d' }}>
+                            ADMIN
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Full system access including user management, role assignment, and system configuration.
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <main style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
                 {/* Create User Form */}
@@ -136,10 +208,10 @@ export default function UserManagementPage() {
                         <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '20px', alignItems: 'flex-end' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Email Address</label>
-                                <input 
-                                    type="email" 
-                                    required 
-                                    className="input-field" 
+                                <input
+                                    type="email"
+                                    required
+                                    className="input-field"
                                     value={newEmail}
                                     onChange={(e) => setNewEmail(e.target.value)}
                                     placeholder="user@example.com"
@@ -147,10 +219,10 @@ export default function UserManagementPage() {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Initial Password</label>
-                                <input 
-                                    type="password" 
-                                    required 
-                                    className="input-field" 
+                                <input
+                                    type="password"
+                                    required
+                                    className="input-field"
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
                                     placeholder="••••••••"
@@ -158,7 +230,7 @@ export default function UserManagementPage() {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Role</label>
-                                <select 
+                                <select
                                     className="input-field"
                                     value={newRole}
                                     onChange={(e) => setNewRole(e.target.value)}
@@ -177,124 +249,229 @@ export default function UserManagementPage() {
                         </form>
                     </section>
                 )}
-                {/* Pending Approvals Section */}
-                <section>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                        <div style={{ padding: '8px', background: 'rgba(255, 171, 0, 0.1)', borderRadius: '8px' }}>
-                            <UserCheck size={20} color="#ffab00" />
-                        </div>
-                        <h2 style={{ fontSize: '1.25rem' }}>Pending Approvals ({pendingUsers.length})</h2>
-                    </div>
 
-                    {pendingUsers.length === 0 ? (
-                        <div className="glass-card" style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>
-                            No users waiting for approval.
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {pendingUsers.map(user => (
-                                <UserRow 
-                                    key={user.id} 
-                                    user={user} 
-                                    onApprove={() => updateRole(user.id, 'USER')}
-                                    isActioning={actioningId === user.id}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </section>
-
-                {/* Active Users Section */}
+                {/* All Users Section */}
                 <section>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
                         <div style={{ padding: '8px', background: 'rgba(0, 112, 243, 0.1)', borderRadius: '8px' }}>
                             <Shield size={20} color="var(--accent)" />
                         </div>
-                        <h2 style={{ fontSize: '1.25rem' }}>All Users</h2>
+                        <h2 style={{ fontSize: '1.25rem' }}>All Users ({users.length})</h2>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {activeUsers.map(user => (
-                            <UserRow 
-                                key={user.id} 
-                                user={user} 
+                        {users.map(user => (
+                            <UserRow
+                                key={user.id}
+                                user={user}
                                 onRoleChange={(role) => updateRole(user.id, role)}
+                                onResetPassword={() => openResetModal(user)}
                                 isActioning={actioningId === user.id}
                             />
                         ))}
                     </div>
                 </section>
             </main>
+
+            {/* Password Reset Modal */}
+            {showResetModal && (
+                <div
+                    onClick={() => setShowResetModal(false)}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.7)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000,
+                        backdropFilter: 'blur(4px)'
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="glass-card"
+                        style={{
+                            width: '100%',
+                            maxWidth: '500px',
+                            padding: '32px',
+                            border: '1px solid var(--accent)',
+                            margin: '20px'
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                            <div style={{ padding: '8px', background: 'rgba(0, 112, 243, 0.1)', borderRadius: '8px' }}>
+                                <KeyRound size={24} color="var(--accent)" />
+                            </div>
+                            <h2 style={{ fontSize: '1.5rem' }}>Reset Password</h2>
+                        </div>
+
+                        <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '24px' }}>
+                            Set a new password for <strong>{resetUserEmail}</strong>. They will be required to change it on their next login.
+                        </p>
+
+                        <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>New Password</label>
+                                <input
+                                    type="password"
+                                    required
+                                    className="input-field"
+                                    value={resetPassword}
+                                    onChange={(e) => setResetPassword(e.target.value)}
+                                    placeholder="At least 8 characters"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Confirm Password</label>
+                                <input
+                                    type="password"
+                                    required
+                                    className="input-field"
+                                    value={resetConfirmPassword}
+                                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                                    placeholder="Must match"
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowResetModal(false)}
+                                    disabled={isResetting}
+                                    style={{
+                                        padding: '10px 24px',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: 'white',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        fontWeight: '500'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isResetting}
+                                    className="btn-primary"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px' }}
+                                >
+                                    {isResetting ? <Loader2 className="animate-spin" size={20} /> : 'Reset Password'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-function UserRow({ user, onApprove, onRoleChange, isActioning }: { 
-    user: Profile, 
-    onApprove?: () => void,
+function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
+    user: Profile,
     onRoleChange?: (role: string) => void,
+    onResetPassword?: () => void,
     isActioning: boolean
 }) {
     return (
-        <div className="glass-card" style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
+        <div className="glass-card" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             padding: '16px 24px',
             opacity: isActioning ? 0.6 : 1
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ 
-                    width: '40px', 
-                    height: '40px', 
-                    borderRadius: '50%', 
-                    background: 'rgba(255,255,255,0.05)', 
-                    display: 'flex', 
-                    justifyContent: 'center', 
+                <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.05)',
+                    display: 'flex',
+                    justifyContent: 'center',
                     alignItems: 'center',
                     border: '1px solid rgba(255,255,255,0.1)'
                 }}>
                     <UserIcon size={20} color="rgba(255,255,255,0.6)" />
                 </div>
                 <div>
-                    <div style={{ fontWeight: 600, fontSize: '1rem' }}>{user.email}</div>
+                    <div style={{ fontWeight: 600, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {user.email}
+                        {user.mustResetPassword && (
+                            <span style={{
+                                fontSize: '0.7rem',
+                                color: '#ffab00',
+                                background: 'rgba(255, 171, 0, 0.1)',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: '500'
+                            }}>
+                                Must Reset Password
+                            </span>
+                        )}
+                    </div>
                     <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>
                         Joined {new Date(user.createdAt).toLocaleDateString()}
                     </div>
                 </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                {user.role === 'PENDING' ? (
-                    <button 
-                        onClick={onApprove}
-                        disabled={isActioning}
-                        className="btn-primary" 
-                        style={{ padding: '8px 20px', fontSize: '0.85rem' }}
-                    >
-                        Approve User
-                    </button>
-                ) : (
-                    <select 
-                        value={user.role} 
-                        onChange={(e) => onRoleChange?.(e.target.value)}
-                        disabled={isActioning}
-                        style={{ 
-                            background: 'rgba(255,255,255,0.05)', 
-                            color: 'white', 
-                            border: '1px solid rgba(255,255,255,0.1)', 
-                            padding: '8px 12px', 
-                            borderRadius: '8px',
-                            fontSize: '0.85rem',
-                            outline: 'none',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <option value="USER">User</option>
-                        <option value="MANAGER">Manager</option>
-                        <option value="ADMIN">Admin</option>
-                    </select>
-                )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                    onClick={onResetPassword}
+                    disabled={isActioning}
+                    style={{
+                        padding: '8px 12px',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: 'white',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                    }}
+                    title="Reset user password"
+                >
+                    <KeyRound size={16} />
+                    Reset Password
+                </button>
+                <select
+                    value={user.role}
+                    onChange={(e) => onRoleChange?.(e.target.value)}
+                    disabled={isActioning}
+                    style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        color: 'white',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    <option value="USER">User</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
             </div>
         </div>
     );

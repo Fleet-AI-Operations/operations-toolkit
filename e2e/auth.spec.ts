@@ -13,19 +13,6 @@ test.describe('Authentication Flow', () => {
         await expect(page.locator('input[type="password"]')).toBeVisible();
         await expect(page.locator('button[type="submit"]')).toContainText(/Sign In/);
     });
-
-    test('should show signup link', async ({ page }) => {
-        await page.goto('/login');
-        await expect(page.locator('text=Don\'t have an account? Sign Up')).toBeVisible();
-    });
-
-    test('should show signup form', async ({ page }) => {
-        await page.goto('/auth/signup');
-        await expect(page.locator('form')).toBeVisible();
-        await expect(page.locator('input[type="email"]')).toBeVisible();
-        await expect(page.locator('input[type="password"]')).toBeVisible();
-        await expect(page.locator('button[type="submit"]')).toContainText(/Create Account/);
-    });
 });
 
 test.describe('Authorization & Role Redirects', () => {
