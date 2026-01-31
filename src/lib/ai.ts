@@ -213,6 +213,12 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
       console.log(`[Embeddings] Embedding length:`, firstItem.embedding?.length || 'N/A');
     }
 
+    // Validate that we received the correct number of embeddings
+    if (data.data.length !== texts.length) {
+      console.error(`[Embeddings] Response count mismatch: requested ${texts.length} embeddings, got ${data.data.length}`);
+      throw new Error(`Embedding response count mismatch: expected ${texts.length}, got ${data.data.length}`);
+    }
+
     const embeddings = data.data.map((item: any) => item.embedding);
 
     // Validate that we got actual embeddings
