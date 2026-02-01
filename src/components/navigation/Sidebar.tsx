@@ -18,11 +18,9 @@ import {
     Activity,
     ChevronLeft,
     ChevronRight,
-    LogOut,
     LucideIcon
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { signOut } from '@/app/api/auth/actions';
+import { useState } from 'react';
 
 interface NavItem {
     label: string;

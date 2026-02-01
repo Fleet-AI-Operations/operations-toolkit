@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, LayoutDashboard, FileCheck, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, FileCheck, Sparkles, AlertCircle, Inbox } from 'lucide-react';
 import Link from 'next/link';
 import { useProjects } from '@/hooks/useProjects';
 
@@ -93,6 +93,25 @@ function ListContent() {
                 </h1>
                 <p style={{ color: 'rgba(255,255,255,0.6)' }}>Exploration View • {total} Total Records</p>
             </div>
+
+            {/* Projects Error Display */}
+            {projectsError && (
+                <div className="glass-card" style={{
+                    padding: '16px 20px',
+                    marginBottom: '24px',
+                    background: 'rgba(255, 68, 68, 0.05)',
+                    border: '1px solid rgba(255, 68, 68, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                }}>
+                    <AlertCircle size={20} color="#ff4444" />
+                    <div>
+                        <div style={{ fontWeight: 600, color: '#ff4444', marginBottom: '4px' }}>Failed to load projects</div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{projectsError}</div>
+                    </div>
+                </div>
+            )}
 
             <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-end' }}>
                 <div style={{ flex: '1 1 200px' }}>
@@ -286,7 +305,18 @@ function ListContent() {
                             </div>
                         ))}
                         {records.length === 0 && !loading && (
-                            <div style={{ padding: '80px', textAlign: 'center', opacity: 0.4 }}>No records found</div>
+                            <div style={{ padding: '80px', textAlign: 'center' }}>
+                                <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+                                <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>
+                                    {!selectedProjectId ? 'No project selected' : 'No records found'}
+                                </div>
+                                <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>
+                                    {!selectedProjectId
+                                        ? 'Select a project from the dropdown above to view records'
+                                        : `No ${selectedCategory?.replace('_', ' ').toLowerCase()} ${selectedType.toLowerCase()}s found for this project`
+                                    }
+                                </div>
+                            </div>
                         )}
                         {loading && (
                             <div style={{ padding: '80px', textAlign: 'center', opacity: 0.4 }}>Loading...</div>

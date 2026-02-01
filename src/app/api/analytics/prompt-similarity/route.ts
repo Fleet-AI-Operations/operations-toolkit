@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cosineSimilarity, getEmbeddings } from '@/lib/ai';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Get user's role
+        const profile = await prisma.profile.findUnique({
+            where: { id: user.id },
+            select: { role: true }
+        });
+
+        const role = profile?.role || 'USER';
+
         const { searchParams } = new URL(request.url);
         const projectId = searchParams.get('projectId');
         const selectedRecordId = searchParams.get('recordId');
@@ -16,6 +32,16 @@ export async function GET(request: NextRequest) {
 
         if (!selectedRecordId) {
             return NextResponse.json({ error: 'recordId is required' }, { status: 400 });
+        }
+
+        // Verify project exists (read access allowed for all users)
+        const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { id: true }
+        });
+
+        if (!project) {
+            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
         const selectedRecord = await prisma.dataRecord.findUnique({

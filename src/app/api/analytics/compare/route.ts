@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCompletionWithUsage } from '@/lib/ai';
+import { createClient } from '@/lib/supabase/server';
 // @ts-ignore - pdf-parse lacks modern TS definitions but is the most stable for Node PDF scraping.
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 
@@ -14,6 +15,21 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
     try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Get user's role
+        const profile = await prisma.profile.findUnique({
+            where: { id: user.id },
+            select: { role: true }
+        });
+
+        const role = profile?.role || 'USER';
+
         const { recordId, forceRegenerate } = await req.json();
 
         if (!recordId) {
@@ -28,6 +44,11 @@ export async function POST(req: NextRequest) {
 
         if (!record) {
             return NextResponse.json({ error: 'Record not found' }, { status: 404 });
+        }
+
+        // Verify user owns the project (write operation - ownership required)
+        if (role !== 'ADMIN' && record.project.ownerId !== user.id) {
+            return NextResponse.json({ error: 'Forbidden: Only project owners can generate alignment analysis' }, { status: 403 });
         }
 
         // OPTIMIZATION: Return cached analysis if available to save LLM tokens.

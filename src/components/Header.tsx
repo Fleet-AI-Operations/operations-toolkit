@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { signOut } from '@/app/api/auth/actions'
 import Link from 'next/link'
 import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'

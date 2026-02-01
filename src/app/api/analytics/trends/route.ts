@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCompletionWithUsage } from '@/lib/ai';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
     try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Get user's role
+        const profile = await prisma.profile.findUnique({
+            where: { id: user.id },
+            select: { role: true }
+        });
+
+        const role = profile?.role || 'USER';
+
         const { projectId, type } = await req.json();
 
         if (!projectId) {
@@ -14,6 +30,20 @@ export async function POST(req: NextRequest) {
 
         if (type !== 'TASK' && type !== 'FEEDBACK') {
             return NextResponse.json({ error: 'Invalid analysis type' }, { status: 400 });
+        }
+
+        // Verify user owns the project (write operation - ownership required)
+        const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { ownerId: true }
+        });
+
+        if (!project) {
+            return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+        }
+
+        if (role !== 'ADMIN' && project.ownerId !== user.id) {
+            return NextResponse.json({ error: 'Forbidden: Only project owners can generate trend analysis' }, { status: 403 });
         }
 
         // Fetch subsets of data to analyze
