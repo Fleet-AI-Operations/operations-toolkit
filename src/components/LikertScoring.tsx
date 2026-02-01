@@ -237,6 +237,7 @@ export default function LikertScoring() {
             setLlmAlreadyEvaluated(false);
             setLlmEvaluatedThisSession(false);
             setEvaluatingLLM(false);
+            setError(null);
         }
     };
 
@@ -248,6 +249,7 @@ export default function LikertScoring() {
             setLlmAlreadyEvaluated(false);
             setLlmEvaluatedThisSession(false);
             setEvaluatingLLM(false);
+            setError(null);
         }
     };
 
