@@ -2,7 +2,12 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/client";
+
+interface Project {
+    id: string;
+    name: string;
+}
 
 interface LikertRecord {
     id: string;
@@ -16,13 +21,12 @@ interface LikertRecord {
 
 export default function LikertScoring() {
     const searchParams = useSearchParams();
-    const projectId = searchParams.get("projectId");
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get("projectId") || "");
     
-    // Memoize Supabase client to avoid recreating on every render
-    const supabase = useMemo(() => createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    ), []);
+    // Use centralized client which handles missing env vars gracefully
+    const supabase = useMemo(() => createClient(), []);
+    
     const [userId, setUserId] = useState<string | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [authError, setAuthError] = useState<string | null>(null);
@@ -39,8 +43,33 @@ export default function LikertScoring() {
     const [llmEvaluatedThisSession, setLlmEvaluatedThisSession] = useState(false);
     const [userSubmittedRecordIds, setUserSubmittedRecordIds] = useState<Set<string>>(new Set());
 
+    // Fetch available projects
+    useEffect(() => {
+        const fetchProjects = async () => {
+            try {
+                const res = await fetch("/api/projects");
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    setProjects(data);
+                    if (!selectedProjectId && data.length > 0) {
+                        setSelectedProjectId(data[0].id);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch projects", err);
+            }
+        };
+        fetchProjects();
+    }, []);
+
     // Fetch current user from Supabase auth
     useEffect(() => {
+        if (!supabase) {
+            setAuthLoading(false);
+            setAuthError("Supabase configuration missing (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY). Please check your environment variables.");
+            return;
+        }
+
         const getUser = async () => {
             try {
                 const { data: { user }, error } = await supabase.auth.getUser();
@@ -57,13 +86,13 @@ export default function LikertScoring() {
             }
         };
         getUser();
-    }, [supabase.auth]);
+    }, [supabase]);
 
     useEffect(() => {
-        if (userId && projectId) {
+        if (userId && selectedProjectId) {
             fetchRecords();
         }
-    }, [projectId, userId]);
+    }, [selectedProjectId, userId]);
 
     // Check if current record has been evaluated by LLM and submitted by user
     useEffect(() => {
@@ -74,7 +103,7 @@ export default function LikertScoring() {
     }, [currentIndex, records]);
 
     const fetchRecords = async () => {
-        if (!projectId || projectId.trim() === "" || projectId === "undefined") {
+        if (!selectedProjectId || selectedProjectId.trim() === "" || selectedProjectId === "undefined") {
             setError("No project selected");
             setLoading(false);
             return;
@@ -84,7 +113,7 @@ export default function LikertScoring() {
             setLoading(true);
             setError(null);
 
-            const response = await fetch(`/api/records/likert?projectId=${projectId}&userId=${userId}`);
+            const response = await fetch(`/api/records/likert?projectId=${selectedProjectId}&userId=${userId}`);
 
             if (!response.ok) {
                 throw new Error("Failed to fetch records");
@@ -329,6 +358,19 @@ export default function LikertScoring() {
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", margin: 0 }}>
                     Rate prompts on Realism and Quality (1-7 scale)
                 </p>
+                
+                <div className="glass-card" style={{ padding: '16px', marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</label>
+                    <select
+                        value={selectedProjectId}
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', height: '42px', padding: '0 12px' }}
+                    >
+                        <option value="" disabled>Select a project</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                </div>
             </div>
 
             {authLoading ? (

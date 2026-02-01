@@ -1,7 +1,7 @@
 import Management from '@/components/Management';
 
 export const metadata = {
-    title: 'Management | Task Data',
+    title: 'Project Management | Task Data',
     description: 'Manage projects and environments.',
 };
 

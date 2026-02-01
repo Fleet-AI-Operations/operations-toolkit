@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, LayoutDashboard, FileCheck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { useProjects } from '@/hooks/useProjects';
 
 interface Record {
     id: string;
@@ -33,9 +34,19 @@ export default function ListView() {
 
 function ListContent() {
     const searchParams = useSearchParams();
-    const projectId = searchParams.get('projectId');
-    const type = searchParams.get('type');
-    const category = searchParams.get('category');
+    const {
+        projects,
+        selectedProjectId,
+        setSelectedProjectId,
+        loading: projectsLoading,
+        error: projectsError
+    } = useProjects({
+        autoSelectFirst: true,
+        initialProjectId: searchParams.get('projectId') || ''
+    });
+
+    const [selectedType, setSelectedType] = useState<string>(searchParams.get('type') || 'TASK');
+    const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'TOP_10');
 
     const [records, setRecords] = useState<Record[]>([]);
     const [total, setTotal] = useState(0);
@@ -45,16 +56,16 @@ function ListContent() {
     const pageSize = 10;
 
     useEffect(() => {
-        if (projectId && type && category) {
+        if (selectedProjectId && selectedType && selectedCategory) {
             fetchRecords();
         }
-    }, [projectId, type, category, page]);
+    }, [selectedProjectId, selectedType, selectedCategory, page]);
 
     const fetchRecords = async () => {
         setLoading(true);
         try {
             const skip = (page - 1) * pageSize;
-            const res = await fetch(`/api/records?projectId=${projectId}&type=${type}&category=${category}&skip=${skip}&take=${pageSize}`);
+            const res = await fetch(`/api/records?projectId=${selectedProjectId}&type=${selectedType}&category=${selectedCategory}&skip=${skip}&take=${pageSize}`);
             const data = await res.json();
             setRecords(data.records || []);
             setTotal(data.total || 0);
@@ -67,28 +78,110 @@ function ListContent() {
         }
     };
 
+    useEffect(() => {
+        // Reset page when filters change
+        setPage(1);
+    }, [selectedProjectId, selectedType, selectedCategory]);
 
     const totalPages = Math.ceil(total / pageSize);
 
     return (
-        <div className="container" style={{ maxWidth: '1000px' }}>
-            <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px', textTransform: 'capitalize' }}>
-                        {category?.replace('_', ' ').toLowerCase()} {type === 'TASK' ? 'Tasks' : 'Feedback'}
-                    </h1>
-                    <p style={{ color: 'rgba(255,255,255,0.6)' }}>Exploration View • {total} Total Records</p>
+        <div style={{ width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '40px' }}>
+                <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px', textTransform: 'capitalize' }}>
+                    {selectedCategory?.replace('_', ' ').toLowerCase()} {selectedType === 'TASK' ? 'Tasks' : 'Feedback'}
+                </h1>
+                <p style={{ color: 'rgba(255,255,255,0.6)' }}>Exploration View • {total} Total Records</p>
+            </div>
+
+            <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-end' }}>
+                <div style={{ flex: '1 1 200px' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</label>
+                    <select
+                        value={selectedProjectId}
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', height: '42px', padding: '0 12px' }}
+                    >
+                        <option value="" disabled>Select a project</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
                 </div>
-                <Link href="/" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <LayoutDashboard size={18} /> Dashboard
-                </Link>
-            </header>
+
+                <div style={{ flex: '0 0 auto' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Record Type</label>
+                    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '4px', border: '1px solid var(--border)' }}>
+                        <button
+                            onClick={() => setSelectedType('TASK')}
+                            style={{
+                                padding: '6px 16px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: selectedType === 'TASK' ? 'var(--accent)' : 'transparent',
+                                color: selectedType === 'TASK' ? '#000' : 'rgba(255,255,255,0.6)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Tasks</button>
+                        <button
+                            onClick={() => setSelectedType('FEEDBACK')}
+                            style={{
+                                padding: '6px 16px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: selectedType === 'FEEDBACK' ? 'var(--accent)' : 'transparent',
+                                color: selectedType === 'FEEDBACK' ? '#000' : 'rgba(255,255,255,0.6)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Feedback</button>
+                    </div>
+                </div>
+
+                <div style={{ flex: '0 0 auto' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</label>
+                    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '4px', border: '1px solid var(--border)' }}>
+                        <button
+                            onClick={() => setSelectedCategory('TOP_10')}
+                            style={{
+                                padding: '6px 16px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: selectedCategory === 'TOP_10' ? 'var(--accent)' : 'transparent',
+                                color: selectedCategory === 'TOP_10' ? '#000' : 'rgba(255,255,255,0.6)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Top 10%</button>
+                        <button
+                            onClick={() => setSelectedCategory('BOTTOM_10')}
+                            style={{
+                                padding: '6px 16px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: selectedCategory === 'BOTTOM_10' ? 'var(--accent)' : 'transparent',
+                                color: selectedCategory === 'BOTTOM_10' ? '#000' : 'rgba(255,255,255,0.6)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Bottom 10%</button>
+                    </div>
+                </div>
+            </div>
 
             <main>
 
                 <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
                     <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.9rem', opacity: 0.6 }}>Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, total)} of {total}</span>
+                        <span style={{ fontSize: '0.9rem', opacity: 0.6 }}>Showing {total > 0 ? ((page - 1) * pageSize) + 1 : 0} - {Math.min(page * pageSize, total)} of {total}</span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                                 className="btn-outline"
@@ -101,7 +194,7 @@ function ListContent() {
                             <button
                                 className="btn-outline"
                                 style={{ padding: '6px 12px' }}
-                                disabled={page === totalPages}
+                                disabled={page === totalPages || totalPages === 0}
                                 onClick={() => setPage(p => p + 1)}
                             >
                                 <ChevronRight size={18} />
@@ -122,7 +215,7 @@ function ListContent() {
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        {type === 'TASK' && (
+                                        {selectedType === 'TASK' && (
                                             <div style={{
                                                 fontSize: '0.7rem',
                                                 background: record.metadata?.avg_score !== undefined ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)',

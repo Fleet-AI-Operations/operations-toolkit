@@ -100,16 +100,11 @@ export default function ManagementPage() {
     };
 
     return (
-        <div className="container">
-            <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Management</h1>
-                    <p style={{ color: 'rgba(255,255,255,0.6)' }}>Configure Task Data Projects</p>
-                </div>
-                <Link href="/" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <LayoutDashboard size={18} /> Back to Dashboard
-                </Link>
-            </header>
+        <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '40px' }}>
+                <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Project Management</h1>
+                <p style={{ color: 'rgba(255,255,255,0.6)' }}>Configure Task Data Projects</p>
+            </div>
 
             <section className="glass-card" style={{ marginBottom: '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>

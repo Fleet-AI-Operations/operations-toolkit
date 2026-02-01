@@ -208,20 +208,15 @@ export default function IngestionPage() {
     };
 
     return (
-        <div className="container" style={{ maxWidth: '900px' }}>
+        <div style={{ width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
             <style jsx>{`
                 .tooltip-content { opacity: 0; visibility: hidden; transition: opacity 0.2s; pointer-events: none; }
                 .tooltip-container:hover .tooltip-content { opacity: 1; visibility: visible; }
             `}</style>
-            <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Ingest</h1>
-                    <p style={{ color: 'rgba(255,255,255,0.6)' }}>Choose your method to import task data</p>
-                </div>
-                <Link href="/" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <LayoutDashboard size={18} /> Back to Dashboard
-                </Link>
-            </header>
+            <div style={{ marginBottom: '40px' }}>
+                <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Ingest</h1>
+                <p style={{ color: 'rgba(255,255,255,0.6)' }}>Choose your method to import task data</p>
+            </div>
 
             {/* PROJECT CONTEXT: Crucial because ingest jobs are scoped to projects */}
             <section className="glass-card" style={{ marginBottom: '32px' }}>

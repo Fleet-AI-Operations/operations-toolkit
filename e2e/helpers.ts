@@ -138,15 +138,17 @@ export async function login(
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
 
-  // Wait for navigation to complete
-  await page.waitForURL(/\/(dashboard|waiting-approval)/);
+  // Wait for navigation to complete (home page is /)
+  await page.waitForURL(url => url.pathname === '/' || url.pathname === '/waiting-approval');
 }
 
 /**
  * Logout helper for E2E tests
  */
 export async function logout(page: Page) {
-  // Assuming there's a logout button or link
+  // First open the profile dropdown
+  await page.click('[data-testid="user-profile-dropdown-trigger"]');
+  // Then click the logout button
   await page.click('[data-testid="logout-button"]');
   await page.waitForURL('/login');
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
+import { useProjects } from "@/hooks/useProjects";
 
 interface TopPromptRecord {
     id: string;
@@ -17,7 +18,16 @@ interface TopPromptRecord {
 
 export default function TopPromptsReview() {
     const searchParams = useSearchParams();
-    const projectId = searchParams.get("projectId");
+    const {
+        projects,
+        selectedProjectId,
+        setSelectedProjectId,
+        loading: projectsLoading,
+        error: projectsError
+    } = useProjects({
+        autoSelectFirst: true,
+        initialProjectId: searchParams.get("projectId") || ""
+    });
 
     const [allRecords, setAllRecords] = useState<TopPromptRecord[]>([]);
     const [environments, setEnvironments] = useState<string[]>([]);
@@ -38,11 +48,13 @@ export default function TopPromptsReview() {
     });
 
     useEffect(() => {
-        fetchRecords();
-    }, [projectId]);
+        if (selectedProjectId) {
+            fetchRecords();
+        }
+    }, [selectedProjectId]);
 
     const fetchRecords = async () => {
-        if (!projectId || projectId.trim() === "" || projectId === "undefined") {
+        if (!selectedProjectId || selectedProjectId.trim() === "" || selectedProjectId === "undefined") {
             setError("No project selected");
             setLoading(false);
             return;
@@ -53,7 +65,7 @@ export default function TopPromptsReview() {
             setError(null);
 
             const response = await fetch(
-                `/api/records/topbottom-review?projectId=${projectId}&category=TOP_10&includeReviewed=true`,
+                `/api/records/topbottom-review?projectId=${selectedProjectId}&category=TOP_10&includeReviewed=true`,
             );
 
             if (!response.ok) {
@@ -86,21 +98,10 @@ export default function TopPromptsReview() {
     };
 
     return (
-        <div style={{ maxWidth: "1600px", margin: "0 auto", padding: "0 20px 20px 20px" }}>
-            <div style={{ marginBottom: "16px" }}>
-                <h1
-                    className="premium-gradient"
-                    style={{
-                        fontSize: "1.75rem",
-                        fontWeight: "bold",
-                        marginBottom: "4px",
-                    }}
-                >
-                    Top Prompts
-                </h1>
-                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
-                    Browse and filter top-performing prompts
-                </p>
+        <div style={{ width: "100%", maxWidth: "1600px", margin: "0 auto" }}>
+            <div style={{ marginBottom: "24px" }}>
+                <h1 className="premium-gradient" style={{ fontSize: "2.5rem", marginBottom: "8px" }}>Top Prompts</h1>
+                <p style={{ color: "rgba(255,255,255,0.6)" }}>Browse and filter top-performing prompts</p>
             </div>
 
             {loading ? (
@@ -142,6 +143,44 @@ export default function TopPromptsReview() {
                         }}
                     >
                         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                <label
+                                    htmlFor="project-filter"
+                                    style={{
+                                        color: "rgba(255,255,255,0.7)",
+                                        fontSize: "13px",
+                                        fontWeight: "600",
+                                    }}
+                                >
+                                    Project:
+                                </label>
+                                <select
+                                    id="project-filter"
+                                    value={selectedProjectId}
+                                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                                    style={{
+                                        padding: "8px 12px",
+                                        borderRadius: "6px",
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        fontSize: "13px",
+                                        background: "rgba(0, 0, 0, 0.4)",
+                                        color: "rgba(255,255,255,0.9)",
+                                        cursor: "pointer",
+                                        fontWeight: "500",
+                                        minWidth: "180px",
+                                    }}
+                                >
+                                    <option value="" disabled style={{ background: "#1a1a1a", color: "white" }}>
+                                        Select a project
+                                    </option>
+                                    {projects.map((p) => (
+                                        <option key={p.id} value={p.id} style={{ background: "#1a1a1a", color: "white" }}>
+                                            {p.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                                 <label
                                     htmlFor="env-filter"

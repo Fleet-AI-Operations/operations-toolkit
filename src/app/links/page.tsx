@@ -47,15 +47,15 @@ export default function LinksPage() {
     const categories = Array.from(new Set(links.map(link => link.category)));
 
     return (
-        <div className="container" style={{ maxWidth: '1200px', padding: '40px 20px' }}>
-            <header style={{ marginBottom: '48px', textAlign: 'center' }}>
-                <h1 className="premium-gradient" style={{ fontSize: '3rem', marginBottom: '16px' }}>
+        <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '48px' }}>
+                <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>
                     Quick Links
                 </h1>
                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1.1rem' }}>
                     Helpful resources and external tools
                 </p>
-            </header>
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
                 {categories.map(category => (

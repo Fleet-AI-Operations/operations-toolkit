@@ -288,15 +288,15 @@ export default function BonusWindowsPage() {
     }
 
     return (
-        <div>
-            <header style={{ marginBottom: '32px' }}>
+        <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                     <div>
-                        <h1 className="premium-gradient" style={{ fontSize: '2rem', marginBottom: '8px' }}>
+                        <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>
                             Bonus Windows
                         </h1>
                         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
-                            Configure performance windows and track collective record creation across all users
+                            Configure performance windows and track collective record creation
                         </p>
                     </div>
                     <button
@@ -310,7 +310,7 @@ export default function BonusWindowsPage() {
                         <Plus size={18} /> {showCreateForm ? 'Cancel' : 'New Bonus Window'}
                     </button>
                 </div>
-            </header>
+            </div>
 
             {/* Create/Edit Form */}
             {(showCreateForm || editingWindow) && (

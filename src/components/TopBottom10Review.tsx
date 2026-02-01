@@ -15,9 +15,15 @@ interface ReviewRecord {
   reviewedBy: string | null;
 }
 
+interface Project {
+  id: string;
+  name: string;
+}
+
 export default function TopBottom10Review() {
   const searchParams = useSearchParams();
-  const projectId = searchParams.get("projectId");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get("projectId") || "");
 
   const [category, setCategory] = useState<"TOP_10" | "BOTTOM_10">("TOP_10");
   const [allRecords, setAllRecords] = useState<ReviewRecord[]>([]);
@@ -39,11 +45,32 @@ export default function TopBottom10Review() {
   };
 
   useEffect(() => {
-    fetchRecords();
-  }, [projectId]);
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch("/api/projects");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setProjects(data);
+        if (!selectedProjectId && data.length > 0) {
+          setSelectedProjectId(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch projects", err);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchRecords();
+    }
+  }, [selectedProjectId]);
 
   const fetchRecords = async () => {
-    if (!projectId || projectId.trim() === "" || projectId === "undefined") {
+    if (!selectedProjectId || selectedProjectId.trim() === "" || selectedProjectId === "undefined") {
       setError("No project selected");
       setLoading(false);
       return;
@@ -55,7 +82,7 @@ export default function TopBottom10Review() {
 
       // Fetch all TOP_10 and BOTTOM_10 records in one call
       const response = await fetch(
-        `/api/records/topbottom-review?projectId=${projectId}`,
+        `/api/records/topbottom-review?projectId=${selectedProjectId}`,
       );
 
       if (!response.ok) {
@@ -142,17 +169,24 @@ export default function TopBottom10Review() {
   };
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 20px" }}>
-      <h1
-        style={{
-          fontSize: "28px",
-          fontWeight: "bold",
-          color: "white",
-          marginBottom: "20px",
-        }}
-      >
-        Review Top/Bottom 10% Prompts
-      </h1>
+    <div style={{ width: "100%", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ marginBottom: "24px" }}>
+        <h1 className="premium-gradient" style={{ fontSize: "2.5rem", marginBottom: "8px" }}>Review Top/Bottom 10%</h1>
+        <p style={{ color: "rgba(255,255,255,0.6)" }}>Verify and correct automated percentage classifications</p>
+      </div>
+
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</label>
+        <select
+          value={selectedProjectId}
+          onChange={(e) => setSelectedProjectId(e.target.value)}
+          className="input-field"
+          style={{ width: '100%', maxWidth: '400px', height: '42px', padding: '0 12px' }}
+        >
+          <option value="" disabled>Select a project</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
 
       {loading ? (
         <div

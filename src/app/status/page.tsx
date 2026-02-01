@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, XCircle, Loader2, Server, Database } from 'lucide-react';
 
 interface SystemStatus {
@@ -16,14 +16,7 @@ export default function StatusPage() {
         timestamp: new Date().toISOString()
     });
 
-    useEffect(() => {
-        checkStatus();
-        // Auto-refresh every 30 seconds
-        const interval = setInterval(checkStatus, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const checkStatus = async () => {
+    const checkStatus = useCallback(async () => {
         setStatus(prev => ({
             ...prev,
             server: 'checking',
@@ -54,7 +47,14 @@ export default function StatusPage() {
                 timestamp: new Date().toISOString()
             });
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        checkStatus();
+        // Auto-refresh every 30 seconds
+        const interval = setInterval(checkStatus, 30000);
+        return () => clearInterval(interval);
+    }, [checkStatus]);
 
     const getStatusIcon = (isUp: boolean, isChecking: boolean) => {
         if (isChecking) {

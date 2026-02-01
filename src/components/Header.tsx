@@ -1,8 +1,8 @@
-
 import { createClient } from '@/lib/supabase/server'
 import { signOut } from '@/app/api/auth/actions'
-import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
+import BalanceIndicator from './AI/BalanceIndicator'
+import UserProfileDropdown from './navigation/UserProfileDropdown'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -16,11 +16,10 @@ export default async function Header() {
             .eq('id', user.id)
             .single()
         
-        if (error && error.code !== 'PGRST116') { // PGRST116 is 'no rows returned'
+        if (error && error.code !== 'PGRST116') {
             console.error('[Header] Profile fetch error:', error.message)
         }
         
-        // Fallback to role in JWT metadata if DB lookup fails/is empty
         profile = {
             role: profileData?.role || user.user_metadata?.role || 'USER'
         }
@@ -28,57 +27,26 @@ export default async function Header() {
 
     return (
         <header style={{
+            height: 'var(--topbar-height)',
             borderBottom: '1px solid var(--border)',
-            padding: '16px 24px',
+            padding: '0 40px',
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             background: 'var(--glass)',
             backdropFilter: 'blur(10px)',
             position: 'sticky',
             top: 0,
-            zIndex: 100
+            zIndex: 90,
+            width: '100%'
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                <Link href="/" style={{ fontSize: '1.2rem', fontWeight: 'bold' }} className="premium-gradient">
-                    Operations Tools
-                </Link>
-
-                <Link href="/links" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
-                    Links
-                </Link>
-
-                {(profile?.role === 'ADMIN' || profile?.role === 'MANAGER') && (
-                    <Link href="/time-tracking" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
-                        Time and Bonus
-                    </Link>
-                )}
-            </div>
-
             {user ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    {profile?.role === 'ADMIN' && (
-                        <Link href="/admin" style={{ fontSize: '0.9rem', color: '#ff4d4d', fontWeight: '500' }}>
-                            Admin
-                        </Link>
-                    )}
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.9rem', color: '#fff' }}>
-                            {user.email}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {profile?.role || 'USER'}
-                        </div>
-                    </div>
-                    <form action={signOut}>
-                        <button type="submit" style={{
-                            fontSize: '0.9rem',
-                            color: 'var(--error)',
-                            fontWeight: '500'
-                        }}>
-                            Sign Out
-                        </button>
-                    </form>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                    {profile?.role === 'ADMIN' && <BalanceIndicator />}
+                    <UserProfileDropdown 
+                        email={user.email || ''} 
+                        role={profile?.role || 'USER'} 
+                    />
                 </div>
             ) : (
                 <Link href="/login" style={{ 

@@ -1,8 +1,7 @@
 'use client';
 
+import { MessageSquare, Target, Zap, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, BarChart3, ArrowRight, MessageSquare, Target, Zap, Sparkles, Bot } from 'lucide-react';
-import Link from 'next/link';
 
 interface Project {
     id: string;
@@ -29,32 +28,29 @@ interface Match {
 export default function AnalyticsPage() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-    const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(false);
-    const [threshold, setThreshold] = useState(0.75);
-
+ 
     // Isolated Analysis States
     const [taskAnalysis, setTaskAnalysis] = useState<string | null>(null);
     const [feedbackAnalysis, setFeedbackAnalysis] = useState<string | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
-
+ 
     // Tab State
-    const [activeTab, setActiveTab] = useState<'SIMILARITY' | 'TASK_THEMES' | 'FEEDBACK_THEMES'>('SIMILARITY');
-
+    const [activeTab, setActiveTab] = useState<'TASK_THEMES' | 'FEEDBACK_THEMES'>('TASK_THEMES');
+ 
     useEffect(() => {
         fetchProjects();
     }, []);
-
+ 
     useEffect(() => {
         if (selectedProjectId) {
-            fetchAnalytics();
             // Load existing isolation analyses
             const project = projects.find(p => p.id === selectedProjectId);
             setTaskAnalysis(project?.lastTaskAnalysis || null);
             setFeedbackAnalysis(project?.lastFeedbackAnalysis || null);
         }
-    }, [selectedProjectId, threshold, projects]);
-
+    }, [selectedProjectId, projects]);
+ 
     const fetchProjects = async () => {
         try {
             const res = await fetch('/api/projects');
@@ -65,20 +61,7 @@ export default function AnalyticsPage() {
             console.error(err);
         }
     };
-
-    const fetchAnalytics = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch(`/api/analytics/similarity?projectId=${selectedProjectId}&threshold=${threshold}`);
-            const data = await res.json();
-            setMatches(data.matches || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
+ 
     const runLLMCheck = async (type: 'TASK' | 'FEEDBACK') => {
         setAnalyzing(true);
         try {
@@ -112,19 +95,14 @@ export default function AnalyticsPage() {
             setAnalyzing(false);
         }
     };
-
+ 
     return (
-        <div className="container" style={{ maxWidth: '1200px' }}>
-            <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Task Analytics</h1>
-                    <p style={{ color: 'rgba(255,255,255,0.6)' }}>Isolated Data Insights & Cross-Analysis</p>
-                </div>
-                <Link href="/" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <LayoutDashboard size={18} /> Dashboard
-                </Link>
-            </header>
-
+        <div style={{ width: '100%', maxWidth: '1600px', margin: '0 auto' }}>
+            <div style={{ marginBottom: '40px' }}>
+                <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Task Analytics</h1>
+                <p style={{ color: 'rgba(255,255,255,0.6)' }}>Isolated Data Insights & Theme Analysis</p>
+            </div>
+ 
             <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '32px' }}>
                 {/* Sidebar Controls */}
                 <aside>
@@ -140,22 +118,7 @@ export default function AnalyticsPage() {
                                 {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>
-
-                        {activeTab === 'SIMILARITY' && (
-                            <div style={{ marginBottom: '32px' }}>
-                                <label style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '8px', display: 'block' }}>Similarity Threshold: {(threshold * 100).toFixed(0)}%</label>
-                                <input
-                                    type="range"
-                                    min="0.5"
-                                    max="0.99"
-                                    step="0.01"
-                                    value={threshold}
-                                    onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                                    style={{ width: '100%', cursor: 'pointer' }}
-                                />
-                            </div>
-                        )}
-
+ 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
                             <button
                                 onClick={() => runLLMCheck('TASK')}
@@ -174,36 +137,23 @@ export default function AnalyticsPage() {
                                 <MessageSquare size={16} /> Analyze Feedback
                             </button>
                         </div>
-
+ 
                         <div style={{ paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                                 <Zap size={16} color="var(--accent)" />
                                 <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Insights Engine</span>
                             </div>
                             <p style={{ fontSize: '0.8rem', opacity: 0.6, lineHeight: '1.4' }}>
-                                {activeTab === 'SIMILARITY'
-                                    ? "Compare tasks and feedback to find semantic correlations."
-                                    : "Identify isolated trends within a specific data category."}
+                                Identify isolated trends and high-level themes within specific data categories.
                             </p>
                         </div>
                     </div>
                 </aside>
-
+ 
                 {/* Main Content Area */}
                 <main>
                     {/* Tab Navigation */}
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', background: 'rgba(255,255,255,0.02)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <button
-                            onClick={() => setActiveTab('SIMILARITY')}
-                            style={{
-                                flex: 1, padding: '12px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600, border: 'none', cursor: 'pointer',
-                                background: activeTab === 'SIMILARITY' ? 'rgba(0,112,243,0.1)' : 'transparent',
-                                color: activeTab === 'SIMILARITY' ? 'var(--accent)' : 'rgba(255,255,255,0.4)',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Cross-Analysis
-                        </button>
                         <button
                             onClick={() => setActiveTab('TASK_THEMES')}
                             style={{
@@ -227,7 +177,7 @@ export default function AnalyticsPage() {
                             Feedback Themes
                         </button>
                     </div>
-
+ 
                     {/* Tab Content */}
                     {activeTab === 'TASK_THEMES' && (
                         <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
@@ -247,7 +197,7 @@ export default function AnalyticsPage() {
                             </div>
                         </div>
                     )}
-
+ 
                     {activeTab === 'FEEDBACK_THEMES' && (
                         <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
                             <div style={{ background: 'rgba(0, 112, 243, 0.1)', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -264,36 +214,6 @@ export default function AnalyticsPage() {
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'SIMILARITY' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                            {loading ? (
-                                <div style={{ padding: '100px', textAlign: 'center' }}><div className="spinner" /></div>
-                            ) : matches.length === 0 ? (
-                                <div style={{ padding: '100px', textAlign: 'center', opacity: 0.5 }}>No matches found.</div>
-                            ) : (
-                                matches.map((match, i) => (
-                                    <div key={i} className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
-                                        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between' }}>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)' }}>MATCH #{i + 1}</span>
-                                            <span style={{ color: '#00ff88', fontSize: '0.75rem' }}>{(match.similarity * 100).toFixed(1)}% Similarity</span>
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '24px', padding: '24px' }}>
-                                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                                                <div style={{ fontSize: '0.65rem', color: 'var(--accent)', fontWeight: 700, marginBottom: '8px' }}>TASK</div>
-                                                <div style={{ fontSize: '0.9rem' }}>{match.task.content}</div>
-                                            </div>
-                                            <ArrowRight size={20} style={{ alignSelf: 'center', opacity: 0.1 }} />
-                                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                                                <div style={{ fontSize: '0.65rem', color: '#00ff88', fontWeight: 700, marginBottom: '8px' }}>FEEDBACK</div>
-                                                <div style={{ fontSize: '0.9rem' }}>{match.feedback.content}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
                         </div>
                     )}
                 </main>

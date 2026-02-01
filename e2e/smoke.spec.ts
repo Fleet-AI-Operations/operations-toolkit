@@ -12,7 +12,7 @@ test('navigation to ingest page', async ({ page }) => {
     await expect(page.locator('h1')).toContainText(/Ingest/);
 });
 
-test('admin console safety warning exists', async ({ page }) => {
+test('admin console redirect for unauthenticated users', async ({ page }) => {
     await page.goto('/admin');
-    await expect(page.locator('text=Resource Warning')).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
 });

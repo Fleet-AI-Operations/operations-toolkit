@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Settings, Users, ShieldAlert, Database, Sparkles, Activity } from 'lucide-react';
+import { useRoleCheck } from '@/hooks/useRoleCheck';
 
 const adminNavItems = [
     {
@@ -37,6 +38,19 @@ export default function AdminLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const { isAuthorized } = useRoleCheck({
+        allowedRoles: ['ADMIN'],
+        redirectOnUnauthorized: '/',
+        redirectOnUnauthenticated: '/login'
+    });
+
+    if (isAuthorized === null) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+                <div className="spinner" />
+            </div>
+        );
+    }
 
     return (
         <div style={{ display: 'flex', minHeight: 'calc(100vh - 73px)', gap: '0' }}>
