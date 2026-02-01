@@ -165,3 +165,25 @@ model SystemSetting {
   @@schema("public")
 }
 
+/**
+ * BONUS WINDOW: Tracks time-based performance windows for all users.
+ * Managers configure windows to measure collective record creation against targets.
+ * Supports optional second tier targets for enhanced bonuses.
+ */
+model BonusWindow {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String   @default("Bonus Window")
+  startTime               DateTime @map("start_time") @db.Timestamptz
+  endTime                 DateTime @map("end_time") @db.Timestamptz
+  targetTaskCount         Int      @default(0) @map("target_task_count")
+  targetFeedbackCount     Int      @default(0) @map("target_feedback_count")
+  targetTaskCountTier2    Int      @default(0) @map("target_task_count_tier2")
+  targetFeedbackCountTier2 Int     @default(0) @map("target_feedback_count_tier2")
+  createdBy               String   @map("created_by") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("bonus_windows")
+  @@schema("public")
+}
+

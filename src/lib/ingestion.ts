@@ -325,23 +325,24 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
             const taskId = v.record.task_id || v.record.id || v.record.uuid || v.record.record_id;
             if (!taskId) return true;
 
-            const existing = await prisma.dataRecord.findFirst({
-                where: {
-                    projectId,
-                    type,
-                    OR: [
-                        { metadata: { path: ['task_id'], equals: String(taskId) } },
-                        { metadata: { path: ['id'], equals: String(taskId) } },
-                        { metadata: { path: ['uuid'], equals: String(taskId) } },
-                        { metadata: { path: ['record_id'], equals: String(taskId) } }
-                    ]
-                }
-            });
+            // Use raw SQL for reliable JSON querying in PostgreSQL
+            const existing = await prisma.$queryRaw<any[]>`
+                SELECT id FROM data_records
+                WHERE "projectId" = ${projectId}
+                AND type = ${type}::"RecordType"
+                AND (
+                    metadata->>'task_id' = ${String(taskId)}
+                    OR metadata->>'id' = ${String(taskId)}
+                    OR metadata->>'uuid' = ${String(taskId)}
+                    OR metadata->>'record_id' = ${String(taskId)}
+                )
+                LIMIT 1
+            `;
 
-            if (existing) {
+            if (existing && existing.length > 0) {
                 chunkSkipDetails['Duplicate ID'] = (chunkSkipDetails['Duplicate ID'] || 0) + 1;
             }
-            return !existing;
+            return !(existing && existing.length > 0);
         }));
 
         const finalChunk = validChunk.filter((_, idx) => uniqueness[idx]);

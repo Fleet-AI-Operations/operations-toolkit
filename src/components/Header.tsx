@@ -44,19 +44,24 @@ export default async function Header() {
                     Operations Tools
                 </Link>
 
-                <Link href="/links" style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>
+                <Link href="/links" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
                     Links
                 </Link>
 
-                {profile?.role === 'ADMIN' && (
-                    <Link href="/admin" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
-                        Admin
+                {(profile?.role === 'ADMIN' || profile?.role === 'MANAGER') && (
+                    <Link href="/time-tracking" style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: '500' }}>
+                        Time and Bonus
                     </Link>
                 )}
             </div>
-            
+
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    {profile?.role === 'ADMIN' && (
+                        <Link href="/admin" style={{ fontSize: '0.9rem', color: '#ff4d4d', fontWeight: '500' }}>
+                            Admin
+                        </Link>
+                    )}
                     <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.9rem', color: '#fff' }}>
                             {user.email}
@@ -66,8 +71,8 @@ export default async function Header() {
                         </div>
                     </div>
                     <form action={signOut}>
-                        <button type="submit" style={{ 
-                            fontSize: '0.9rem', 
+                        <button type="submit" style={{
+                            fontSize: '0.9rem',
                             color: 'var(--error)',
                             fontWeight: '500'
                         }}>
