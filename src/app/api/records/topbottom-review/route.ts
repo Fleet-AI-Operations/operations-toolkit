@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const projectId = searchParams.get('projectId');
         const category = searchParams.get('category') as RecordCategory | null;
+        const includeReviewed = searchParams.get('includeReviewed') === 'true';
 
         if (!projectId || projectId.trim() === "" || projectId === "undefined") {
             return NextResponse.json(
@@ -17,11 +18,15 @@ export async function GET(req: NextRequest) {
 
         const whereClause: any = {
             projectId,
-            hasBeenReviewed: false,
             category: {
                 in: ['TOP_10', 'BOTTOM_10']
             }
         };
+
+        // Only filter by review status if not including reviewed records
+        if (!includeReviewed) {
+            whereClause.hasBeenReviewed = false;
+        }
 
         if (category === 'TOP_10' || category === 'BOTTOM_10') {
             whereClause.category = category;
@@ -37,9 +42,11 @@ export async function GET(req: NextRequest) {
                 metadata: true,
                 alignmentAnalysis: true,
                 isCategoryCorrect: true,
+                hasBeenReviewed: true,
+                reviewedBy: true,
             },
             orderBy: {
-                createdAt: 'asc',
+                createdAt: 'desc',
             },
         });
 

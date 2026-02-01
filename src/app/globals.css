@@ -101,3 +101,49 @@ h3 {
   margin: 0 auto;
   padding: 40px 20px;
 }
+/* Custom Tooltip for Verified Badge */
+.prompt-card:has(.verified-badge:hover) {
+  z-index: 100;
+}
+
+.verified-badge::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 9999;
+}
+
+.verified-badge::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+  border: 6px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.95);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 9999;
+}
+
+.verified-badge:hover::after,
+.verified-badge:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}

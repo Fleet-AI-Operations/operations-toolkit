@@ -140,6 +140,10 @@ export default function Dashboard() {
                         <FileCheck size={18} /> Top/Bottom 10
                     </Link>
 
+                    <Link href={`/top-prompts?projectId=${selectedProject?.id}`} className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
+                        <ShieldAlert size={18} /> Top Prompts
+                    </Link>
+
                     <Link href="/manage" className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
                         <Settings size={18} /> Manage
                     </Link>
