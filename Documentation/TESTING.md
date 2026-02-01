@@ -238,6 +238,12 @@ describe('Auth Operations', () => {
 
 E2E tests use **Playwright** and test real user flows.
 
+**Current E2E Test Coverage:**
+- `e2e/auth.spec.ts` - Authentication flow and authorization redirects
+- `e2e/smoke.spec.ts` - Basic application health checks
+- `e2e/example.spec.ts` - Playwright example tests
+- `e2e/bonus-windows.spec.ts` - Time tracking and bonus management features
+
 **Example: Testing authentication flow**
 
 ```typescript

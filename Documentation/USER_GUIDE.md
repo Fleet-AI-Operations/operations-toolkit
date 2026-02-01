@@ -76,7 +76,53 @@ If you're using OpenRouter as your AI provider, the tool provides real-time cost
 
 ---
 
+---
+
+## Time Tracking and Bonus Management (Manager/Admin Only)
+
+The Time and Bonus section provides managers and administrators with tools to track team performance and manage bonus qualification periods.
+
+### Bonus Windows
+
+Bonus windows are time-bounded performance periods where team members work toward collective targets. This feature enables you to:
+
+- **Configure Performance Windows**: Set start and end times for bonus periods
+- **Set Tiered Targets**: Define separate targets for tasks and feedback records
+  - **Tier 1**: Base bonus qualification targets
+  - **Tier 2**: Enhanced bonus targets (optional)
+- **Track Progress**: Real-time progress bars show collective team advancement
+- **Review User Contributions**: Detailed breakdown showing individual user contributions with tier achievement badges
+
+#### Creating a Bonus Window
+
+1. Navigate to **Time and Bonus → Bonus Windows**
+2. Click "New Bonus Window"
+3. Configure:
+   - **Window Name**: Descriptive name (e.g., "Q1 2024 Performance Period")
+   - **Start/End Times**: Define the time period
+   - **Tier 1 Targets**: Set task and feedback count targets (set to 0 to skip either)
+   - **Tier 2 Targets** (Optional): Set higher targets for enhanced bonuses
+4. Click "Create Window"
+
+#### Understanding Tier Qualification
+
+- **Tier 1 (T1)**: Users who meet the base task and feedback targets
+- **Tier 2 (T2)**: Users who meet the enhanced task and feedback targets
+- Users must meet **both** task and feedback targets for their respective tier
+- Tier badges appear next to counts in the user breakdown
+
+#### Monitoring Progress
+
+- Color-coded progress bars indicate completion status:
+  - 🔴 Red (0-49%): Below target
+  - 🟠 Orange (50-74%): Approaching target
+  - 🔵 Blue (75-99%): Near completion
+  - 🟢 Green (100%+): Target met
+
+---
+
 ## Best Practices
 
 - **Guideline Clarity**: Ensure your PDF is text-readable (not just images) for the best AI grounding results.
 - **GPU Optimization**: For the fastest "Vectorizing" phase, ensure LM Studio is configured to use GPU acceleration for your embedding model.
+- **Bonus Window Timing**: Configure bonus windows in advance to give team members clear visibility on targets and timelines.

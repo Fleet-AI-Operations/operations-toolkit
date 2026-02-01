@@ -25,8 +25,8 @@ Access is governed by the `role` field in the `profiles` table:
 | Role | Description |
 | :--- | :--- |
 | **USER** | Can view data and run analyses. |
-| **MANAGER** | Can manage projects and ingestion jobs. |
-| **ADMIN** | Full system control, including user creation, role management, and system configuration. |
+| **MANAGER** | Can manage projects and ingestion jobs. Has access to Time Tracking and Bonus Windows to monitor team performance. |
+| **ADMIN** | Full system control, including user creation, role management, system configuration, and all MANAGER capabilities. |
 
 ## 3. User Management (Admins)
 
