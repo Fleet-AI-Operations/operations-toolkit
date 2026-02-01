@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { RecordCategory, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-
-type RecordCategory = 'TOP_10' | 'BOTTOM_10';
 
 type RecordWithoutScores = {
     id: string;
     content: string;
     category: RecordCategory | null;
     source: string;
-    metadata: Record<string, any> | null;
+    metadata: Prisma.JsonValue;
     alignmentAnalysis: string | null;
     isCategoryCorrect: boolean | null;
     hasBeenReviewed: boolean;
