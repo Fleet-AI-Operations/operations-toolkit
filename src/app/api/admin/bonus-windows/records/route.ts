@@ -2,6 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 
+interface ProfileWithRole {
+    role: string | null;
+}
+
 // GET records for a specific bonus window
 export async function GET(req: Request) {
     const supabase = await createClient()
@@ -18,7 +22,7 @@ export async function GET(req: Request) {
         .eq('id', user.id)
         .single()
 
-    if (!profile || !['MANAGER', 'ADMIN'].includes((profile as any)?.role)) {
+    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -70,7 +74,7 @@ export async function GET(req: Request) {
             // Determine task tier
             let taskTier: number | null = null
             if (window.targetTaskCount > 0) {
-                if (window.targetTaskCountTier2 > 0 && taskCount >= window.targetTaskCountTier2) {
+                if (window.targetTaskCountTier2 && window.targetTaskCountTier2 > 0 && taskCount >= window.targetTaskCountTier2) {
                     taskTier = 2
                 } else if (taskCount >= window.targetTaskCount) {
                     taskTier = 1
@@ -80,7 +84,7 @@ export async function GET(req: Request) {
             // Determine feedback tier
             let feedbackTier: number | null = null
             if (window.targetFeedbackCount > 0) {
-                if (window.targetFeedbackCountTier2 > 0 && feedbackCount >= window.targetFeedbackCountTier2) {
+                if (window.targetFeedbackCountTier2 && window.targetFeedbackCountTier2 > 0 && feedbackCount >= window.targetFeedbackCountTier2) {
                     feedbackTier = 2
                 } else if (feedbackCount >= window.targetFeedbackCount) {
                     feedbackTier = 1
@@ -98,8 +102,8 @@ export async function GET(req: Request) {
         })
 
         return NextResponse.json(formattedResults)
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Bonus Windows Records API] GET error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
     }
 }

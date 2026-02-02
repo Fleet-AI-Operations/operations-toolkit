@@ -59,7 +59,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
         {
             title: 'Operations Tools',
             items: [
-                { label: 'Ingest', href: '/ingest', icon: Database },
+                { label: 'Ingest', href: '/ingest', icon: Database, role: ['ADMIN', 'MANAGER'] },
                 { label: 'Time Tracking', href: '/time-tracking', icon: Clock, role: ['ADMIN', 'MANAGER'] },
                 { label: 'Project Management', href: '/manage', icon: Settings, role: ['ADMIN', 'MANAGER'] },
             ]

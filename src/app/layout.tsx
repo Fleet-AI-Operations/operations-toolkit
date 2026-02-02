@@ -7,6 +7,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Sidebar from "@/components/navigation/Sidebar";
+import BugReportButton from "@/components/BugReportButton";
 import { createClient } from '@/lib/supabase/server'
 import { ProjectProvider } from "@/context/ProjectContext";
 
@@ -52,6 +53,7 @@ export default async function RootLayout({
             </div>
           </div>
         </ProjectProvider>
+        {user && <BugReportButton />}
         <Analytics />
         <SpeedInsights />
       </body>

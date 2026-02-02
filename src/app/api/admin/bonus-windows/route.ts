@@ -2,6 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { logAudit } from '@/lib/audit'
+import { Prisma } from '@prisma/client'
+
+interface ProfileWithRole {
+    role: string | null;
+}
 
 // GET all bonus windows with calculated progress
 export async function GET() {
@@ -19,7 +24,7 @@ export async function GET() {
         .eq('id', user.id)
         .single()
 
-    if (!profile || !['MANAGER', 'ADMIN'].includes((profile as any)?.role)) {
+    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -59,11 +64,11 @@ export async function GET() {
                     ? Math.min(100, Math.round((feedbackCount / window.targetFeedbackCount) * 100))
                     : 100
 
-                const taskProgressTier2 = window.targetTaskCountTier2 > 0
+                const taskProgressTier2 = window.targetTaskCountTier2 && window.targetTaskCountTier2 > 0
                     ? Math.min(100, Math.round((taskCount / window.targetTaskCountTier2) * 100))
                     : 100
 
-                const feedbackProgressTier2 = window.targetFeedbackCountTier2 > 0
+                const feedbackProgressTier2 = window.targetFeedbackCountTier2 && window.targetFeedbackCountTier2 > 0
                     ? Math.min(100, Math.round((feedbackCount / window.targetFeedbackCountTier2) * 100))
                     : 100
 
@@ -80,9 +85,9 @@ export async function GET() {
         )
 
         return NextResponse.json(windowsWithProgress)
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Bonus Windows API] GET error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
     }
 }
 
@@ -101,7 +106,7 @@ export async function POST(req: Request) {
         .eq('id', user.id)
         .single()
 
-    if (!profile || !['MANAGER', 'ADMIN'].includes((profile as any)?.role)) {
+    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -151,9 +156,9 @@ export async function POST(req: Request) {
         })
 
         return NextResponse.json(newWindow)
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Bonus Windows API] POST error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
     }
 }
 
@@ -172,7 +177,7 @@ export async function PATCH(req: Request) {
         .eq('id', user.id)
         .single()
 
-    if (!profile || !['MANAGER', 'ADMIN'].includes((profile as any)?.role)) {
+    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -187,7 +192,7 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ error: 'End time must be after start time' }, { status: 400 })
         }
 
-        const updateData: any = {}
+        const updateData: Prisma.BonusWindowUpdateInput = {}
         if (name) updateData.name = name
         if (startTime) updateData.startTime = new Date(startTime)
         if (endTime) updateData.endTime = new Date(endTime)
@@ -212,9 +217,9 @@ export async function PATCH(req: Request) {
         })
 
         return NextResponse.json(updatedWindow)
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Bonus Windows API] PATCH error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
     }
 }
 
@@ -233,7 +238,7 @@ export async function DELETE(req: Request) {
         .eq('id', user.id)
         .single()
 
-    if (!profile || !['MANAGER', 'ADMIN'].includes((profile as any)?.role)) {
+    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -260,8 +265,8 @@ export async function DELETE(req: Request) {
         })
 
         return NextResponse.json({ success: true })
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Bonus Windows API] DELETE error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
     }
 }
