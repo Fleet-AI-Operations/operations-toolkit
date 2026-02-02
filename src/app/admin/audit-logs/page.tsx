@@ -17,6 +17,7 @@ import {
   Calendar,
   AlertCircle,
 } from 'lucide-react';
+import { datetimeLocalToISO } from '@/lib/datetime';
 
 interface AuditLog {
   id: string;
@@ -65,8 +66,8 @@ export default function AuditLogsPage() {
 
       if (actionFilter) params.append('action', actionFilter);
       if (entityTypeFilter) params.append('entityType', entityTypeFilter);
-      if (startDateFilter) params.append('startDate', startDateFilter);
-      if (endDateFilter) params.append('endDate', endDateFilter);
+      if (startDateFilter) params.append('startDate', datetimeLocalToISO(startDateFilter));
+      if (endDateFilter) params.append('endDate', datetimeLocalToISO(endDateFilter));
 
       const response = await fetch(`/api/audit-logs?${params}`);
 
