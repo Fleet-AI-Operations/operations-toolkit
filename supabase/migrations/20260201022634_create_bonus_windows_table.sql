@@ -21,6 +21,7 @@ CREATE INDEX IF NOT EXISTS bonus_windows_time_range_idx ON public.bonus_windows(
 ALTER TABLE public.bonus_windows ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Managers and Admins can view all bonus windows
+DROP POLICY IF EXISTS "Managers and Admins can view all bonus windows" ON public.bonus_windows;
 CREATE POLICY "Managers and Admins can view all bonus windows"
 ON public.bonus_windows
 FOR SELECT
@@ -34,6 +35,7 @@ USING (
 );
 
 -- Policy: Managers and Admins can create bonus windows
+DROP POLICY IF EXISTS "Managers and Admins can create bonus windows" ON public.bonus_windows;
 CREATE POLICY "Managers and Admins can create bonus windows"
 ON public.bonus_windows
 FOR INSERT
@@ -47,6 +49,7 @@ WITH CHECK (
 );
 
 -- Policy: Managers and Admins can update bonus windows
+DROP POLICY IF EXISTS "Managers and Admins can update bonus windows" ON public.bonus_windows;
 CREATE POLICY "Managers and Admins can update bonus windows"
 ON public.bonus_windows
 FOR UPDATE
@@ -60,6 +63,7 @@ USING (
 );
 
 -- Policy: Managers and Admins can delete bonus windows
+DROP POLICY IF EXISTS "Managers and Admins can delete bonus windows" ON public.bonus_windows;
 CREATE POLICY "Managers and Admins can delete bonus windows"
 ON public.bonus_windows
 FOR DELETE

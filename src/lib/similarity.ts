@@ -1,43 +1,64 @@
 import { prisma } from './prisma';
-import { cosineSimilarity } from './ai';
+
+interface RecordWithEmbedding {
+    id: string;
+    content: string;
+    projectId: string;
+    type: string;
+    embedding: string; // pgvector returns as string
+}
+
+// Parse pgvector string format "[0.1,0.2,...]" to number[]
+function parseVector(vectorStr: string): number[] {
+    if (!vectorStr) return [];
+    const inner = vectorStr.slice(1, -1); // Remove [ and ]
+    if (!inner) return [];
+    return inner.split(',').map(Number);
+}
 
 export async function findSimilarRecords(targetId: string, limit: number = 5) {
-    const targetRecord = await prisma.dataRecord.findUnique({
-        where: { id: targetId },
-    });
+    // Get target record with embedding via raw SQL
+    const targetRecords: RecordWithEmbedding[] = await prisma.$queryRaw`
+        SELECT id, content, "projectId", type, embedding::text as embedding
+        FROM public.data_records
+        WHERE id = ${targetId}
+        AND embedding IS NOT NULL
+    `;
 
-    if (!targetRecord || !targetRecord.embedding || targetRecord.embedding.length === 0) {
+    if (targetRecords.length === 0) {
         throw new Error('Target record not found or has no embedding');
     }
 
-    // PERFORMANCE NOTE: Current implementation uses in-memory similarity calculation
-    // This approach pulls all records into memory and sorts them, which works well for demos
-    // and small-to-medium datasets (< 10,000 records).
-    //
-    // For production scale (10,000+ records), consider migrating to pgvector:
-    // 1. Add pgvector extension: CREATE EXTENSION IF NOT EXISTS vector;
-    // 2. Change column type: ALTER TABLE data_records ALTER COLUMN embedding TYPE vector(1536);
-    // 3. Add index: CREATE INDEX ON data_records USING ivfflat (embedding vector_cosine_ops);
-    // 4. Use raw SQL: SELECT * FROM data_records ORDER BY embedding <=> $1 LIMIT 5;
-    //
-    // Benefits: 10-100x faster queries, constant memory usage, scalable to millions of vectors
-    // TODO: Implement pgvector migration when dataset exceeds 10k records
+    const targetRecord = targetRecords[0];
+    const targetEmbedding = parseVector(targetRecord.embedding);
 
-    const allRecords = await prisma.dataRecord.findMany({
-        where: {
-            id: { not: targetId },
+    if (targetEmbedding.length === 0) {
+        throw new Error('Target record has no valid embedding');
+    }
+
+    // Use pgvector's built-in similarity search for efficiency
+    const similarRecords: (RecordWithEmbedding & { similarity: number })[] = await prisma.$queryRaw`
+        SELECT
+            id,
+            content,
+            "projectId",
+            type,
+            embedding::text as embedding,
+            1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${targetId})) as similarity
+        FROM public.data_records
+        WHERE id != ${targetId}
+        AND embedding IS NOT NULL
+        ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${targetId})
+        LIMIT ${limit}
+    `;
+
+    return similarRecords.map(record => ({
+        record: {
+            id: record.id,
+            content: record.content,
+            projectId: record.projectId,
+            type: record.type,
         },
-    });
-
-    // Filter out records without embeddings (since Prisma doesn't support isEmpty on Float[])
-    const recordsWithEmbeddings = allRecords.filter(r => r.embedding && r.embedding.length > 0);
-
-    const results = recordsWithEmbeddings.map(record => ({
-        record,
-        similarity: cosineSimilarity(targetRecord.embedding, record.embedding)
+        similarity: Number(record.similarity)
     }));
-
-    return results
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, limit);
 }

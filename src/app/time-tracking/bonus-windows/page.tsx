@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, Target, Loader2, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Calendar, ShieldAlert, RefreshCw } from 'lucide-react';
+import { datetimeLocalToISO, isoToDatetimeLocal } from '@/lib/datetime';
 
 interface BonusWindow {
     id: string;
@@ -97,8 +98,8 @@ export default function BonusWindowsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name || 'Bonus Window',
-                    startTime,
-                    endTime,
+                    startTime: datetimeLocalToISO(startTime),
+                    endTime: datetimeLocalToISO(endTime),
                     targetTaskCount: parseInt(targetTaskCount) || 0,
                     targetFeedbackCount: parseInt(targetFeedbackCount) || 0,
                     targetTaskCountTier2: parseInt(targetTaskCountTier2) || 0,
@@ -134,8 +135,8 @@ export default function BonusWindowsPage() {
                 body: JSON.stringify({
                     id: editingWindow.id,
                     name: name || 'Bonus Window',
-                    startTime,
-                    endTime,
+                    startTime: datetimeLocalToISO(startTime),
+                    endTime: datetimeLocalToISO(endTime),
                     targetTaskCount: parseInt(targetTaskCount) || 0,
                     targetFeedbackCount: parseInt(targetFeedbackCount) || 0,
                     targetTaskCountTier2: parseInt(targetTaskCountTier2) || 0,
@@ -224,8 +225,8 @@ export default function BonusWindowsPage() {
     const startEdit = (window: BonusWindow) => {
         setEditingWindow(window);
         setName(window.name);
-        setStartTime(window.startTime.slice(0, 16)); // Format for datetime-local input
-        setEndTime(window.endTime.slice(0, 16));
+        setStartTime(isoToDatetimeLocal(window.startTime));
+        setEndTime(isoToDatetimeLocal(window.endTime));
         setTargetTaskCount(window.targetTaskCount.toString());
         setTargetFeedbackCount(window.targetFeedbackCount.toString());
         setTargetTaskCountTier2(window.targetTaskCountTier2?.toString() || '');

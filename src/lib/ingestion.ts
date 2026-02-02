@@ -1,6 +1,6 @@
 /**
  * Ingestion Hub - Flexible data ingestion system for CSV/API sources
- * 
+ *
  * Key Features:
  * - Multi-column content detection (feedback, prompt, text, etc.)
  * - Flexible rating detection (top_10, Top 10%, numerical scores, etc.)
@@ -10,7 +10,7 @@
 import { parse } from 'csv-parse/sync';
 import { prisma } from './prisma';
 import { getEmbeddings } from './ai';
-import { RecordType, RecordCategory } from '@prisma/client';
+import { RecordType, RecordCategory, Prisma } from '@prisma/client';
 
 export interface IngestOptions {
     projectId: string;
@@ -132,16 +132,20 @@ async function processJobs(projectId: string) {
  *
  * Note: Scoped to the Project ID. This serves as a self-healing mechanism: any record in the project
  * missing an embedding (from this job or previous failed jobs) will be processed.
- * 
+ *
+ * Uses raw SQL for vector operations because Prisma's Unsupported("vector") type
+ * is excluded from the TypeScript client - this is the documented pattern for pgvector.
+ *
  * Retry Strategy:
  * - Tracks failed record IDs to avoid infinite retries on the same batch
- * - After MAX_RETRIES_PER_RECORD attempts, marks records with embedding error status
+ * - After MAX_RETRIES_PER_RECORD attempts, marks records with embedding error in metadata
  * - Continues processing other batches instead of failing the entire job on intermittent API failures
  */
 async function vectorizeJob(jobId: string, projectId: string) {
     const RECORDS_BATCH_SIZE = 50;
     const MAX_RETRIES_PER_RECORD = 3;
     const failedRecordAttempts = new Map<string, number>(); // Track retry attempts per record
+    const permanentlyFailedIds = new Set<string>(); // Track IDs that have been marked as failed
     let totalEmbedded = 0;
     let totalSkipped = 0;
 
@@ -150,15 +154,28 @@ async function vectorizeJob(jobId: string, projectId: string) {
         const job = await prisma.ingestJob.findUnique({ where: { id: jobId }, select: { status: true } });
         if (job?.status === 'CANCELLED') break;
 
-        // Fetch records that need embeddings (empty arrays) and are not permanently failed
-        const batch = await prisma.dataRecord.findMany({
-            where: {
-                projectId,
-                embedding: { equals: [] }
-            },
-            take: RECORDS_BATCH_SIZE,
-            orderBy: { id: 'asc' }
-        });
+        // Fetch records that need embeddings (NULL embedding) using raw SQL
+        // Exclude permanently failed records to avoid infinite loops
+        // Also exclude records that already have embeddingError in metadata
+        const failedIdsArray = Array.from(permanentlyFailedIds);
+        const batch: { id: string; content: string; metadata: unknown }[] = failedIdsArray.length > 0
+            ? await prisma.$queryRaw`
+                SELECT id, content, metadata FROM public.data_records
+                WHERE "projectId" = ${projectId}
+                AND embedding IS NULL
+                AND (metadata->>'embeddingError' IS NULL)
+                AND id NOT IN (${Prisma.join(failedIdsArray)})
+                ORDER BY id ASC
+                LIMIT ${RECORDS_BATCH_SIZE}
+            `
+            : await prisma.$queryRaw`
+                SELECT id, content, metadata FROM public.data_records
+                WHERE "projectId" = ${projectId}
+                AND embedding IS NULL
+                AND (metadata->>'embeddingError' IS NULL)
+                ORDER BY id ASC
+                LIMIT ${RECORDS_BATCH_SIZE}
+            `;
 
         if (batch.length === 0) break;
 
@@ -175,20 +192,19 @@ async function vectorizeJob(jobId: string, projectId: string) {
             }
         }
 
-        // Skip records that have exceeded max retry attempts
+        // Mark records that exceeded max retry attempts with error in metadata
         for (const record of recordsToSkip) {
+            const updatedMetadata = {
+                ...(typeof record.metadata === 'object' && record.metadata !== null ? record.metadata : {}),
+                embeddingError: `Failed to generate embedding after ${MAX_RETRIES_PER_RECORD} attempts`
+            };
             await prisma.dataRecord.update({
                 where: { id: record.id },
-                data: {
-                    embedding: [], // Keep as empty to mark as failed
-                    metadata: {
-                        ...(typeof record.metadata === 'object' ? record.metadata : {}),
-                        embeddingError: `Failed to generate embedding after ${MAX_RETRIES_PER_RECORD} attempts`
-                    }
-                }
+                data: { metadata: updatedMetadata }
             });
             totalSkipped++;
             failedRecordAttempts.delete(record.id);
+            permanentlyFailedIds.add(record.id); // Exclude from future queries
         }
 
         if (recordsToProcess.length === 0) continue;
@@ -202,16 +218,19 @@ async function vectorizeJob(jobId: string, projectId: string) {
         // Count successful embeddings in this batch
         let batchSuccess = 0;
 
-        // Save back to DB
+        // Save back to DB using raw SQL for vector type
         for (let i = 0; i < recordsToProcess.length; i++) {
             const vector = embeddings[i];
             const record = recordsToProcess[i];
 
             if (vector && vector.length > 0) {
-                await prisma.dataRecord.update({
-                    where: { id: record.id },
-                    data: { embedding: vector }
-                });
+                // Use parameterized raw SQL - Prisma escapes all parameters
+                const vectorString = `[${vector.join(',')}]`;
+                await prisma.$executeRaw`
+                    UPDATE public.data_records
+                    SET embedding = ${vectorString}::vector
+                    WHERE id = ${record.id}
+                `;
                 batchSuccess++;
                 totalEmbedded++;
                 // Clear from failed attempts on success
@@ -238,7 +257,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
 /**
  * Phase 1: Data Loading
  * Parses records, filters by content/keywords, detects categories, and prevents duplicates.
- * 
+ *
  * New Feature: Detailed Skip Tracking
  * - Tracks 'Keyword Mismatch' (filtered out by user keywords)
  * - Tracks 'Duplicate ID' (existing Task ID or Feedback ID in project)
@@ -280,7 +299,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
 
                 if (!content || content.length < 10) {
                     const textFields = Object.entries(record)
-                        .filter(([key, val]) => typeof val === 'string' && String(val).length > 10)
+                        .filter(([, val]) => typeof val === 'string' && String(val).length > 10)
                         .sort((a, b) => String(b[1]).length - String(a[1]).length);
                     if (textFields.length > 0) content = String(textFields[0][1]);
                 }
@@ -327,7 +346,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
 
             // Use raw SQL for reliable JSON querying in PostgreSQL
             const existing = await prisma.$queryRaw<any[]>`
-                SELECT id FROM data_records
+                SELECT id FROM public.data_records
                 WHERE "projectId" = ${projectId}
                 AND type = ${type}::"RecordType"
                 AND (
@@ -376,7 +395,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
-                    embedding: [],
+                    // embedding is Unsupported("vector") - defaults to NULL, set via raw SQL in vectorizeJob
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: v.record?.created_by_name ? String(v.record.created_by_name) : null,
                     createdByEmail: v.record?.created_by_email ? String(v.record.created_by_email) : null,

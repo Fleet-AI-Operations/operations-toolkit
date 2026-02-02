@@ -2,6 +2,7 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { logAudit, checkAuditResult } from '@/lib/audit'
 
 export async function GET() {
     const supabase = await createClient()
@@ -66,6 +67,21 @@ export async function PATCH(req: Request) {
 
         if (updateError) throw updateError
 
+        // Log audit event (critical operation)
+        const auditResult = await logAudit({
+            action: 'USER_ROLE_CHANGED',
+            entityType: 'USER',
+            entityId: userId,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { newRole: role }
+        })
+
+        checkAuditResult(auditResult, 'USER_ROLE_CHANGED', {
+            entityId: userId,
+            userId: user.id
+        })
+
         return NextResponse.json(updatedProfile)
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
@@ -112,15 +128,30 @@ export async function POST(req: Request) {
         // 2. Update the profile created by the trigger to set role and forced reset
         const { data: updatedProfile, error: updateError } = await adminClient
             .from('profiles')
-            .update({ 
+            .update({
                 role,
-                mustResetPassword: true 
+                mustResetPassword: true
             })
             .eq('id', authData.user.id)
             .select()
             .single()
 
         if (updateError) throw updateError
+
+        // Log audit event (critical operation)
+        const auditResult = await logAudit({
+            action: 'USER_CREATED',
+            entityType: 'USER',
+            entityId: authData.user.id,
+            userId: adminUser.id,
+            userEmail: adminUser.email!,
+            metadata: { email, role }
+        })
+
+        checkAuditResult(auditResult, 'USER_CREATED', {
+            entityId: authData.user.id,
+            userId: adminUser.id
+        })
 
         return NextResponse.json(updatedProfile)
     } catch (error: any) {

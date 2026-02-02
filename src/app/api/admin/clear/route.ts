@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
+import { logAudit, checkAuditResult } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,20 @@ export async function POST(req: NextRequest) {
                     }
                 })
             ]);
+
+            // Log audit event (critical operation)
+            const auditResult = await logAudit({
+                action: 'DATA_CLEARED',
+                entityType: 'DATA_RECORD',
+                userId: user.id,
+                userEmail: user.email!,
+                metadata: { target: 'ALL_DATA' }
+            });
+
+            checkAuditResult(auditResult, 'DATA_CLEARED', {
+                userId: user.id
+            });
+
             return NextResponse.json({ message: 'All record data and analytics cleared successfully.' });
         }
 
@@ -47,6 +62,20 @@ export async function POST(req: NextRequest) {
                     lastFeedbackAnalysis: null
                 }
             });
+
+            // Log audit event (critical operation)
+            const auditResult = await logAudit({
+                action: 'ANALYTICS_CLEARED',
+                entityType: 'DATA_RECORD',
+                userId: user.id,
+                userEmail: user.email!,
+                metadata: { target: 'ANALYTICS_ONLY' }
+            });
+
+            checkAuditResult(auditResult, 'ANALYTICS_CLEARED', {
+                userId: user.id
+            });
+
             return NextResponse.json({ message: 'All saved analytics cleared successfully.' });
         }
 
