@@ -125,6 +125,8 @@ model DataRecord {
 
   ingestJobId   String?        @map("ingestJobId")
 
+  likertScores  LikertScore[]
+
   createdAt     DateTime       @default(now()) @map("createdAt")
   updatedAt     DateTime       @updatedAt @map("updatedAt")
 
@@ -196,6 +198,7 @@ model BonusWindow {
 model LikertScore {
   id              String      @id @default(cuid())
   recordId        String      @map("recordId")
+  record          DataRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   userId          String      @map("userId")
   realismScore    Int         @map("realismScore") // 1-7 scale
   qualityScore    Int         @map("qualityScore") // 1-7 scale

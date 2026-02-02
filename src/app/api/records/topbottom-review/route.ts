@@ -44,13 +44,49 @@ export async function GET(req: NextRequest) {
                 isCategoryCorrect: true,
                 hasBeenReviewed: true,
                 reviewedBy: true,
+                likertScores: {
+                    select: {
+                        realismScore: true,
+                        qualityScore: true,
+                    },
+                },
             },
             orderBy: {
                 createdAt: 'desc',
             },
         });
 
-        return NextResponse.json({ records, total: records.length });
+        // Calculate averages from the included likertScores
+        const recordsWithScores = records.map((record) => {
+            const likertScores = record.likertScores;
+
+            const avgRealism = likertScores.length > 0
+                ? likertScores.reduce((sum: number, s: { realismScore: number; qualityScore: number }) => sum + s.realismScore, 0) / likertScores.length
+                : null;
+
+            const avgQuality = likertScores.length > 0
+                ? likertScores.reduce((sum: number, s: { realismScore: number; qualityScore: number }) => sum + s.qualityScore, 0) / likertScores.length
+                : null;
+
+            return {
+                id: record.id,
+                content: record.content,
+                category: record.category,
+                source: record.source,
+                metadata: record.metadata,
+                alignmentAnalysis: record.alignmentAnalysis,
+                isCategoryCorrect: record.isCategoryCorrect,
+                hasBeenReviewed: record.hasBeenReviewed,
+                reviewedBy: record.reviewedBy,
+                likertScores: {
+                    count: likertScores.length,
+                    avgRealism: avgRealism ? parseFloat(avgRealism.toFixed(1)) : null,
+                    avgQuality: avgQuality ? parseFloat(avgQuality.toFixed(1)) : null,
+                },
+            };
+        });
+
+        return NextResponse.json({ records: recordsWithScores, total: recordsWithScores.length });
     } catch (error) {
         console.error('Error fetching records:', error);
         return NextResponse.json(

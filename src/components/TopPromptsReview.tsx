@@ -13,6 +13,11 @@ interface TopPromptRecord {
     isCategoryCorrect: boolean | null;
     hasBeenReviewed: boolean;
     reviewedBy: string | null;
+    likertScores: {
+        count: number;
+        avgRealism: number | null;
+        avgQuality: number | null;
+    };
 }
 
 export default function TopPromptsReview() {
@@ -260,26 +265,67 @@ export default function TopPromptsReview() {
                                             style={{
                                                 display: "flex",
                                                 justifyContent: "space-between",
-                                                alignItems: "flex-start",
+                                                alignItems: "center",
                                                 marginBottom: "16px",
                                                 gap: "12px",
                                             }}
                                         >
-                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                                                <span
-                                                    style={{
-                                                        padding: "5px 12px",
-                                                        background: "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3))",
-                                                        color: "#93c5fd",
-                                                        borderRadius: "16px",
-                                                        fontSize: "12px",
-                                                        fontWeight: "600",
-                                                        border: "1px solid rgba(59, 130, 246, 0.3)",
-                                                    }}
-                                                >
-                                                    {envKey}
-                                                </span>
-                                            </div>
+                                            <span
+                                                style={{
+                                                    padding: "5px 12px",
+                                                    background: "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3))",
+                                                    color: "#93c5fd",
+                                                    borderRadius: "16px",
+                                                    fontSize: "12px",
+                                                    fontWeight: "600",
+                                                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                                                }}
+                                            >
+                                                {envKey}
+                                            </span>
+
+                                            {record.likertScores.count > 0 && (
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                    <span
+                                                        data-tooltip="Average Realism Score"
+                                                        style={{
+                                                            padding: "5px 10px",
+                                                            background: "rgba(0, 112, 243, 0.15)",
+                                                            borderRadius: "12px",
+                                                            fontSize: "11px",
+                                                            fontWeight: "600",
+                                                            border: "1px solid rgba(0, 112, 243, 0.3)",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: "4px",
+                                                            cursor: "pointer",
+                                                            position: "relative",
+                                                        }}
+                                                    >
+                                                        <span style={{ color: "rgba(255,255,255,0.5)" }}>R:</span>
+                                                        <span style={{ color: "#0070f3" }}>{record.likertScores.avgRealism}/7</span>
+                                                    </span>
+                                                    <span
+                                                        data-tooltip="Average Quality Score"
+                                                        style={{
+                                                            padding: "5px 10px",
+                                                            background: "rgba(34, 197, 94, 0.15)",
+                                                            borderRadius: "12px",
+                                                            fontSize: "11px",
+                                                            fontWeight: "600",
+                                                            border: "1px solid rgba(34, 197, 94, 0.3)",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            gap: "4px",
+                                                            cursor: "pointer",
+                                                            position: "relative",
+                                                        }}
+                                                    >
+                                                        <span style={{ color: "rgba(255,255,255,0.5)" }}>Q:</span>
+                                                        <span style={{ color: "#22c55e" }}>{record.likertScores.avgQuality}/7</span>
+                                                    </span>
+                                                </div>
+                                            )}
 
                                             {isVerified && (
                                                 <div
