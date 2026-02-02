@@ -168,7 +168,7 @@ export function createTestDataRecord(overrides?: Partial<any>) {
     source: 'test',
     content: 'Test content',
     metadata: {},
-    embedding: [],
+    embedding: null as any, // Null embedding (uses type assertion for Prisma compatibility)
     hasBeenReviewed: false,
     isCategoryCorrect: null,
     reviewedBy: null,

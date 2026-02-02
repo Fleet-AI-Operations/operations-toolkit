@@ -125,6 +125,7 @@ export async function getActiveProvider(): Promise<AIProvider> {
 /**
  * Generates a vector embedding for a given string.
  * Used for semantic search and finding similar prompts/feedback.
+ * Returns an empty array on failure (caller should check length before storing).
  */
 export async function getEmbedding(text: string): Promise<number[]> {
   const embeddings = await getEmbeddings([text]);
@@ -378,9 +379,10 @@ export async function getOpenRouterBalance(): Promise<BalanceInfo | null> {
     const data = await response.json();
     const usage = data.data?.usage || 0;
     const limit = data.data?.limit;
+    const limitRemaining = data.data?.limit_remaining;
 
     return {
-      credits: limit ? limit - usage : 0,
+      credits: limitRemaining ?? (limit ? limit - usage : 0),
       usage,
       limit,
     };
