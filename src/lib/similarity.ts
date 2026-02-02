@@ -1,12 +1,13 @@
 import { prisma } from './prisma';
 import { cosineSimilarity } from './ai';
+import { hasValidEmbedding } from './embedding-utils';
 
 export async function findSimilarRecords(targetId: string, limit: number = 5) {
     const targetRecord = await prisma.dataRecord.findUnique({
         where: { id: targetId },
     });
 
-    if (!targetRecord || !targetRecord.embedding || targetRecord.embedding.length === 0) {
+    if (!targetRecord || !hasValidEmbedding(targetRecord.embedding)) {
         throw new Error('Target record not found or has no embedding');
     }
 
@@ -21,8 +22,8 @@ export async function findSimilarRecords(targetId: string, limit: number = 5) {
         },
     });
 
-    // Filter out records without embeddings (since Prisma doesn't support isEmpty on Float[])
-    const recordsWithEmbeddings = allRecords.filter(r => r.embedding && r.embedding.length > 0);
+    // Filter out records without embeddings
+    const recordsWithEmbeddings = allRecords.filter(r => hasValidEmbedding(r.embedding));
 
     const results = recordsWithEmbeddings.map(record => ({
         record,

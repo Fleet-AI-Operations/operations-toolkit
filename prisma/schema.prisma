@@ -110,7 +110,9 @@ model DataRecord {
   source        String         // Tracking field, e.g., "csv:filename.csv" or "api:endpoint"
   content       String         @db.Text
   metadata      Json?          // Stores all original fields from the source file
-  embedding     Float[]        // Vector representation for similarity searches
+  // NOTE: embedding is nullable in DB but defined as Float[] (non-nullable) because Prisma doesn't support Float[]?
+  // Use embedding-utils.ts helpers (nullEmbedding, hasValidEmbedding) for type-safe null handling
+  embedding     Float[]        // Vector representation for similarity searches (NULL if not yet generated)
   hasBeenReviewed Boolean      @default(false) // Whether a human rater has reviewed this record
   isCategoryCorrect Boolean?    // Rater's agreement: true if they agree with TOP_10/BOTTOM_10 classification
   reviewedBy    String?        // TODO: Update to authenticated user once auth is implemented

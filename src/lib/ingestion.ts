@@ -11,6 +11,7 @@ import { parse } from 'csv-parse/sync';
 import { prisma } from './prisma';
 import { getEmbeddings } from './ai';
 import { RecordType, RecordCategory } from '@prisma/client';
+import { nullEmbedding } from './embedding-utils';
 
 export interface IngestOptions {
     projectId: string;
@@ -187,7 +188,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
             await prisma.dataRecord.update({
                 where: { id: record.id },
                 data: {
-                    embedding: null as any, // Keep as null to mark as failed (type assertion needed since Prisma schema is Float[])
+                    embedding: nullEmbedding(), // Keep as null to mark as failed
                     metadata: {
                         ...(typeof record.metadata === 'object' ? record.metadata : {}),
                         embeddingError: `Failed to generate embedding after ${MAX_RETRIES_PER_RECORD} attempts`
@@ -383,7 +384,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
-                    embedding: null as any, // Set to null initially (type assertion needed since Prisma schema is Float[])
+                    embedding: nullEmbedding(), // Set to null initially
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: v.record?.created_by_name ? String(v.record.created_by_name) : null,
                     createdByEmail: v.record?.created_by_email ? String(v.record.created_by_email) : null,

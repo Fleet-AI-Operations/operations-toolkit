@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
 import { cosineSimilarity } from '@/lib/ai';
+import { hasValidEmbedding } from '@/lib/embedding-utils';
 
 export async function GET(req: NextRequest) {
     const supabase = await createClient();
@@ -49,13 +50,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Target prompt not found' }, { status: 404 });
     }
 
-    if (!targetPrompt.embedding || targetPrompt.embedding.length === 0) {
+    if (!hasValidEmbedding(targetPrompt.embedding)) {
         console.error('Similarity API Error: Target prompt missing embedding', {
             recordId,
-            projectId,
-            hasPrompt: !!targetPrompt,
-            hasEmbedding: !!targetPrompt?.embedding,
-            embeddingLength: targetPrompt?.embedding?.length
+            projectId
         });
         return NextResponse.json({
             error: 'Target prompt does not have an embedding yet. Please wait for vectorization to complete or trigger it manually.'
@@ -83,8 +81,8 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        // Filter out records without embeddings (null or empty arrays)
-        otherPrompts = otherPrompts.filter(p => p.embedding && p.embedding.length > 0);
+        // Filter out records without embeddings
+        otherPrompts = otherPrompts.filter(p => hasValidEmbedding(p.embedding));
     } catch (dbError: any) {
         console.error('Similarity API Error: Failed to fetch other prompts', {
             recordId,
