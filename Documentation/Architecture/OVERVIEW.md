@@ -46,3 +46,5 @@ graph TD
 1. **Project**: Organizational container holding Guidelines (PDF grounding data).
 2. **DataRecord**: Individual tasks/feedback containing raw content and generated embeddings.
 3. **IngestJob**: Lifecycle tracker for background processes. Supports parallel loading and sequential vectorization across jobs.
+4. **BonusWindow**: Time-bounded performance tracking for collective team bonus qualification.
+5. **AuditLog**: Security and compliance trail tracking all administrative and user actions across the system.

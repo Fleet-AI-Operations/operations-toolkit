@@ -24,6 +24,7 @@
     "db:studio": "dotenv -e .env.local -- prisma studio"
   },
   "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
     "@supabase/ssr": "^0.8.0",

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,16 @@ export async function POST(request: Request) {
             });
 
         await prisma.$transaction(operations);
+
+        // Log audit event
+        // Log audit event (non-critical)
+        await logAudit({
+            action: 'SYSTEM_SETTINGS_UPDATED',
+            entityType: 'SYSTEM_SETTING',
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { updatedSettings: Object.keys(body).filter(key => allowedKeys.includes(key)) }
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -213,3 +213,28 @@ model LikertScore {
   @@map("likert_scores")
   @@schema("public")
 }
+
+/**
+ * AUDIT LOG: Tracks user actions and administrative operations.
+ * Logs all major actions throughout the application for security and compliance.
+ */
+model AuditLog {
+  id          String    @id
+  action      String
+  entityType  String    @map("entity_type")
+  entityId    String?   @map("entity_id")
+  projectId   String?   @map("project_id")
+  userId      String    @map("user_id") @db.Uuid
+  userEmail   String    @map("user_email")
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([projectId])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+  @@schema("public")
+}
+
