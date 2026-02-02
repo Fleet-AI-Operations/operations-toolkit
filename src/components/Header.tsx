@@ -3,6 +3,7 @@ import Link from 'next/link'
 import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'
 import ProjectSelector from './navigation/ProjectSelector'
+import BugReportNotification from './BugReportNotification'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -47,9 +48,10 @@ export default async function Header() {
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}
-                    <UserProfileDropdown 
-                        email={user.email || ''} 
-                        role={profile?.role || 'USER'} 
+                    <BugReportNotification userRole={profile?.role || 'USER'} />
+                    <UserProfileDropdown
+                        email={user.email || ''}
+                        role={profile?.role || 'USER'}
                     />
                 </div>
             ) : (

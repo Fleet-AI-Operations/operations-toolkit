@@ -158,7 +158,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update the bug report
-    const updateData: Prisma.BugReportUpdateInput = {
+    const updateData: Prisma.BugReportUncheckedUpdateInput = {
       status,
       assignedTo: assignedTo === 'self' ? user.id : null,
       assignedToEmail: assignedTo === 'self' ? (profile?.email ?? null) : null,
