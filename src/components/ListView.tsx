@@ -114,18 +114,7 @@ function ListContent() {
             )}
 
             <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-end' }}>
-                <div style={{ flex: '1 1 200px' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</label>
-                    <select
-                        value={selectedProjectId}
-                        onChange={(e) => setSelectedProjectId(e.target.value)}
-                        className="input-field"
-                        style={{ width: '100%', height: '42px', padding: '0 12px' }}
-                    >
-                        <option value="" disabled>Select a project</option>
-                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                </div>
+                {/* Project selection is handled globally via ProjectContext in the header */}
 
                 <div style={{ flex: '0 0 auto' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Record Type</label>

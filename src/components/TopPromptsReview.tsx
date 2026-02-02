@@ -150,44 +150,6 @@ export default function TopPromptsReview() {
                         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                                 <label
-                                    htmlFor="project-filter"
-                                    style={{
-                                        color: "rgba(255,255,255,0.7)",
-                                        fontSize: "13px",
-                                        fontWeight: "600",
-                                    }}
-                                >
-                                    Project:
-                                </label>
-                                <select
-                                    id="project-filter"
-                                    value={selectedProjectId}
-                                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                                    style={{
-                                        padding: "8px 12px",
-                                        borderRadius: "6px",
-                                        border: "1px solid rgba(255,255,255,0.1)",
-                                        fontSize: "13px",
-                                        background: "rgba(0, 0, 0, 0.4)",
-                                        color: "rgba(255,255,255,0.9)",
-                                        cursor: "pointer",
-                                        fontWeight: "500",
-                                        minWidth: "180px",
-                                    }}
-                                >
-                                    <option value="" disabled style={{ background: "#1a1a1a", color: "white" }}>
-                                        Select a project
-                                    </option>
-                                    {projects.map((p) => (
-                                        <option key={p.id} value={p.id} style={{ background: "#1a1a1a", color: "white" }}>
-                                            {p.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                <label
                                     htmlFor="env-filter"
                                     style={{
                                         color: "rgba(255,255,255,0.7)",

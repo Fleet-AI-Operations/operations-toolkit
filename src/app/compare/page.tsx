@@ -26,7 +26,7 @@ function CompareContent() {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch('/api/analytics/compare', {
+            const res = await fetch('/api/analysis/compare', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ recordId, forceRegenerate: force }),

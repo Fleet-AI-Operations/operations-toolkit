@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Folder, Sparkles, FileCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useProjects } from '@/hooks/useProjects';
 
 interface Project {
     id: string;
@@ -29,46 +30,20 @@ const extractAlignmentScore = (analysis: string | null | undefined): string | nu
 };
 
 export default function Dashboard() {
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const { projects, selectedProjectId, loading: projectsLoading } = useProjects();
     const [records, setRecords] = useState<Record[]>([]);
     const [promptsDropdownOpen, setPromptsDropdownOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    // UI State
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        fetchProjects();
-    }, []);
+    const selectedProject = projects.find(p => p.id === selectedProjectId) || null;
 
     useEffect(() => {
-        if (selectedProject) {
-            fetchRecords(selectedProject.id);
+        if (selectedProjectId) {
+            fetchRecords(selectedProjectId);
         } else {
             setRecords([]);
         }
-    }, [selectedProject]);
-
-    const fetchProjects = async () => {
-        try {
-            const res = await fetch('/api/projects');
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setProjects(data);
-                if (data.length > 0 && !selectedProject) {
-                    setSelectedProject(data[0]);
-                }
-            } else {
-                console.error('Failed to fetch projects:', data.error || 'Unknown error');
-                setProjects([]);
-            }
-        } catch (err) {
-            console.error('Failed to fetch projects', err);
-            setProjects([]);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [selectedProjectId]);
 
     const fetchRecords = async (projectId: string) => {
         setLoading(true);
@@ -103,29 +78,15 @@ export default function Dashboard() {
                     <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Dashboard</h1>
                     <p style={{ color: 'rgba(255,255,255,0.6)' }}>Data Overview & Analysis</p>
                 </div>
-
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-
-                    <div className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <Folder size={18} color="#0070f3" />
-                        <select
-                            value={selectedProject?.id || ''}
-                            onChange={(e) => {
-                                const p = projects.find(p => p.id === e.target.value);
-                                setSelectedProject(p || null);
-                            }}
-                            style={{ background: 'none', color: 'white', border: 'none', outline: 'none', fontSize: '0.9rem', cursor: 'pointer' }}
-                        >
-                            {projects.length === 0 && <option value="">No Projects</option>}
-                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-                </div>
             </header>
 
             <main style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-                {!selectedProject ? (
+                {projectsLoading ? (
+                    <div className="glass-card" style={{ textAlign: 'center', padding: '100px', opacity: 0.5 }}>
+                        <h2>Loading projects...</h2>
+                    </div>
+                ) : !selectedProject ? (
                     <div className="glass-card" style={{ textAlign: 'center', padding: '100px', opacity: 0.5 }}>
                         <h2>No project selected</h2>
                         <p>Create a project in <b>Project Management</b> to start.</p>
