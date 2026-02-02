@@ -200,7 +200,11 @@ export async function POST(req: NextRequest) {
 
                 // Get all chunk files sorted by index
                 const files = await readdir(sessionDir);
-                const chunkFiles = files.filter(f => f.startsWith('chunk_')).sort();
+                const chunkFiles = files.filter(f => f.startsWith('chunk_')).sort((a, b) => {
+                    const aIndex = parseInt(a.replace('chunk_', ''), 10);
+                    const bIndex = parseInt(b.replace('chunk_', ''), 10);
+                    return aIndex - bIndex;
+                });
 
                 // Verify all chunks received
                 if (chunkFiles.length !== meta.totalChunks) {
