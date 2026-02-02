@@ -82,7 +82,11 @@ export default function Dashboard() {
 
             <main style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-                {!selectedProject ? (
+                {projectsLoading ? (
+                    <div className="glass-card" style={{ textAlign: 'center', padding: '100px', opacity: 0.5 }}>
+                        <h2>Loading projects...</h2>
+                    </div>
+                ) : !selectedProject ? (
                     <div className="glass-card" style={{ textAlign: 'center', padding: '100px', opacity: 0.5 }}>
                         <h2>No project selected</h2>
                         <p>Create a project in <b>Project Management</b> to start.</p>

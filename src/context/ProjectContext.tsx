@@ -29,7 +29,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             setLoading(true);
             setError(null);
             const res = await fetch('/api/projects');
-            
+
             if (!res.ok) {
                 throw new Error(`Failed to fetch projects: ${res.status}`);
             }
@@ -37,13 +37,17 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             const data = await res.json();
             if (Array.isArray(data)) {
                 setProjects(data);
-                
-                // If we have projects and none is selected, select the first one
-                // We also check if the current selection is still valid
+
+                // If we have projects and none is selected (or selected project no longer exists), select the first one
                 if (data.length > 0) {
-                    if (!selectedProjectId || !data.find(p => p.id === selectedProjectId)) {
-                        setSelectedProjectId(data[0].id);
-                    }
+                    setSelectedProjectId(prev => {
+                        // If we already have a valid selection, keep it
+                        if (prev && data.find(p => p.id === prev)) {
+                            return prev;
+                        }
+                        // Otherwise, select first project
+                        return data[0].id;
+                    });
                 }
             } else {
                 throw new Error('Invalid response format');
@@ -54,7 +58,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setLoading(false);
         }
-    }, [selectedProjectId]);
+    }, []);
+>>>>>>> main
 
     useEffect(() => {
         fetchProjects();

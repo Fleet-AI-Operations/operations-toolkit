@@ -148,8 +148,6 @@ export default function TopPromptsReview() {
                         }}
                     >
                         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                            {/* Environment and Verification filters remain */}
-
                             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                                 <label
                                     htmlFor="env-filter"

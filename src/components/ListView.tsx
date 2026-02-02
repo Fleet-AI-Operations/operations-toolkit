@@ -114,7 +114,7 @@ function ListContent() {
             )}
 
             <div className="glass-card" style={{ padding: '24px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-end' }}>
-                {/* Content filters remain, but project selection is removed as it's now global in the header */}
+                {/* Project selection is handled globally via ProjectContext in the header */}
 
                 <div style={{ flex: '0 0 auto' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Record Type</label>
