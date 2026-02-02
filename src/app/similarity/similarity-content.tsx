@@ -168,17 +168,11 @@ export default function PromptSimilarityPage() {
         <div>
           <h1
             className="premium-gradient"
-            style={{ margin: 0, fontSize: "20px", marginBottom: "2px" }}
+            style={{ margin: 0, fontSize: "1.5rem", marginBottom: "8px" }}
           >
             Prompt Similarity Analysis
           </h1>
-          <p
-            style={{
-              margin: 0,
-              color: "rgba(255,255,255,0.6)",
-              fontSize: "13px",
-            }}
-          >
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>
             Select a prompt to see similar prompts from the same user
           </p>
         </div>
