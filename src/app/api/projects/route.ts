@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,18 @@ export async function POST(req: NextRequest) {
                 ownerId: user.id
             },
         });
+
+        // Log audit event
+        await logAudit({
+            action: 'PROJECT_CREATED',
+            entityType: 'PROJECT',
+            entityId: project.id,
+            projectId: project.id,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { name }
+        });
+
         return NextResponse.json(project);
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -96,6 +109,18 @@ export async function DELETE(req: NextRequest) {
         await prisma.project.delete({
             where: { id },
         });
+
+        // Log audit event
+        await logAudit({
+            action: 'PROJECT_DELETED',
+            entityType: 'PROJECT',
+            entityId: id,
+            projectId: id,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: {}
+        });
+
         return NextResponse.json({ success: true });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -143,6 +168,18 @@ export async function PATCH(req: NextRequest) {
                 guidelinesFileName
             },
         });
+
+        // Log audit event
+        await logAudit({
+            action: 'PROJECT_UPDATED',
+            entityType: 'PROJECT',
+            entityId: id,
+            projectId: id,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { guidelinesFileName }
+        });
+
         return NextResponse.json(project);
     } catch (error: any) {
         console.error('Project PATCH Error:', error);

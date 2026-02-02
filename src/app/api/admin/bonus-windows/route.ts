@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { logAudit } from '@/lib/audit'
 
 // GET all bonus windows with calculated progress
 export async function GET() {
@@ -135,6 +136,20 @@ export async function POST(req: Request) {
             }
         })
 
+        // Log audit event
+        await logAudit({
+            action: 'BONUS_WINDOW_CREATED',
+            entityType: 'BONUS_WINDOW',
+            entityId: newWindow.id,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: {
+                name: newWindow.name,
+                startTime: newWindow.startTime,
+                endTime: newWindow.endTime
+            }
+        })
+
         return NextResponse.json(newWindow)
     } catch (error: any) {
         console.error('[Bonus Windows API] POST error:', error)
@@ -186,6 +201,16 @@ export async function PATCH(req: Request) {
             data: updateData
         })
 
+        // Log audit event
+        await logAudit({
+            action: 'BONUS_WINDOW_UPDATED',
+            entityType: 'BONUS_WINDOW',
+            entityId: id,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { updatedFields: Object.keys(updateData) }
+        })
+
         return NextResponse.json(updatedWindow)
     } catch (error: any) {
         console.error('[Bonus Windows API] PATCH error:', error)
@@ -222,6 +247,16 @@ export async function DELETE(req: Request) {
 
         await prisma.bonusWindow.delete({
             where: { id }
+        })
+
+        // Log audit event
+        await logAudit({
+            action: 'BONUS_WINDOW_DELETED',
+            entityType: 'BONUS_WINDOW',
+            entityId: id,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: {}
         })
 
         return NextResponse.json({ success: true })

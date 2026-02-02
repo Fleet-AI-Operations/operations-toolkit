@@ -243,6 +243,7 @@ E2E tests use **Playwright** and test real user flows.
 - `e2e/smoke.spec.ts` - Basic application health checks
 - `e2e/example.spec.ts` - Playwright example tests
 - `e2e/bonus-windows.spec.ts` - Time tracking and bonus management features
+- `e2e/audit-logs.spec.ts` - Audit logging system (admin features)
 
 **Example: Testing authentication flow**
 
@@ -540,6 +541,141 @@ test: {
 - Rely on timing (use waitFor)
 - Leave test data in database
 - Test styling details
+
+---
+
+## 🔐 Testing Audit Logs
+
+The audit log system tracks administrative actions across the application. Testing ensures audit trails are accurate and secure.
+
+### Unit Tests
+
+**File**: `src/lib/__tests__/audit.test.ts`
+
+Tests the core audit logging functions:
+- `logAudit()` - Creating audit log entries
+- `getCurrentUserForAudit()` - Extracting user info from Supabase session
+- Error handling (graceful degradation)
+- CUID generation for log IDs
+
+**Example**:
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { logAudit } from '../audit';
+
+describe('logAudit', () => {
+  it('should create audit log with all fields', async () => {
+    await logAudit({
+      action: 'USER_CREATED',
+      entityType: 'USER',
+      entityId: 'test-user-id',
+      userId: 'admin-id',
+      userEmail: 'admin@example.com',
+      metadata: { role: 'USER' }
+    });
+
+    // Verify Prisma was called with correct data
+    expect(mockPrisma.auditLog.create).toHaveBeenCalled();
+  });
+
+  it('should not throw on failure', async () => {
+    mockPrisma.auditLog.create.mockRejectedValue(new Error('DB error'));
+
+    // Should not throw - graceful degradation
+    await expect(logAudit({...})).resolves.not.toThrow();
+  });
+});
+```
+
+### E2E Tests
+
+**File**: `e2e/audit-logs.spec.ts`
+
+Tests the complete audit logging workflow:
+- API endpoint authorization (admin-only)
+- Audit log creation on user actions
+- Filter functionality (by action, entity, date)
+- Pagination
+- Metadata display
+
+**Test Scenarios**:
+
+1. **Authorization**: Non-admin users cannot access audit logs
+2. **Log Creation**: Actions generate corresponding audit logs
+3. **Filtering**: Can filter by action type, entity, and date range
+4. **Pagination**: Navigate through multiple pages of logs
+5. **Metadata**: Metadata displays correctly when expanded
+
+**Example**:
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Audit Logs', () => {
+  test('should create audit log when user is created', async ({ page }) => {
+    // Login as admin
+    await loginAsAdmin(page);
+
+    // Create a new user
+    await page.goto('/admin/users');
+    await page.click('button:has-text("Create User")');
+    await page.fill('input[name="email"]', 'newuser@example.com');
+    await page.click('button:has-text("Create")');
+
+    // Check audit log was created
+    await page.goto('/admin/audit-logs');
+    await expect(page.locator('text=User Created')).toBeVisible();
+    await expect(page.locator('text=newuser@example.com')).toBeVisible();
+  });
+
+  test('should filter audit logs by action', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Open filters
+    await page.click('button:has-text("Filters")');
+
+    // Select action filter
+    await page.selectOption('select[name="action"]', 'USER_CREATED');
+
+    // Verify filtered results
+    const logs = page.locator('[data-testid="audit-log-entry"]');
+    await expect(logs.first()).toContainText('User Created');
+  });
+});
+```
+
+### Testing Best Practices
+
+**For Audit Log Tests:**
+
+✅ **Do:**
+- Test that critical actions generate audit logs
+- Verify admin-only access control
+- Test graceful degradation (audit failures don't break operations)
+- Clean up test audit logs in afterEach hooks
+- Test metadata is properly recorded
+
+❌ **Don't:**
+- Test every single audit action (focus on critical ones)
+- Depend on specific log IDs (they're auto-generated)
+- Test exact timestamp values (use date ranges)
+- Leave test audit logs in the database
+
+### Manual Testing Checklist
+
+When testing audit logs manually:
+
+- [ ] Create a new user (should log USER_CREATED)
+- [ ] Change user role (should log USER_ROLE_CHANGED)
+- [ ] Reset password (should log USER_PASSWORD_RESET)
+- [ ] Create/update/delete project (should log PROJECT_*)
+- [ ] Clear data (should log DATA_CLEARED)
+- [ ] Update AI settings (should log SYSTEM_SETTINGS_UPDATED)
+- [ ] Create/update/delete bonus window (should log BONUS_WINDOW_*)
+- [ ] Verify non-admin cannot access `/admin/audit-logs`
+- [ ] Test all filters work correctly
+- [ ] Test pagination with 50+ logs
+- [ ] Verify metadata expands correctly
 
 ---
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { startBulkAlignment } from '@/lib/analytics';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
     const supabase = await createClient();
@@ -33,6 +34,16 @@ export async function POST(req: NextRequest) {
         if (!jobId) {
             return NextResponse.json({ message: 'No records to analyze.' });
         }
+
+        // Log audit event
+        await logAudit({
+            action: 'BULK_ALIGNMENT_STARTED',
+            entityType: 'DATA_RECORD',
+            projectId,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { jobId }
+        });
 
         return NextResponse.json({ success: true, jobId });
     } catch (error: any) {

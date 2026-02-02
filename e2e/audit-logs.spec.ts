@@ -1,0 +1,389 @@
+/**
+ * E2E tests for Audit Logs feature
+ * Tests the complete audit logging workflow including:
+ * - Admin-only access control
+ * - Audit log creation from user actions
+ * - Filtering and pagination
+ * - Metadata display
+ */
+
+import { test, expect } from '@playwright/test';
+import { prisma } from '@/lib/prisma';
+
+// Helper to create admin user
+async function createAdminUser(email: string, password: string) {
+  // This would use Supabase admin client to create user
+  // For now, assume user exists in test database
+  return {
+    email,
+    password,
+    id: 'admin-test-id',
+  };
+}
+
+// Helper to login
+async function loginAsAdmin(page: any) {
+  await page.goto('/auth/login');
+  await page.fill('input[type="email"]', 'admin@test.com');
+  await page.fill('input[type="password"]', 'testpassword123');
+  await page.click('button[type="submit"]');
+  await page.waitForURL('/');
+}
+
+test.describe('Audit Logs - Authorization', () => {
+  test('should redirect non-admin users', async ({ page }) => {
+    // Try to access audit logs without admin role
+    await page.goto('/admin/audit-logs');
+
+    // Should redirect to login or show error
+    await expect(page).not.toHaveURL('/admin/audit-logs');
+  });
+
+  test('should allow admin users to access audit logs page', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Should see audit logs page
+    await expect(page.locator('h1:has-text("Audit Logs")')).toBeVisible();
+  });
+});
+
+test.describe('Audit Logs - API Access', () => {
+  test('should return 401 for unauthenticated requests', async ({ request }) => {
+    const response = await request.get('/api/audit-logs');
+    expect(response.status()).toBe(401);
+  });
+
+  test('should return audit logs for admin users', async ({ page, request }) => {
+    await loginAsAdmin(page);
+
+    // Get cookies from page context
+    const cookies = await page.context().cookies();
+
+    const response = await request.get('/api/audit-logs', {
+      headers: {
+        Cookie: cookies.map(c => `${c.name}=${c.value}`).join('; '),
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    expect(data).toHaveProperty('logs');
+    expect(data).toHaveProperty('total');
+  });
+});
+
+test.describe('Audit Logs - Log Creation', () => {
+  test.afterEach(async () => {
+    // Clean up test audit logs
+    await prisma.auditLog.deleteMany({
+      where: {
+        userEmail: { contains: '@test.com' },
+      },
+    });
+  });
+
+  test('should create audit log when user is created', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // Navigate to user management
+    await page.goto('/admin/users');
+
+    // Create a new user
+    await page.click('button:has-text("Create User")');
+    await page.fill('input[name="email"]', 'newuser@test.com');
+    await page.fill('input[name="password"]', 'Password123!');
+    await page.selectOption('select[name="role"]', 'USER');
+    await page.click('button[type="submit"]:has-text("Create")');
+
+    // Wait for success
+    await expect(page.locator('text=User created successfully')).toBeVisible();
+
+    // Check audit log was created
+    const auditLog = await prisma.auditLog.findFirst({
+      where: {
+        action: 'USER_CREATED',
+        metadata: {
+          path: ['email'],
+          equals: 'newuser@test.com',
+        },
+      },
+    });
+
+    expect(auditLog).toBeTruthy();
+    expect(auditLog?.entityType).toBe('USER');
+  });
+
+  test('should create audit log when user role is changed', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // Navigate to user management
+    await page.goto('/admin/users');
+
+    // Find a user and change role
+    const firstUser = page.locator('table tbody tr').first();
+    await firstUser.locator('button:has-text("Edit")').click();
+    await page.selectOption('select[name="role"]', 'MANAGER');
+    await page.click('button:has-text("Save")');
+
+    // Wait for success
+    await expect(page.locator('text=Role updated')).toBeVisible();
+
+    // Check audit log was created
+    const auditLog = await prisma.auditLog.findFirst({
+      where: {
+        action: 'USER_ROLE_CHANGED',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    expect(auditLog).toBeTruthy();
+    expect(auditLog?.metadata).toHaveProperty('newRole', 'MANAGER');
+  });
+
+  test('should create audit log when project is created', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    // Navigate to projects
+    await page.goto('/');
+    await page.click('button:has-text("New Project")');
+    await page.fill('input[name="name"]', 'Test Project for Audit');
+    await page.click('button:has-text("Create")');
+
+    // Wait for creation
+    await page.waitForTimeout(1000);
+
+    // Check audit log
+    const auditLog = await prisma.auditLog.findFirst({
+      where: {
+        action: 'PROJECT_CREATED',
+        metadata: {
+          path: ['name'],
+          equals: 'Test Project for Audit',
+        },
+      },
+    });
+
+    expect(auditLog).toBeTruthy();
+    expect(auditLog?.entityType).toBe('PROJECT');
+  });
+});
+
+test.describe('Audit Logs - UI Filters', () => {
+  test.beforeEach(async () => {
+    // Create test audit logs
+    await prisma.auditLog.createMany({
+      data: [
+        {
+          id: 'test-log-1',
+          action: 'USER_CREATED',
+          entityType: 'USER',
+          userId: 'admin-test-id',
+          userEmail: 'admin@test.com',
+          createdAt: new Date('2024-01-01'),
+        },
+        {
+          id: 'test-log-2',
+          action: 'PROJECT_CREATED',
+          entityType: 'PROJECT',
+          userId: 'admin-test-id',
+          userEmail: 'admin@test.com',
+          createdAt: new Date('2024-01-02'),
+        },
+        {
+          id: 'test-log-3',
+          action: 'USER_ROLE_CHANGED',
+          entityType: 'USER',
+          userId: 'admin-test-id',
+          userEmail: 'admin@test.com',
+          createdAt: new Date('2024-01-03'),
+        },
+      ],
+    });
+  });
+
+  test.afterEach(async () => {
+    await prisma.auditLog.deleteMany({
+      where: {
+        id: { in: ['test-log-1', 'test-log-2', 'test-log-3'] },
+      },
+    });
+  });
+
+  test('should filter by action type', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Open filters
+    await page.click('button:has-text("Filters")');
+
+    // Select action filter
+    await page.selectOption('select', 'USER_CREATED');
+
+    // Wait for results
+    await page.waitForTimeout(500);
+
+    // Should only show USER_CREATED logs
+    const logs = page.locator('[data-testid="audit-log-entry"]');
+    const firstLog = logs.first();
+    await expect(firstLog).toContainText('User Created');
+  });
+
+  test('should filter by entity type', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Open filters
+    await page.click('button:has-text("Filters")');
+
+    // Select entity type filter
+    const entitySelect = page.locator('select').nth(1);
+    await entitySelect.selectOption('PROJECT');
+
+    // Wait for results
+    await page.waitForTimeout(500);
+
+    // Should only show PROJECT logs
+    const logs = page.locator('[data-testid="audit-log-entry"]');
+    await expect(logs).toHaveCount(1);
+  });
+
+  test('should reset filters', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Open filters and apply
+    await page.click('button:has-text("Filters")');
+    await page.selectOption('select', 'USER_CREATED');
+
+    // Reset filters
+    await page.click('button:has-text("Reset Filters")');
+
+    // Should show all logs again
+    const logs = page.locator('[data-testid="audit-log-entry"]');
+    await expect(logs.count()).resolves.toBeGreaterThan(1);
+  });
+});
+
+test.describe('Audit Logs - Pagination', () => {
+  test.beforeEach(async () => {
+    // Create 55 test logs to test pagination (50 per page)
+    const logs = Array.from({ length: 55 }, (_, i) => ({
+      id: `test-pagination-${i}`,
+      action: 'USER_CREATED',
+      entityType: 'USER',
+      userId: 'admin-test-id',
+      userEmail: 'admin@test.com',
+      createdAt: new Date(Date.now() - i * 1000),
+    }));
+
+    await prisma.auditLog.createMany({ data: logs });
+  });
+
+  test.afterEach(async () => {
+    await prisma.auditLog.deleteMany({
+      where: {
+        id: { startsWith: 'test-pagination-' },
+      },
+    });
+  });
+
+  test('should paginate audit logs', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Should show pagination info
+    await expect(page.locator('text=Showing 1 to 50')).toBeVisible();
+
+    // Click next
+    await page.click('button:has-text("Next")');
+    await page.waitForTimeout(500);
+
+    // Should show second page
+    await expect(page.locator('text=Showing 51 to')).toBeVisible();
+
+    // Previous should be enabled now
+    const prevButton = page.locator('button:has-text("Previous")');
+    await expect(prevButton).toBeEnabled();
+  });
+
+  test('should disable previous button on first page', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    const prevButton = page.locator('button:has-text("Previous")');
+    await expect(prevButton).toBeDisabled();
+  });
+});
+
+test.describe('Audit Logs - Metadata Display', () => {
+  test.beforeEach(async () => {
+    await prisma.auditLog.create({
+      data: {
+        id: 'test-metadata-log',
+        action: 'USER_CREATED',
+        entityType: 'USER',
+        userId: 'admin-test-id',
+        userEmail: 'admin@test.com',
+        metadata: {
+          email: 'newuser@test.com',
+          role: 'USER',
+          createdBy: 'admin@test.com',
+        },
+      },
+    });
+  });
+
+  test.afterEach(async () => {
+    await prisma.auditLog.delete({
+      where: { id: 'test-metadata-log' },
+    });
+  });
+
+  test('should expand metadata when clicked', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Find the log with metadata
+    const logEntry = page.locator('[data-testid="audit-log-entry"]').first();
+
+    // Click to expand metadata
+    await logEntry.locator('summary:has-text("View metadata")').click();
+
+    // Should show metadata
+    await expect(logEntry.locator('pre')).toBeVisible();
+    await expect(logEntry.locator('pre')).toContainText('newuser@test.com');
+    await expect(logEntry.locator('pre')).toContainText('USER');
+  });
+});
+
+test.describe('Audit Logs - Visual Elements', () => {
+  test('should display action icons', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Should have icons for actions
+    const icons = page.locator('svg[class*="lucide"]');
+    await expect(icons.first()).toBeVisible();
+  });
+
+  test('should show color-coded borders', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Check that log entries have colored borders
+    const logEntry = page.locator('[data-testid="audit-log-entry"]').first();
+    await expect(logEntry).toHaveCSS('border-left-width', '4px');
+  });
+
+  test('should format timestamps correctly', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/admin/audit-logs');
+
+    // Should show formatted dates
+    const timestamp = page.locator('text=/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/');
+    await expect(timestamp.first()).toBeVisible();
+  });
+});

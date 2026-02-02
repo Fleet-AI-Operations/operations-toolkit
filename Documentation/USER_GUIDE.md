@@ -127,6 +127,103 @@ Bonus windows are time-bounded performance periods where team members work towar
 
 ---
 
+## Audit Logs (Admin Only)
+
+The Audit Logs feature provides administrators with a comprehensive security and compliance trail of all significant actions performed in the system.
+
+### What Gets Logged
+
+The system automatically tracks 13 types of actions across 5 entity categories:
+
+**User Management**
+- User creation (when admins create new accounts)
+- Role changes (USER ↔ MANAGER ↔ ADMIN)
+- Password resets (admin-initiated)
+
+**Project Operations**
+- Project creation
+- Project updates (guideline changes)
+- Project deletion
+
+**Data Operations**
+- Bulk data clearing
+- Analytics clearing
+- Bulk alignment job initiation
+
+**System Configuration**
+- AI settings updates (provider, models, API keys)
+
+**Bonus Management**
+- Bonus window creation
+- Bonus window updates
+- Bonus window deletion
+
+### Accessing Audit Logs
+
+1. Navigate to **Admin Console → Audit Logs** (admin role required)
+2. The main view shows recent activity in reverse chronological order
+
+### Understanding Log Entries
+
+Each log entry displays:
+- **Action Icon**: Visual indicator of the action type
+- **Color-Coded Border**:
+  - 🟢 Green: Creation actions
+  - 🔵 Blue: Update/modification actions
+  - 🔴 Red: Deletion/clearing actions
+  - 🟡 Yellow: Security actions (password resets)
+- **User Information**: Email of the person who performed the action
+- **Timestamp**: When the action occurred
+- **Entity Details**: What was affected (with truncated IDs)
+- **Metadata**: Additional context (expandable)
+
+### Filtering Audit Logs
+
+Use the collapsible filter panel to narrow down logs:
+
+1. **By Action**: Select specific action types (e.g., only user creations)
+2. **By Entity Type**: Filter by what was affected (USER, PROJECT, etc.)
+3. **By Date Range**: Specify start and end times
+4. **Combined Filters**: Use multiple filters together for precise searches
+
+### Pagination
+
+- Displays 50 logs per page by default
+- Use "Previous" and "Next" buttons to navigate
+- Total count shown at bottom
+
+### Use Cases
+
+**Security Audits**
+- Track who has been granted admin privileges
+- Review password reset requests
+- Monitor unauthorized access attempts
+
+**Compliance Requirements**
+- Generate audit trails for data handling reviews
+- Track when data was cleared or modified
+- Document who changed system configurations
+
+**Troubleshooting**
+- Identify when configuration changes occurred
+- Track recent project or bonus window modifications
+- Review bulk operations timing
+
+**Team Accountability**
+- Monitor administrative actions
+- Review project creation and deletion patterns
+- Track system configuration changes
+
+### Important Notes
+
+- Audit logs are append-only (cannot be modified or deleted via UI)
+- Only administrators can view audit logs
+- All authenticated users can trigger audit events (system automatically logs their actions)
+- Failed operations may not generate audit logs (graceful degradation to prevent blocking operations)
+- Consider implementing a data retention policy for very large installations
+
+---
+
 ## Best Practices
 
 - **Guideline Clarity**: Ensure your PDF is text-readable (not just images) for the best AI grounding results.
