@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Users, ShieldAlert, Database, Sparkles, Activity, Shield } from 'lucide-react';
+import { Users, ShieldAlert, Database, Sparkles, Activity, Shield } from 'lucide-react';
 import { useRoleCheck } from '@/hooks/useRoleCheck';
 
 const adminNavItems = [

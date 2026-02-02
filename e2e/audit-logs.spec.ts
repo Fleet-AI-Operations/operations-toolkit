@@ -10,17 +10,6 @@
 import { test, expect } from '@playwright/test';
 import { prisma } from '@/lib/prisma';
 
-// Helper to create admin user
-async function createAdminUser(email: string, password: string) {
-  // This would use Supabase admin client to create user
-  // For now, assume user exists in test database
-  return {
-    email,
-    password,
-    id: 'admin-test-id',
-  };
-}
-
 // Helper to login
 async function loginAsAdmin(page: any) {
   await page.goto('/auth/login');
