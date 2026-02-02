@@ -5,7 +5,7 @@
  */
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Upload, Folder, LayoutDashboard, FileText, Globe2, CheckCircle2, AlertCircle, Loader2, History, HardHat, Construction, Clock } from 'lucide-react';
 import Link from 'next/link';
 
@@ -48,76 +48,207 @@ export default function IngestionPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [apiUrl, setApiUrl] = useState('');
 
+    // Refs to avoid stale closures and interval thrashing
+    const ingestTypeRef = useRef<'TASK' | 'FEEDBACK'>('TASK');
+    const recentJobsRef = useRef<IngestJob[]>([]);
+    const selectedProjectIdRef = useRef<string>('');
+    const activeJobRef = useRef<IngestJob | null>(null);
+    const userSelectedJobRef = useRef<boolean>(false); // Track if user manually selected a job
+
+    // Keep refs in sync with state
+    useEffect(() => { ingestTypeRef.current = ingestType; }, [ingestType]);
+    useEffect(() => { recentJobsRef.current = recentJobs; }, [recentJobs]);
+    useEffect(() => { selectedProjectIdRef.current = selectedProjectId; }, [selectedProjectId]);
+    useEffect(() => { activeJobRef.current = activeJob; }, [activeJob]);
+
     /**
      * RECOVERY LOGIC: fetchRecentJobs
-     * Pulls the last 5 jobs for the project. 
-     * If it finds any job that is still PENDING or PROCESSING, it automatically 
-     * promotes it to 'activeJob' so the UI can start polling immediately.
+     * Pulls the last 5 jobs for the project.
+     * Uses refs to avoid stale closure issues in intervals.
+     * Only auto-switches to running jobs if user hasn't manually selected one.
      */
-    const fetchRecentJobs = async (projectId: string) => {
+    const fetchRecentJobs = useCallback(async (projectId: string) => {
         try {
             const res = await fetch(`/api/ingest/jobs?projectId=${projectId}`);
             const data = await res.json();
             if (res.ok) {
                 setRecentJobs(data);
 
-                // Prioritize finding a job that is already running or loading data
-                const runningJob = data.find((j: IngestJob) => j.status === 'PROCESSING' || j.status === 'VECTORIZING');
-                const pendingJob = !runningJob ? data.find((j: IngestJob) => j.status === 'PENDING' || j.status === 'QUEUED_FOR_VEC') : null;
+                const currentActiveJob = activeJobRef.current;
 
-                if (runningJob || pendingJob) {
-                    setActiveJob(runningJob || pendingJob);
-                } else if (activeJob) {
-                    // Update active job with its latest status from the list
-                    const latestActive = data.find((j: IngestJob) => j.id === activeJob.id);
+                // Only auto-select a job if user hasn't manually selected one
+                if (!userSelectedJobRef.current) {
+                    const runningJob = data.find((j: IngestJob) => j.status === 'PROCESSING' || j.status === 'VECTORIZING');
+                    const pendingJob = !runningJob ? data.find((j: IngestJob) => j.status === 'PENDING' || j.status === 'QUEUED_FOR_VEC') : null;
+
+                    if (runningJob || pendingJob) {
+                        setActiveJob(runningJob || pendingJob);
+                    }
+                }
+
+                // Always update the current active job's status if it exists in the list
+                if (currentActiveJob) {
+                    const latestActive = data.find((j: IngestJob) => j.id === currentActiveJob.id);
                     if (latestActive) {
                         setActiveJob(latestActive);
+                        // Reset user selection flag when job completes
+                        if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(latestActive.status)) {
+                            userSelectedJobRef.current = false;
+                        }
                     }
                 }
             }
         } catch (err) {
             console.error('Failed to fetch recent jobs', err);
         }
-    };
+    }, []);
 
     /**
      * POLLING LOOP: useEffect
-     * As long as there is an active job or any job in the list is PENDING/PROCESSING,
-     * we poll the server every 2 seconds to update the progress bars.
+     * Uses refs to check state without recreating the interval on every state change.
+     * This prevents interval thrashing that was causing performance issues.
      */
     useEffect(() => {
-        let interval: NodeJS.Timeout;
-        const hasActive = recentJobs.some(j => ['PENDING', 'PROCESSING', 'QUEUED_FOR_VEC', 'VECTORIZING'].includes(j.status));
+        const interval = setInterval(() => {
+            const jobs = recentJobsRef.current;
+            const projectId = selectedProjectIdRef.current;
+            const hasActive = jobs.some(j => ['PENDING', 'PROCESSING', 'QUEUED_FOR_VEC', 'VECTORIZING'].includes(j.status));
 
-        if (hasActive && selectedProjectId) {
-            interval = setInterval(() => {
-                fetchRecentJobs(selectedProjectId);
-            }, 2000);
-        }
+            if (hasActive && projectId) {
+                fetchRecentJobs(projectId);
+            }
+        }, 2000);
 
-        return () => {
-            if (interval) clearInterval(interval);
-        };
-    }, [recentJobs, selectedProjectId]);
+        return () => clearInterval(interval);
+    }, [fetchRecentJobs]);
 
     /**
      * TRIGGER: Opens the native file picker.
      * Sets the intended ingestType (TASK vs FEEDBACK) before clicking the hidden input.
+     * Uses ref to ensure the correct type is used in the upload handler.
      */
     const triggerUpload = (type: 'TASK' | 'FEEDBACK') => {
         if (!selectedProjectId) {
             setStatus({ type: 'error', message: 'Please select a project first.' });
             return;
         }
+        // Update both state and ref to avoid race condition
         setIngestType(type);
+        ingestTypeRef.current = type;
         if (fileInputRef.current) {
             fileInputRef.current.click();
         }
     };
 
     /**
+     * CHUNKED UPLOAD: uploadChunked
+     * For large files (>3MB), uses File.slice() to read chunks incrementally from disk.
+     * This prevents loading the entire file into browser memory.
+     * Includes retry logic for network resilience.
+     */
+    const uploadChunked = async (file: File): Promise<{ jobId?: string; error?: string }> => {
+        const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY_MS = 1000;
+
+        // Calculate total chunks based on file size (not content length)
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+        // Step 1: Initialize upload session (use ref to avoid stale closure)
+        const startRes = await fetch('/api/ingest/csv/chunked', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'start',
+                uploadId,
+                projectId: selectedProjectIdRef.current,
+                type: ingestTypeRef.current,
+                fileName: file.name,
+                totalChunks,
+                generateEmbeddings: true
+            })
+        });
+
+        if (!startRes.ok) {
+            const data = await startRes.json();
+            return { error: data.error || 'Failed to initialize upload' };
+        }
+
+        // Step 2: Upload each chunk using File.slice() to avoid memory issues
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+
+            // File.slice() returns a Blob pointer - doesn't load data into RAM
+            const blob = file.slice(start, end);
+            // Only read this chunk into memory when we're about to send it
+            const chunkContent = await blob.text();
+
+            // Retry logic for network resilience
+            let lastError: string | undefined = undefined;
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                try {
+                    const chunkRes = await fetch('/api/ingest/csv/chunked', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'chunk',
+                            uploadId,
+                            chunkIndex: i,
+                            content: chunkContent
+                        })
+                    });
+
+                    if (chunkRes.ok) {
+                        lastError = undefined;
+                        break; // Success, move to next chunk
+                    }
+
+                    const data = await chunkRes.json();
+                    lastError = data.error || `Failed to upload chunk ${i + 1}`;
+
+                    // Don't retry on client errors (4xx), only server/network errors
+                    if (chunkRes.status >= 400 && chunkRes.status < 500) {
+                        return { error: lastError };
+                    }
+                } catch (err) {
+                    lastError = `Network error on chunk ${i + 1}`;
+                }
+
+                // Wait before retrying
+                if (attempt < MAX_RETRIES - 1) {
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+                }
+            }
+
+            if (lastError) {
+                return { error: `${lastError} (after ${MAX_RETRIES} attempts)` };
+            }
+        }
+
+        // Step 3: Complete the upload
+        const completeRes = await fetch('/api/ingest/csv/chunked', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'complete',
+                uploadId
+            })
+        });
+
+        const completeData = await completeRes.json();
+        if (!completeRes.ok) {
+            return { error: completeData.error || 'Failed to complete upload' };
+        }
+
+        return { jobId: completeData.jobId };
+    };
+
+    /**
      * UPLOAD HANDLER: handleCsvUpload
-     * Sends the file to the server. The server responds with a jobId ALMOST IMMEDIATELY
+     * Sends the file to the server. Uses chunked upload for large files (>3MB).
+     * The server responds with a jobId ALMOST IMMEDIATELY
      * because the actual processing happens in a background worker.
      */
     const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,23 +262,36 @@ export default function IngestionPage() {
         setStatus(null);
 
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('projectId', selectedProjectId);
-            formData.append('type', ingestType);
-            formData.append('generateEmbeddings', 'true');
+            // Use chunked upload for files larger than 3MB
+            const CHUNK_THRESHOLD = 3 * 1024 * 1024; // 3MB
 
-            const res = await fetch('/api/ingest/csv', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await res.json();
-            if (res.ok && data.jobId) {
-                // Instantly refresh list so the user sees the 'Queued' state.
-                fetchRecentJobs(selectedProjectId);
+            if (file.size > CHUNK_THRESHOLD) {
+                const result = await uploadChunked(file);
+                if (result.error) {
+                    setStatus({ type: 'error', message: result.error });
+                } else if (result.jobId) {
+                    fetchRecentJobs(selectedProjectId);
+                }
             } else {
-                setStatus({ type: 'error', message: data.error || 'Upload failed' });
+                // Use regular FormData upload for smaller files (use refs to avoid stale closures)
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('projectId', selectedProjectIdRef.current);
+                formData.append('type', ingestTypeRef.current);
+                formData.append('generateEmbeddings', 'true');
+
+                const res = await fetch('/api/ingest/csv', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await res.json();
+                if (res.ok && data.jobId) {
+                    // Instantly refresh list so the user sees the 'Queued' state.
+                    fetchRecentJobs(selectedProjectIdRef.current);
+                } else {
+                    setStatus({ type: 'error', message: data.error || 'Upload failed' });
+                }
             }
         } catch (err) {
             setStatus({ type: 'error', message: 'A network error occurred.' });
@@ -344,7 +488,10 @@ export default function IngestionPage() {
                         <button
                             className="btn-outline"
                             style={{ marginTop: '16px', padding: '8px 16px', fontSize: '0.8rem' }}
-                            onClick={() => setActiveJob(null)}
+                            onClick={() => {
+                                userSelectedJobRef.current = false;
+                                setActiveJob(null);
+                            }}
                         >
                             Dismiss
                         </button>
@@ -494,7 +641,10 @@ export default function IngestionPage() {
                                     background: activeJob?.id === job.id ? 'rgba(0, 112, 243, 0.05)' : 'transparent',
                                     cursor: 'pointer'
                                 }}
-                                onClick={() => setActiveJob(job)}
+                                onClick={() => {
+                                    userSelectedJobRef.current = true;
+                                    setActiveJob(job);
+                                }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
                                     <div style={{

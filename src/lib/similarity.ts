@@ -1,35 +1,64 @@
 import { prisma } from './prisma';
-import { cosineSimilarity } from './ai';
+
+interface RecordWithEmbedding {
+    id: string;
+    content: string;
+    projectId: string;
+    type: string;
+    embedding: string; // pgvector returns as string
+}
+
+// Parse pgvector string format "[0.1,0.2,...]" to number[]
+function parseVector(vectorStr: string): number[] {
+    if (!vectorStr) return [];
+    const inner = vectorStr.slice(1, -1); // Remove [ and ]
+    if (!inner) return [];
+    return inner.split(',').map(Number);
+}
 
 export async function findSimilarRecords(targetId: string, limit: number = 5) {
-    const targetRecord = await prisma.dataRecord.findUnique({
-        where: { id: targetId },
-    });
+    // Get target record with embedding via raw SQL
+    const targetRecords: RecordWithEmbedding[] = await prisma.$queryRaw`
+        SELECT id, content, "projectId", type, embedding::text as embedding
+        FROM public.data_records
+        WHERE id = ${targetId}
+        AND embedding IS NOT NULL
+    `;
 
-    if (!targetRecord || !targetRecord.embedding || targetRecord.embedding.length === 0) {
+    if (targetRecords.length === 0) {
         throw new Error('Target record not found or has no embedding');
     }
 
-    // If we were using pgvector, we'd do a raw query here.
-    // Since we are using JSON/Float[] in JS for now, we'll pull records and sort.
-    // NOTE: This is NOT efficient for large datasets, but works for a demo.
-    // TODO: Implement pgvector raw query if scale increases.
+    const targetRecord = targetRecords[0];
+    const targetEmbedding = parseVector(targetRecord.embedding);
 
-    const allRecords = await prisma.dataRecord.findMany({
-        where: {
-            id: { not: targetId },
+    if (targetEmbedding.length === 0) {
+        throw new Error('Target record has no valid embedding');
+    }
+
+    // Use pgvector's built-in similarity search for efficiency
+    const similarRecords: (RecordWithEmbedding & { similarity: number })[] = await prisma.$queryRaw`
+        SELECT
+            id,
+            content,
+            "projectId",
+            type,
+            embedding::text as embedding,
+            1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${targetId})) as similarity
+        FROM public.data_records
+        WHERE id != ${targetId}
+        AND embedding IS NOT NULL
+        ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${targetId})
+        LIMIT ${limit}
+    `;
+
+    return similarRecords.map(record => ({
+        record: {
+            id: record.id,
+            content: record.content,
+            projectId: record.projectId,
+            type: record.type,
         },
-    });
-
-    // Filter out records without embeddings (since Prisma doesn't support isEmpty on Float[])
-    const recordsWithEmbeddings = allRecords.filter(r => r.embedding && r.embedding.length > 0);
-
-    const results = recordsWithEmbeddings.map(record => ({
-        record,
-        similarity: cosineSimilarity(targetRecord.embedding, record.embedding)
+        similarity: Number(record.similarity)
     }));
-
-    return results
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, limit);
 }
