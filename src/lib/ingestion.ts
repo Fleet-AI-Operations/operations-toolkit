@@ -353,8 +353,22 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
             currentDetails[reason] = (currentDetails[reason] || 0) + count;
         });
 
-        await Promise.all(finalChunk.map(v =>
-            prisma.dataRecord.create({
+        await Promise.all(finalChunk.map(v => {
+            // Extract timestamps from CSV data
+            const createdAtValue = v.record?.created_at || v.record?.createdAt ||
+                                  v.record?.timestamp || v.record?.date_created;
+            const updatedAtValue = v.record?.updated_at || v.record?.updatedAt ||
+                                  v.record?.date_updated || v.record?.modified_at;
+
+            // Parse timestamps if they exist
+            const createdAt = createdAtValue ? new Date(createdAtValue) : undefined;
+            const updatedAt = updatedAtValue ? new Date(updatedAtValue) : undefined;
+
+            // Validate parsed dates
+            const validCreatedAt = createdAt && !isNaN(createdAt.getTime()) ? createdAt : undefined;
+            const validUpdatedAt = updatedAt && !isNaN(updatedAt.getTime()) ? updatedAt : undefined;
+
+            return prisma.dataRecord.create({
                 data: {
                     projectId,
                     type,
@@ -366,9 +380,11 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: v.record?.created_by_name ? String(v.record.created_by_name) : null,
                     createdByEmail: v.record?.created_by_email ? String(v.record.created_by_email) : null,
+                    ...(validCreatedAt && { createdAt: validCreatedAt }),
+                    ...(validUpdatedAt && { updatedAt: validUpdatedAt }),
                 }
-            })
-        ));
+            });
+        }));
 
         savedCount += finalChunk.length;
         await prisma.ingestJob.update({
