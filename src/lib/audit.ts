@@ -79,7 +79,7 @@ export async function logAudit(params: LogAuditParams): Promise<LogAuditResult> 
         projectId: params.projectId,
         userId: params.userId,
         userEmail: params.userEmail,
-        metadata: params.metadata ?? undefined,
+        metadata: params.metadata as any,
       },
     });
     return { success: true };
