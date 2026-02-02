@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'
+import ProjectSelector from './navigation/ProjectSelector'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -30,7 +31,7 @@ export default async function Header() {
             borderBottom: '1px solid var(--border)',
             padding: '0 40px',
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             alignItems: 'center',
             background: 'var(--glass)',
             backdropFilter: 'blur(10px)',
@@ -39,6 +40,10 @@ export default async function Header() {
             zIndex: 90,
             width: '100%'
         }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+                {user && <ProjectSelector />}
+            </div>
+
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}

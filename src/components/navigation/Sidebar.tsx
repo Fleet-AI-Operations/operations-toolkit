@@ -7,7 +7,6 @@ import {
     Database,
     FileText,
     Clock,
-    BarChart3,
     Sparkles,
     FileCheck,
     Star,
@@ -51,7 +50,6 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             title: 'Analysis',
             items: [
                 { label: 'Records', href: '/records', icon: FileText },
-                { label: 'Analytics', href: '/analytics', icon: BarChart3 },
                 { label: 'Similarity', href: '/similarity', icon: Sparkles },
                 { label: 'Top/Bottom 10', href: '/topbottom10', icon: FileCheck },
                 { label: 'Likert Scoring', href: '/likert-scoring', icon: Star },

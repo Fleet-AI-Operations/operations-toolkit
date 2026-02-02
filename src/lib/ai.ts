@@ -201,9 +201,19 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
     console.log(`[Embeddings] Raw response structure:`, Object.keys(data));
 
     // Validate response structure
-    if (!data.data || !Array.isArray(data.data)) {
-      console.error(`[Embeddings] Invalid response structure from ${config.provider}:`, JSON.stringify(data).slice(0, 500));
-      throw new Error(`Invalid embedding response: missing 'data' array`);
+    if (!data || typeof data !== 'object') {
+      console.error(`[Embeddings] Response is not an object from ${config.provider}`);
+      throw new Error(`Invalid embedding response: response is not an object`);
+    }
+
+    if (!data.data) {
+      console.error(`[Embeddings] Missing 'data' field from ${config.provider}:`, JSON.stringify(data).slice(0, 500));
+      throw new Error(`Invalid embedding response: missing 'data' field`);
+    }
+
+    if (!Array.isArray(data.data)) {
+      console.error(`[Embeddings] 'data' field is not an array from ${config.provider}:`, typeof data.data, JSON.stringify(data).slice(0, 500));
+      throw new Error(`Invalid embedding response: 'data' is not an array (type: ${typeof data.data})`);
     }
 
     // Log first item structure for debugging
@@ -318,6 +328,23 @@ export async function generateCompletion(prompt: string, systemPrompt?: string):
  * 1.0 = identical meaning, 0.0 = completely unrelated.
  */
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  // Validate inputs
+  if (!vecA || !vecB || !Array.isArray(vecA) || !Array.isArray(vecB)) {
+    console.warn('[cosineSimilarity] Invalid input: vectors must be arrays');
+    return 0;
+  }
+
+  // Check dimension mismatch
+  if (vecA.length !== vecB.length) {
+    console.warn(`[cosineSimilarity] Dimension mismatch: vecA=${vecA.length}, vecB=${vecB.length}`);
+    return 0;
+  }
+
+  // Empty vectors
+  if (vecA.length === 0 || vecB.length === 0) {
+    return 0;
+  }
+
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
   const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
   const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
