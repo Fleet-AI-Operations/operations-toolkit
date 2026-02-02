@@ -2,15 +2,21 @@
  * Prompt Similarity Analysis
  *
  * Calculates semantic similarity between prompts using vector embeddings.
- * Uses cosine similarity to compare the target prompt against other prompts
- * from the same user in the same project.
+ * Uses pgvector's cosine distance operator for efficient similarity search.
  *
  * GET /api/analysis/prompt-similarity?projectId={id}&recordId={id}
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
-import { cosineSimilarity } from '@/lib/ai';
+
+interface SimilarPrompt {
+    id: string;
+    content: string;
+    category: string | null;
+    createdAt: Date;
+    similarity: number;
+}
 
 export async function GET(req: NextRequest) {
     const supabase = await createClient();
@@ -27,104 +33,71 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Project ID and Record ID are required' }, { status: 400 });
     }
 
-    // 1. Get the target prompt
-    let targetPrompt;
     try {
-        targetPrompt = await prisma.dataRecord.findUnique({
-            where: { id: recordId },
-            select: { id: true, embedding: true, createdById: true }
-        });
-    } catch (dbError: any) {
-        console.error('Similarity API Error: Failed to fetch target prompt', {
-            recordId,
-            projectId,
-            error: dbError.message
-        });
-        return NextResponse.json({
-            error: 'Database error while fetching target prompt. Please try again.'
-        }, { status: 500 });
-    }
+        // 1. Check if target prompt exists and has embedding using raw SQL
+        const targetCheck: { id: string; createdById: string | null; has_embedding: boolean }[] = await prisma.$queryRaw`
+            SELECT id, "createdById", embedding IS NOT NULL as has_embedding
+            FROM public.data_records
+            WHERE id = ${recordId}
+        `;
 
-    if (!targetPrompt) {
-        return NextResponse.json({ error: 'Target prompt not found' }, { status: 404 });
-    }
+        if (targetCheck.length === 0) {
+            return NextResponse.json({ error: 'Target prompt not found' }, { status: 404 });
+        }
 
-    if (!targetPrompt.embedding || targetPrompt.embedding.length === 0) {
-        console.error('Similarity API Error: Target prompt missing embedding', {
-            recordId,
-            projectId,
-            hasPrompt: !!targetPrompt,
-            hasEmbedding: !!targetPrompt?.embedding,
-            embeddingLength: targetPrompt?.embedding?.length
-        });
-        return NextResponse.json({
-            error: 'Target prompt does not have an embedding yet. Please wait for vectorization to complete or trigger it manually.'
-        }, { status: 404 });
-    }
+        const targetPrompt = targetCheck[0];
 
-    // 2. Get all other prompts FROM THE SAME USER in the same project
-    // Note: We limit to same-user prompts to provide personalized similarity insights
-    // and avoid privacy concerns from cross-user content comparison
-    let otherPrompts;
-    try {
-        otherPrompts = await prisma.dataRecord.findMany({
-            where: {
-                projectId,
-                type: 'TASK',
-                createdById: targetPrompt.createdById,
-                id: { not: recordId },
-                embedding: { isEmpty: false }
-            },
-            select: {
-                id: true,
-                content: true,
-                category: true,
-                embedding: true,
-                createdAt: true
-            }
-        });
-    } catch (dbError: any) {
-        console.error('Similarity API Error: Failed to fetch other prompts', {
-            recordId,
-            projectId,
-            createdById: targetPrompt.createdById,
-            error: dbError.message
-        });
-        return NextResponse.json({
-            error: 'Database error while fetching prompts for comparison. Please try again.'
-        }, { status: 500 });
-    }
+        if (!targetPrompt.has_embedding) {
+            console.error('Similarity API Error: Target prompt missing embedding', {
+                recordId,
+                projectId
+            });
+            return NextResponse.json({
+                error: 'Target prompt does not have an embedding yet. Please wait for vectorization to complete or trigger it manually.'
+            }, { status: 404 });
+        }
 
-    // 3. Calculate similarities
-    try {
-        const similarPrompts = otherPrompts
-            .map(p => ({
-                id: p.id,
-                content: p.content,
-                category: p.category,
-                createdAt: p.createdAt.toISOString(),
-                similarity: Math.round(cosineSimilarity(targetPrompt.embedding, p.embedding) * 100)
-            }))
-            .sort((a, b) => b.similarity - a.similarity);
+        // 2. Get similar prompts from the same user using pgvector's cosine distance
+        const similarPrompts: SimilarPrompt[] = await prisma.$queryRaw`
+            SELECT
+                id,
+                content,
+                category,
+                "createdAt",
+                ROUND((1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId}))) * 100) as similarity
+            FROM public.data_records
+            WHERE "projectId" = ${projectId}
+            AND type = 'TASK'
+            AND "createdById" = ${targetPrompt.createdById}
+            AND id != ${recordId}
+            AND embedding IS NOT NULL
+            ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
+            LIMIT 50
+        `;
 
         console.log('Similarity API: Calculated prompt similarities', {
             recordId,
             projectId,
             userId: user.id,
-            comparedCount: otherPrompts.length,
+            comparedCount: similarPrompts.length,
             topSimilarity: similarPrompts[0]?.similarity || 0
         });
 
-        return NextResponse.json({ similarPrompts });
-    } catch (calcError: any) {
-        console.error('Similarity API Error: Failed to calculate similarities', {
-            recordId,
-            projectId,
-            error: calcError.message,
-            stack: calcError.stack
-        });
         return NextResponse.json({
-            error: 'Error calculating similarities. Please try again or contact support.'
+            similarPrompts: similarPrompts.map(p => ({
+                id: p.id,
+                content: p.content,
+                category: p.category,
+                createdAt: p.createdAt.toISOString(),
+                similarity: Number(p.similarity)
+            }))
+        });
+    } catch (error: unknown) {
+        console.error('Similarity API Error:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({
+            error: 'Error calculating similarities. Please try again or contact support.',
+            details: message
         }, { status: 500 });
     }
 }

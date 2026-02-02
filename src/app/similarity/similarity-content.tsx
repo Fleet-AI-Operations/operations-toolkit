@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import RedZoneModal from "./RedZoneModal";
 import { useProjects } from "@/hooks/useProjects";
 
 interface Prompt {
@@ -40,6 +41,8 @@ export default function PromptSimilarityPage() {
   const [similarPrompts, setSimilarPrompts] = useState<SimilarPrompt[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRedZoneModal, setShowRedZoneModal] = useState(false);
+  const [redZoneThreshold, setRedZoneThreshold] = useState(70);
 
   useEffect(() => {
     if (!selectedProjectId) return;
@@ -153,18 +156,94 @@ export default function PromptSimilarityPage() {
     >
       <div
         style={{
-          marginBottom: "24px",
+          padding: "12px 24px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--glass)",
+          flexShrink: 0,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
-        <h1
-          className="premium-gradient"
-          style={{ margin: 0, fontSize: "1.5rem", marginBottom: "8px" }}
-        >
-          Prompt Similarity Analysis
-        </h1>
-        <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)' }}>
-          Select a prompt to see similar prompts from the same user
-        </p>
+        <div>
+          <h1
+            className="premium-gradient"
+            style={{ margin: 0, fontSize: "20px", marginBottom: "2px" }}
+          >
+            Prompt Similarity Analysis
+          </h1>
+          <p
+            style={{
+              margin: 0,
+              color: "rgba(255,255,255,0.6)",
+              fontSize: "13px",
+            }}
+          >
+            Select a prompt to see similar prompts from the same user
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <label
+              style={{
+                fontSize: "13px",
+                color: "rgba(255,255,255,0.6)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Threshold:
+            </label>
+            <input
+              type="range"
+              min="50"
+              max="95"
+              value={redZoneThreshold}
+              onChange={(e) => setRedZoneThreshold(Number(e.target.value))}
+              style={{
+                width: "80px",
+                accentColor: "#ef4444",
+              }}
+            />
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#ef4444",
+                minWidth: "36px",
+              }}
+            >
+              {redZoneThreshold}%
+            </span>
+          </div>
+          <button
+            onClick={() => setShowRedZoneModal(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              borderRadius: "8px",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              background: "rgba(239, 68, 68, 0.15)",
+              color: "#ef4444",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)";
+              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)";
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>🚨</span>
+            Red Zone Review
+          </button>
+        </div>
       </div>
 
       <div
@@ -535,6 +614,13 @@ export default function PromptSimilarityPage() {
           )}
         </div>
       </div>
+
+      <RedZoneModal
+        isOpen={showRedZoneModal}
+        onClose={() => setShowRedZoneModal(false)}
+        projectId={selectedProjectId}
+        threshold={redZoneThreshold}
+      />
     </div>
   );
 }

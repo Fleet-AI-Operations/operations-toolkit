@@ -4,13 +4,14 @@
 // you can remove the multiSchema preview feature and all @@schema("public") annotations.
 
 generator client {
-  provider = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  schemas  = ["public", "auth"]
+  provider   = "postgresql"
+  schemas    = ["public", "auth"]
+  extensions = [vector]
 }
 
 /**
@@ -110,7 +111,7 @@ model DataRecord {
   source        String         // Tracking field, e.g., "csv:filename.csv" or "api:endpoint"
   content       String         @db.Text
   metadata      Json?          // Stores all original fields from the source file
-  embedding     Float[]        // Vector representation for similarity searches
+  embedding     Unsupported("vector")? // pgvector variable-length - supports any embedding model dimension
   hasBeenReviewed Boolean      @default(false) // Whether a human rater has reviewed this record
   isCategoryCorrect Boolean?    // Rater's agreement: true if they agree with TOP_10/BOTTOM_10 classification
   reviewedBy    String?        // TODO: Update to authenticated user once auth is implemented
@@ -212,4 +213,3 @@ model LikertScore {
   @@map("likert_scores")
   @@schema("public")
 }
-
