@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Folder, Plus, Trash2, LayoutDashboard, FileText, Upload, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import { useProjectContext } from '@/context/ProjectContext';
 
 interface Project {
     id: string;
@@ -17,6 +18,7 @@ export default function ManagementPage() {
     const [newName, setNewName] = useState('');
     const [showNewProject, setShowNewProject] = useState(false);
     const [uploadingId, setUploadingId] = useState<string | null>(null);
+    const { refreshProjects: refreshGlobalProjects } = useProjectContext();
 
     useEffect(() => {
         fetchProjects();
@@ -44,6 +46,7 @@ export default function ManagementPage() {
                 body: JSON.stringify({ name: newName }),
             });
             await fetchProjects();
+            await refreshGlobalProjects(); // Update the global project selector
             setNewName('');
             setShowNewProject(false);
         } catch (err) {
@@ -56,6 +59,7 @@ export default function ManagementPage() {
         try {
             await fetch(`/api/projects?id=${id}`, { method: 'DELETE' });
             await fetchProjects();
+            await refreshGlobalProjects(); // Update the global project selector
         } catch (err) {
             alert('Failed to delete project');
         }
