@@ -168,7 +168,7 @@ export function createTestDataRecord(overrides?: Partial<any>) {
     source: 'test',
     content: 'Test content',
     metadata: {},
-    embedding: [],
+    embedding: null,
     hasBeenReviewed: false,
     isCategoryCorrect: null,
     reviewedBy: null,

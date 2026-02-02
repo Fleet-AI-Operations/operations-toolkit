@@ -150,15 +150,20 @@ async function vectorizeJob(jobId: string, projectId: string) {
         const job = await prisma.ingestJob.findUnique({ where: { id: jobId }, select: { status: true } });
         if (job?.status === 'CANCELLED') break;
 
-        // Fetch records that need embeddings (empty arrays) and are not permanently failed
-        const batch = await prisma.dataRecord.findMany({
-            where: {
-                projectId,
-                embedding: { equals: [] }
-            },
-            take: RECORDS_BATCH_SIZE,
-            orderBy: { id: 'asc' }
-        });
+        // Fetch records that need embeddings (null or empty) using raw SQL
+        // This handles both DOUBLE PRECISION[] and vector column types
+        const batch = await prisma.$queryRaw<Array<{
+            id: string;
+            content: string;
+            metadata: any;
+        }>>`
+            SELECT id, content, metadata
+            FROM data_records
+            WHERE "projectId" = ${projectId}
+            AND (embedding IS NULL OR cardinality(embedding) = 0)
+            ORDER BY id ASC
+            LIMIT ${RECORDS_BATCH_SIZE}
+        `;
 
         if (batch.length === 0) break;
 
@@ -180,7 +185,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
             await prisma.dataRecord.update({
                 where: { id: record.id },
                 data: {
-                    embedding: [], // Keep as empty to mark as failed
+                    embedding: null, // Keep as null to mark as failed
                     metadata: {
                         ...(typeof record.metadata === 'object' ? record.metadata : {}),
                         embeddingError: `Failed to generate embedding after ${MAX_RETRIES_PER_RECORD} attempts`
@@ -376,7 +381,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
-                    embedding: [],
+                    embedding: null,
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: v.record?.created_by_name ? String(v.record.created_by_name) : null,
                     createdByEmail: v.record?.created_by_email ? String(v.record.created_by_email) : null,

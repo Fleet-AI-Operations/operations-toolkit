@@ -72,8 +72,7 @@ export async function GET(req: NextRequest) {
                 projectId,
                 type: 'TASK',
                 createdById: targetPrompt.createdById,
-                id: { not: recordId },
-                embedding: { isEmpty: false }
+                id: { not: recordId }
             },
             select: {
                 id: true,
@@ -83,6 +82,9 @@ export async function GET(req: NextRequest) {
                 createdAt: true
             }
         });
+
+        // Filter out records without embeddings (null or empty arrays)
+        otherPrompts = otherPrompts.filter(p => p.embedding && p.embedding.length > 0);
     } catch (dbError: any) {
         console.error('Similarity API Error: Failed to fetch other prompts', {
             recordId,
