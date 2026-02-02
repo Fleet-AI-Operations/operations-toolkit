@@ -18,6 +18,7 @@ const { mockPrisma } = vi.hoisted(() => {
                 findMany: vi.fn(),
                 update: vi.fn(),
             },
+            $queryRaw: vi.fn(),
         }
     };
 });
@@ -53,7 +54,7 @@ describe('Ingestion Logic', () => {
             };
 
             mockPrisma.ingestJob.findUnique.mockResolvedValue({ status: 'PROCESSING', skippedDetails: {} });
-            mockPrisma.dataRecord.findFirst.mockResolvedValue(null); // No duplicate
+            mockPrisma.$queryRaw.mockResolvedValue([]); // No duplicates
 
             const res = await processAndStore(records, options, mockJobId);
 
@@ -73,7 +74,8 @@ describe('Ingestion Logic', () => {
             };
 
             mockPrisma.ingestJob.findUnique.mockResolvedValue({ status: 'PROCESSING', skippedDetails: {} });
-            mockPrisma.dataRecord.findFirst.mockResolvedValue({ id: 'existing-rec' }); // Simulating exists
+            // Mock $queryRaw to return a duplicate record
+            mockPrisma.$queryRaw.mockResolvedValue([{ id: 'existing-rec' }]);
 
             const res = await processAndStore(records, options, mockJobId);
 
@@ -101,6 +103,7 @@ describe('Ingestion Logic', () => {
             };
 
             mockPrisma.ingestJob.findUnique.mockResolvedValue({ status: 'PROCESSING', skippedDetails: {} });
+            mockPrisma.$queryRaw.mockResolvedValue([]); // No duplicates
 
             const res = await processAndStore(records, options, mockJobId);
 

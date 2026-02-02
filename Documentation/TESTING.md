@@ -679,8 +679,106 @@ When testing audit logs manually:
 
 ---
 
+## 📋 Quick Reference
+
+### Common Commands
+
+```bash
+# Start Supabase (required for E2E tests)
+npm run dev:supabase
+
+# Run unit tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# E2E tests
+npm run test:e2e
+
+# E2E interactive UI
+npm run test:e2e:ui
+
+# All tests
+npm run test:ci
+
+# Coverage
+npm test -- --coverage
+
+# Coverage with UI
+npm run test:coverage:ui
+```
+
+### Test File Locations
+
+```
+src/
+  lib/
+    __tests__/
+      helpers.ts              # Unit test helpers
+      ai.test.ts              # AI service tests
+      ingestion.test.ts       # Ingestion pipeline tests
+      similarity.test.ts      # Similarity search tests
+      supabase/
+        __tests__/
+          server.test.ts      # Supabase server client tests
+  app/
+    api/
+      __tests__/
+        auth-login.test.ts    # Auth login API tests (templates)
+        admin-users.test.ts   # Admin users API tests (templates)
+        ingest-csv.test.ts    # CSV ingestion API tests (templates)
+        records.test.ts       # Records API tests (templates)
+        projects.test.ts      # Projects API tests (templates)
+        README.md             # Integration test guide
+
+e2e/
+  helpers.ts                  # E2E test helpers
+  auth.spec.ts                # Authentication E2E tests
+  smoke.spec.ts               # Smoke tests
+  bonus-windows.spec.ts       # Bonus windows E2E tests
+```
+
+### Configuration Files
+
+```
+.env.test                     # Test environment variables
+vitest.config.ts              # Vitest configuration
+vitest.setup.ts               # Vitest setup file
+playwright.config.ts          # Playwright configuration
+```
+
+### Test Coverage
+
+**Current Status:**
+- ✅ Unit tests: `ai.test.ts`, `ingestion.test.ts`, `similarity.test.ts`
+- ✅ Supabase: `server.test.ts`
+- 🚧 API integration tests: Templates created, need implementation
+- ✅ E2E tests: Auth, smoke, bonus windows
+
+**Coverage Configuration:**
+```typescript
+// vitest.config.ts
+coverage: {
+  provider: 'v8',
+  reporter: ['text', 'json', 'html', 'lcov'],
+  lines: 80,
+  functions: 80,
+  branches: 75,
+  statements: 80,
+}
+```
+
+**View Coverage:**
+- Terminal: `npm test -- --coverage`
+- HTML Report: `open coverage/index.html`
+- Interactive UI: `npm run test:coverage:ui`
+
+---
+
 ## 📚 Related Documentation
 
+- [Testing Coverage Guide](../TESTING_COVERAGE.md) - Detailed coverage setup and goals
 - [Vitest Documentation](https://vitest.dev/)
 - [Playwright Documentation](https://playwright.dev/)
 - [Testing Library](https://testing-library.com/)

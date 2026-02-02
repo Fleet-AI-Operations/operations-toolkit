@@ -19,6 +19,34 @@ export default defineConfig(({ mode }) => {
                 // Load from .env.test
                 ...env,
             },
+            coverage: {
+                provider: 'v8',
+                reporter: ['text', 'json', 'html', 'lcov'],
+                exclude: [
+                    'node_modules/',
+                    'src/lib/__tests__/',
+                    'src/app/api/__tests__/',
+                    '**/*.test.ts',
+                    '**/*.spec.ts',
+                    '**/*.config.ts',
+                    '**/types.ts',
+                    'e2e/',
+                    'dist/',
+                    '.next/',
+                    'coverage/',
+                    'vitest.setup.ts',
+                    'src/proxy.ts',
+                ],
+                include: [
+                    'src/lib/**/*.ts',
+                    'src/app/api/**/*.ts',
+                ],
+                all: true,
+                lines: 80,
+                functions: 80,
+                branches: 75,
+                statements: 80,
+            },
         },
         resolve: {
             alias: {

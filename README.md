@@ -4,25 +4,30 @@ A local-first AI alignment and data ingestion tool for evaluating task and feedb
 
 ## 📚 Documentation
 
-### Getting Started
-- [**Deployment Options**](./DEPLOYMENT_OPTIONS.md) - Compare Local, Docker, and Production deployments
-- [**Local Development Quick Start**](./LOCALDEV_QUICKSTART.md) - Get up and running in 5 minutes
-- [**Production vs Local**](./PRODUCTION_VS_LOCAL.md) - What's deployed to production vs local only
+**→ [Complete Documentation Index](./Documentation/INDEX.md)** - Central hub for all documentation with task-based and role-based navigation.
 
-### Guides
-- [**Setup Guide**](./Documentation/SETUP.md) - How to configure your environment, database, and local AI (LM Studio)
+### Quick Links
+
+#### Getting Started
+- [**Local Development Quick Start**](./LOCALDEV_QUICKSTART.md) - Get up and running in 5 minutes
+- [**Deployment Options**](./DEPLOYMENT_OPTIONS.md) - Compare Local, Docker, and Production deployments
+- [**User Guide**](./Documentation/USER_GUIDE.md) - How to use the application
+
+#### Development
 - [**Local Development Guide**](./Documentation/LOCAL_DEVELOPMENT.md) - Detailed guide for local development with Supabase
 - [**Testing Guide**](./Documentation/TESTING.md) - How to run and write tests
-- [**Docker Deployment**](./docker/README.md) - Running with Docker Compose
-- [**User Guide**](./Documentation/USER_GUIDE.md) - How to manage projects, ingest data, and interpret AI alignment scores
-- [**User Management**](./Documentation/USER_MANAGEMENT.md) - Approval flows, roles, and access delegation
-- [**Vercel Deployment**](./Documentation/VERCEL.md) - Instructions for deploying to production
+- [**API Reference**](./Documentation/Reference/API_REFERENCE.md) - Complete REST API documentation
+- [**Database Schema**](./Documentation/Reference/DATABASE_SCHEMA.md) - Database schema with ERD
 
-### 🏗 Architecture
+#### Architecture
+- [**System Overview**](./Documentation/Architecture/OVERVIEW.md) - Tech stack and system diagrams
+- [**Ingestion Flow**](./Documentation/Architecture/INGESTION_FLOW.md) - Background processes and queuing
+- [**AI Strategy**](./Documentation/Architecture/AI_STRATEGY.md) - RAG-based alignment and embeddings
 
-- [**System Overview**](./Documentation/Architecture/OVERVIEW.md) - High-level tech stack and system diagrams.
-- [**Ingestion & Queuing**](./Documentation/Architecture/INGESTION_FLOW.md) - Deep dive into background processes and memory management.
-- [**AI Strategy**](./Documentation/Architecture/AI_STRATEGY.md) - Logic behind RAG-based alignment checks and embeddings.
+#### Operations
+- [**Production Setup**](./Documentation/SETUP.md) - Environment configuration and deployment
+- [**Troubleshooting**](./Documentation/TROUBLESHOOTING.md) - Common issues and solutions
+- [**Security**](./Documentation/SECURITY.md) - Security best practices
 
 ## ✨ Core Features
 
