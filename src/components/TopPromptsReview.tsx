@@ -14,7 +14,7 @@ interface TopPromptRecord {
     isCategoryCorrect: boolean | null;
     hasBeenReviewed: boolean;
     reviewedBy: string | null;
-    likertScores: {
+    likertScores?: {
         count: number;
         avgRealism: number | null;
         avgQuality: number | null;
@@ -296,7 +296,7 @@ export default function TopPromptsReview() {
                                                 {envKey}
                                             </span>
 
-                                            {record.likertScores.count > 0 && (
+                                            {record.likertScores && record.likertScores.count > 0 && (
                                                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                                                     <span
                                                         data-tooltip="Average Realism Score"

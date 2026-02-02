@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
                     // Save to database
                     const likertScore = await prisma.likertScore.create({
                         data: {
+                            id: `lik_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                             recordId,
                             userId: LLM_SYSTEM_UUID,
                             realismScore: scores.realism,

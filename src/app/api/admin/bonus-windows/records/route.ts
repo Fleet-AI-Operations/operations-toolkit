@@ -70,7 +70,7 @@ export async function GET(req: Request) {
             // Determine task tier
             let taskTier: number | null = null
             if (window.targetTaskCount > 0) {
-                if (window.targetTaskCountTier2 > 0 && taskCount >= window.targetTaskCountTier2) {
+                if (window.targetTaskCountTier2 && window.targetTaskCountTier2 > 0 && taskCount >= window.targetTaskCountTier2) {
                     taskTier = 2
                 } else if (taskCount >= window.targetTaskCount) {
                     taskTier = 1
@@ -80,7 +80,7 @@ export async function GET(req: Request) {
             // Determine feedback tier
             let feedbackTier: number | null = null
             if (window.targetFeedbackCount > 0) {
-                if (window.targetFeedbackCountTier2 > 0 && feedbackCount >= window.targetFeedbackCountTier2) {
+                if (window.targetFeedbackCountTier2 && window.targetFeedbackCountTier2 > 0 && feedbackCount >= window.targetFeedbackCountTier2) {
                     feedbackTier = 2
                 } else if (feedbackCount >= window.targetFeedbackCount) {
                     feedbackTier = 1

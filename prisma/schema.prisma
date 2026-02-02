@@ -1,8 +1,3 @@
-// NOTE: multiSchema is only needed because the database has a foreign key
-// constraint from public.profiles to auth.users (Supabase's auth schema).
-// Once you fully integrate Supabase auth into this schema OR remove that constraint,
-// you can remove the multiSchema preview feature and all @@schema("public") annotations.
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema", "postgresqlExtensions"]
@@ -10,36 +5,634 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  schemas    = ["public", "auth"]
-  extensions = [vector]
+  extensions = [uuid_ossp(map: "uuid-ossp", schema: "extensions"), vector]
+  schemas    = ["auth", "public"]
 }
 
-/**
- * PROJECT: The primary organizational unit.
- * All data records, ingestion jobs, and guidelines are scoped to a project.
- */
+/// *
+///  * PROJECT: The primary organizational unit.
+///  * All data records, ingestion jobs, and guidelines are scoped to a project.
 model Project {
-  id           String        @id @default(cuid())
-  name         String        @unique
-  ownerId      String?       @map("ownerId") @db.Uuid
-  owner        Profile?      @relation(fields: [ownerId], references: [id])
-  records      DataRecord[]
-  ingestJobs   IngestJob[]
-  analyticsJobs AnalyticsJob[]
-
-  // AI-generated summary reports (cached for dashboard display)
-  lastTaskAnalysis String?       @map("lastTaskAnalysis") @db.Text
-  lastFeedbackAnalysis String?   @map("lastFeedbackAnalysis") @db.Text
-
-  // Grounding Data: Guidelines PDF stored as a base64 string for RAG analysis
-  guidelines   String?       @db.Text
-  guidelinesFileName String? @map("guidelinesFileName")
-
-  createdAt    DateTime      @default(now()) @map("createdAt")
-  updatedAt    DateTime      @updatedAt @map("updatedAt")
+  id                   String         @id @default(cuid())
+  name                 String         @unique
+  ownerId              String?        @map("ownerId") @db.Uuid
+  lastTaskAnalysis     String?        @map("lastTaskAnalysis")
+  lastFeedbackAnalysis String?        @map("lastFeedbackAnalysis")
+  guidelines           String?
+  guidelinesFileName   String?        @map("guidelinesFileName")
+  createdAt            DateTime       @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+  analyticsJobs        AnalyticsJob[]
+  records              DataRecord[]
+  ingestJobs           IngestJob[]
+  owner                Profile?       @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("projects")
   @@schema("public")
+}
+
+/// *
+///  * PROFILE: Application-specific user data.
+///  * The id field must match the Supabase auth.users(id).
+model Profile {
+  id                String    @id @db.Uuid
+  email             String    @unique
+  role              UserRole  @default(PENDING)
+  mustResetPassword Boolean   @default(false) @map("mustResetPassword")
+  createdAt         DateTime  @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+  users             users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  projects          Project[]
+
+  @@map("profiles")
+  @@schema("public")
+}
+
+model AnalyticsJob {
+  id             String   @id @default(cuid())
+  projectId      String   @map("projectId")
+  status         String   @default("PENDING")
+  totalRecords   Int      @default(0) @map("totalRecords")
+  processedCount Int      @default(0) @map("processedCount")
+  error          String?
+  createdAt      DateTime @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([projectId], map: "idx_analytics_jobs_project")
+  @@map("analytics_jobs")
+  @@schema("public")
+}
+
+/// *
+///  * DATA RECORD: The core data unit.
+///  * Contains the raw text content, original JSON metadata, and vector embeddings.
+model DataRecord {
+  id                String                 @id @default(cuid())
+  projectId         String                 @map("projectId")
+  type              RecordType
+  category          RecordCategory?
+  source            String
+  content           String
+  metadata          Json?
+  embedding         Unsupported("vector")?
+  hasBeenReviewed   Boolean                @default(false)
+  isCategoryCorrect Boolean?
+  reviewedBy        String?
+  alignmentAnalysis String?                @map("alignmentAnalysis")
+  ingestJobId       String?                @map("ingestJobId")
+  createdAt         DateTime               @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt         DateTime               @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+  createdById       String?                @map("createdById")
+  createdByName     String?                @map("createdByName")
+  createdByEmail    String?                @map("createdByEmail")
+  project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  likertScores      LikertScore[]
+
+  @@index([category], map: "idx_data_records_category")
+  @@index([createdById], map: "idx_data_records_created_by")
+  @@index([projectId], map: "idx_data_records_project")
+  @@index([type], map: "idx_data_records_type")
+  @@map("data_records")
+  @@schema("public")
+}
+
+/// *
+///  * INGEST JOB: Background process tracker.
+///  * Used to manage long-running CSV uploads and API syncs.
+///  * Allows the UI to poll for real-time progress bars.
+model IngestJob {
+  id             String     @id @default(cuid())
+  projectId      String     @map("projectId")
+  type           RecordType
+  status         String     @default("PENDING")
+  totalRecords   Int        @default(0) @map("totalRecords")
+  savedCount     Int        @default(0) @map("savedCount")
+  skippedCount   Int        @default(0) @map("skippedCount")
+  skippedDetails Json?      @map("skippedDetails")
+  error          String?
+  createdAt      DateTime   @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt      DateTime   @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([projectId], map: "idx_ingest_jobs_project")
+  @@map("ingest_jobs")
+  @@schema("public")
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+
+  @@map("system_settings")
+  @@schema("public")
+}
+
+/// *
+///  * BONUS WINDOW: Tracks time-based performance windows for all users.
+///  * Managers configure windows to measure collective record creation against targets.
+///  * Supports optional second tier targets for enhanced bonuses.
+model BonusWindow {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  startTime                DateTime  @map("start_time") @db.Timestamptz(6)
+  endTime                  DateTime  @map("end_time") @db.Timestamptz(6)
+  createdBy                String    @map("created_by") @db.Uuid
+  createdAt                DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  name                     String    @default("Bonus Window")
+  targetTaskCount          Int       @default(0) @map("target_task_count")
+  targetFeedbackCount      Int       @default(0) @map("target_feedback_count")
+  targetTaskCountTier2     Int?      @default(0) @map("target_task_count_tier2")
+  targetFeedbackCountTier2 Int?      @default(0) @map("target_feedback_count_tier2")
+  users                    users     @relation(fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([startTime, endTime], map: "bonus_windows_time_range_idx")
+  @@map("bonus_windows")
+  @@schema("public")
+}
+
+/// *
+///  * AUDIT LOG: Tracks user actions and administrative operations.
+///  * Logs all major actions throughout the application for security and compliance.
+model AuditLog {
+  id         String   @id
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  projectId  String?  @map("project_id")
+  userId     String   @map("user_id") @db.Uuid
+  userEmail  String   @map("user_email")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  users      users    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([action, createdAt(sort: Desc)], map: "idx_audit_logs_action")
+  @@index([createdAt(sort: Desc)], map: "idx_audit_logs_created_at")
+  @@index([entityType, entityId], map: "idx_audit_logs_entity")
+  @@index([projectId], map: "idx_audit_logs_project")
+  @@index([userId, createdAt(sort: Desc)], map: "idx_audit_logs_user_time")
+  @@map("audit_logs")
+  @@schema("public")
+}
+
+/// *
+///  * BUG REPORT: User-submitted bug reports from anywhere in the application.
+///  * Captures page context, user info, and description of the issue.
+model BugReport {
+  id                                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                               String?  @map("user_id") @db.Uuid
+  userEmail                            String   @map("user_email")
+  pageUrl                              String   @map("page_url")
+  userAgent                            String?  @map("user_agent")
+  description                          String
+  createdAt                            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status                               String   @default("PENDING")
+  assignedTo                           String?  @map("assigned_to") @db.Uuid
+  assignedToEmail                      String?  @map("assigned_to_email")
+  users_bug_reports_assigned_toTousers users?   @relation("bug_reports_assigned_toTousers", fields: [assignedTo], references: [id], onUpdate: NoAction)
+  users_bug_reports_user_idTousers     users?   @relation("bug_reports_user_idTousers", fields: [userId], references: [id], onUpdate: NoAction)
+
+  @@index([assignedTo], map: "idx_bug_reports_assigned_to")
+  @@index([createdAt(sort: Desc)], map: "idx_bug_reports_created_at")
+  @@index([status], map: "idx_bug_reports_status")
+  @@index([userId], map: "idx_bug_reports_user_id")
+  @@map("bug_reports")
+  @@schema("public")
+}
+
+/**
+ * LIKERT SCORE: User or LLM ratings for prompts on Realism and Quality scales (1-7).
+ * Each user can rate a prompt only once.
+ * For LLM evaluations, userId is the reserved LLM UUID (00000000-0000-0000-0000-000000000000)
+ * and llmModel contains the model name (e.g., "gpt-4", "claude-3").
+ */
+model LikertScore {
+  id              String      @id
+  recordId        String      @map("recordId")
+  record          DataRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId          String      @map("userId")
+  realismScore    Int         @map("realismScore")
+  qualityScore    Int         @map("qualityScore")
+  llmModel        String?     @map("llmModel")
+  createdAt       DateTime    @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt       DateTime    @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+
+  @@unique([recordId, userId], map: "likert_scores_unique_user_record")
+  @@index([recordId], map: "idx_likert_scores_record")
+  @@index([userId], map: "idx_likert_scores_user")
+  @@index([llmModel], map: "idx_likert_scores_llm_model")
+  @@map("likert_scores")
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model audit_log_entries {
+  instance_id String?   @db.Uuid
+  id          String    @id @db.Uuid
+  payload     Json?     @db.Json
+  created_at  DateTime? @db.Timestamptz(6)
+  ip_address  String    @default("") @db.VarChar(64)
+
+  @@index([instance_id], map: "audit_logs_instance_id_idx")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model flow_state {
+  id                     String                @id @db.Uuid
+  user_id                String?               @db.Uuid
+  auth_code              String
+  code_challenge_method  code_challenge_method
+  code_challenge         String
+  provider_type          String
+  provider_access_token  String?
+  provider_refresh_token String?
+  created_at             DateTime?             @db.Timestamptz(6)
+  updated_at             DateTime?             @db.Timestamptz(6)
+  authentication_method  String
+  auth_code_issued_at    DateTime?             @db.Timestamptz(6)
+  saml_relay_states      saml_relay_states[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([auth_code], map: "idx_auth_code")
+  @@index([user_id, authentication_method], map: "idx_user_id_auth_method")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model identities {
+  provider_id     String
+  user_id         String    @db.Uuid
+  identity_data   Json
+  provider        String
+  last_sign_in_at DateTime? @db.Timestamptz(6)
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+  email           String?   @default(dbgenerated("lower((identity_data ->> 'email'::text))"))
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  users           users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider_id, provider], map: "identities_provider_id_provider_unique")
+  @@index([email])
+  @@index([user_id])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model instances {
+  id              String    @id @db.Uuid
+  uuid            String?   @db.Uuid
+  raw_base_config String?
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_amr_claims {
+  session_id            String   @db.Uuid
+  created_at            DateTime @db.Timestamptz(6)
+  updated_at            DateTime @db.Timestamptz(6)
+  authentication_method String
+  id                    String   @id(map: "amr_id_pk") @db.Uuid
+  sessions              sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([session_id, authentication_method], map: "mfa_amr_claims_session_id_authentication_method_pkey")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_challenges {
+  id                     String      @id @db.Uuid
+  factor_id              String      @db.Uuid
+  created_at             DateTime    @db.Timestamptz(6)
+  verified_at            DateTime?   @db.Timestamptz(6)
+  ip_address             String      @db.Inet
+  otp_code               String?
+  web_authn_session_data Json?
+  mfa_factors            mfa_factors @relation(fields: [factor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mfa_challenges_auth_factor_id_fkey")
+
+  @@index([created_at(sort: Desc)], map: "mfa_challenge_created_at_idx")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_factors {
+  id                           String           @id @db.Uuid
+  user_id                      String           @db.Uuid
+  friendly_name                String?
+  factor_type                  factor_type
+  status                       factor_status
+  created_at                   DateTime         @db.Timestamptz(6)
+  updated_at                   DateTime         @db.Timestamptz(6)
+  secret                       String?
+  phone                        String?
+  last_challenged_at           DateTime?        @unique @db.Timestamptz(6)
+  web_authn_credential         Json?
+  web_authn_aaguid             String?          @db.Uuid
+  last_webauthn_challenge_data Json?
+  mfa_challenges               mfa_challenges[]
+  users                        users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, phone], map: "unique_phone_factor_per_user")
+  @@index([user_id, created_at], map: "factor_id_created_at_idx")
+  @@index([user_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model oauth_authorizations {
+  id                    String                     @id @db.Uuid
+  authorization_id      String                     @unique
+  client_id             String                     @db.Uuid
+  user_id               String?                    @db.Uuid
+  redirect_uri          String
+  scope                 String
+  state                 String?
+  resource              String?
+  code_challenge        String?
+  code_challenge_method code_challenge_method?
+  response_type         oauth_response_type        @default(code)
+  status                oauth_authorization_status @default(pending)
+  authorization_code    String?                    @unique
+  created_at            DateTime                   @default(now()) @db.Timestamptz(6)
+  expires_at            DateTime                   @default(dbgenerated("(now() + '00:03:00'::interval)")) @db.Timestamptz(6)
+  approved_at           DateTime?                  @db.Timestamptz(6)
+  nonce                 String?
+  oauth_clients         oauth_clients              @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                 users?                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model oauth_client_states {
+  id            String   @id @db.Uuid
+  provider_type String
+  code_verifier String?
+  created_at    DateTime @db.Timestamptz(6)
+
+  @@index([created_at], map: "idx_oauth_client_states_created_at")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model oauth_clients {
+  id                   String                  @id @db.Uuid
+  client_secret_hash   String?
+  registration_type    oauth_registration_type
+  redirect_uris        String
+  grant_types          String
+  client_name          String?
+  client_uri           String?
+  logo_uri             String?
+  created_at           DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                @default(now()) @db.Timestamptz(6)
+  deleted_at           DateTime?               @db.Timestamptz(6)
+  client_type          oauth_client_type       @default(confidential)
+  oauth_authorizations oauth_authorizations[]
+  oauth_consents       oauth_consents[]
+  sessions             sessions[]
+
+  @@index([deleted_at])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model oauth_consents {
+  id            String        @id @db.Uuid
+  user_id       String        @db.Uuid
+  client_id     String        @db.Uuid
+  scopes        String
+  granted_at    DateTime      @default(now()) @db.Timestamptz(6)
+  revoked_at    DateTime?     @db.Timestamptz(6)
+  oauth_clients oauth_clients @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, client_id], map: "oauth_consents_user_client_unique")
+  @@index([user_id, granted_at(sort: Desc)], map: "oauth_consents_user_order_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model one_time_tokens {
+  id         String              @id @db.Uuid
+  user_id    String              @db.Uuid
+  token_type one_time_token_type
+  token_hash String
+  relates_to String
+  created_at DateTime            @default(now()) @db.Timestamp(6)
+  updated_at DateTime            @default(now()) @db.Timestamp(6)
+  users      users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, token_type])
+  @@index([relates_to], map: "one_time_tokens_relates_to_hash_idx", type: Hash)
+  @@index([token_hash], map: "one_time_tokens_token_hash_hash_idx", type: Hash)
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model refresh_tokens {
+  instance_id String?   @db.Uuid
+  id          BigInt    @id @default(autoincrement())
+  token       String?   @unique(map: "refresh_tokens_token_unique") @db.VarChar(255)
+  user_id     String?   @db.VarChar(255)
+  revoked     Boolean?
+  created_at  DateTime? @db.Timestamptz(6)
+  updated_at  DateTime? @db.Timestamptz(6)
+  parent      String?   @db.VarChar(255)
+  session_id  String?   @db.Uuid
+  sessions    sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([instance_id])
+  @@index([instance_id, user_id])
+  @@index([parent])
+  @@index([session_id, revoked])
+  @@index([updated_at(sort: Desc)])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model saml_providers {
+  id                String        @id @db.Uuid
+  sso_provider_id   String        @db.Uuid
+  entity_id         String        @unique
+  metadata_xml      String
+  metadata_url      String?
+  attribute_mapping Json?
+  created_at        DateTime?     @db.Timestamptz(6)
+  updated_at        DateTime?     @db.Timestamptz(6)
+  name_id_format    String?
+  sso_providers     sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model saml_relay_states {
+  id              String        @id @db.Uuid
+  sso_provider_id String        @db.Uuid
+  request_id      String
+  for_email       String?
+  redirect_to     String?
+  created_at      DateTime?     @db.Timestamptz(6)
+  updated_at      DateTime?     @db.Timestamptz(6)
+  flow_state_id   String?       @db.Uuid
+  flow_state      flow_state?   @relation(fields: [flow_state_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sso_providers   sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)])
+  @@index([for_email])
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model schema_migrations {
+  version String @id @db.VarChar(255)
+
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sessions {
+  id                     String           @id @db.Uuid
+  user_id                String           @db.Uuid
+  created_at             DateTime?        @db.Timestamptz(6)
+  updated_at             DateTime?        @db.Timestamptz(6)
+  factor_id              String?          @db.Uuid
+  aal                    aal_level?
+  not_after              DateTime?        @db.Timestamptz(6)
+  refreshed_at           DateTime?        @db.Timestamp(6)
+  user_agent             String?
+  ip                     String?          @db.Inet
+  tag                    String?
+  oauth_client_id        String?          @db.Uuid
+  refresh_token_hmac_key String?
+  refresh_token_counter  BigInt?
+  scopes                 String?
+  mfa_amr_claims         mfa_amr_claims[]
+  refresh_tokens         refresh_tokens[]
+  oauth_clients          oauth_clients?   @relation(fields: [oauth_client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                  users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([not_after(sort: Desc)])
+  @@index([oauth_client_id])
+  @@index([user_id])
+  @@index([user_id, created_at], map: "user_id_created_at_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sso_domains {
+  id              String        @id @db.Uuid
+  sso_provider_id String        @db.Uuid
+  domain          String
+  created_at      DateTime?     @db.Timestamptz(6)
+  updated_at      DateTime?     @db.Timestamptz(6)
+  sso_providers   sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sso_providers {
+  id                String              @id @db.Uuid
+  resource_id       String?
+  created_at        DateTime?           @db.Timestamptz(6)
+  updated_at        DateTime?           @db.Timestamptz(6)
+  disabled          Boolean?
+  saml_providers    saml_providers[]
+  saml_relay_states saml_relay_states[]
+  sso_domains       sso_domains[]
+
+  @@index([resource_id], map: "sso_providers_resource_id_pattern_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model users {
+  instance_id                                String?                @db.Uuid
+  id                                         String                 @id @db.Uuid
+  aud                                        String?                @db.VarChar(255)
+  role                                       String?                @db.VarChar(255)
+  email                                      String?                @db.VarChar(255)
+  encrypted_password                         String?                @db.VarChar(255)
+  email_confirmed_at                         DateTime?              @db.Timestamptz(6)
+  invited_at                                 DateTime?              @db.Timestamptz(6)
+  confirmation_token                         String?                @db.VarChar(255)
+  confirmation_sent_at                       DateTime?              @db.Timestamptz(6)
+  recovery_token                             String?                @db.VarChar(255)
+  recovery_sent_at                           DateTime?              @db.Timestamptz(6)
+  email_change_token_new                     String?                @db.VarChar(255)
+  email_change                               String?                @db.VarChar(255)
+  email_change_sent_at                       DateTime?              @db.Timestamptz(6)
+  last_sign_in_at                            DateTime?              @db.Timestamptz(6)
+  raw_app_meta_data                          Json?
+  raw_user_meta_data                         Json?
+  is_super_admin                             Boolean?
+  created_at                                 DateTime?              @db.Timestamptz(6)
+  updated_at                                 DateTime?              @db.Timestamptz(6)
+  phone                                      String?                @unique
+  phone_confirmed_at                         DateTime?              @db.Timestamptz(6)
+  phone_change                               String?                @default("")
+  phone_change_token                         String?                @default("") @db.VarChar(255)
+  phone_change_sent_at                       DateTime?              @db.Timestamptz(6)
+  confirmed_at                               DateTime?              @default(dbgenerated("LEAST(email_confirmed_at, phone_confirmed_at)")) @db.Timestamptz(6)
+  email_change_token_current                 String?                @default("") @db.VarChar(255)
+  email_change_confirm_status                Int?                   @default(0) @db.SmallInt
+  banned_until                               DateTime?              @db.Timestamptz(6)
+  reauthentication_token                     String?                @default("") @db.VarChar(255)
+  reauthentication_sent_at                   DateTime?              @db.Timestamptz(6)
+  is_sso_user                                Boolean                @default(false)
+  deleted_at                                 DateTime?              @db.Timestamptz(6)
+  is_anonymous                               Boolean                @default(false)
+  identities                                 identities[]
+  mfa_factors                                mfa_factors[]
+  oauth_authorizations                       oauth_authorizations[]
+  oauth_consents                             oauth_consents[]
+  one_time_tokens                            one_time_tokens[]
+  sessions                                   sessions[]
+  audit_logs                                 AuditLog[]
+  bonus_windows                              BonusWindow[]
+  bug_reports_bug_reports_assigned_toTousers BugReport[]            @relation("bug_reports_assigned_toTousers")
+  bug_reports_bug_reports_user_idTousers     BugReport[]            @relation("bug_reports_user_idTousers")
+  profiles                                   Profile?
+
+  @@index([instance_id])
+  @@index([is_anonymous])
+  @@schema("auth")
 }
 
 enum UserRole {
@@ -51,190 +644,86 @@ enum UserRole {
   @@schema("public")
 }
 
-/**
- * PROFILE: Application-specific user data.
- * The id field must match the Supabase auth.users(id).
- */
-model Profile {
-  id        String   @id @db.Uuid
-  email     String   @unique
-  role      UserRole @default(PENDING)
-  mustResetPassword Boolean @default(false) @map("mustResetPassword")
-  projects  Project[]
-
-  createdAt DateTime @default(now()) @map("createdAt")
-  updatedAt DateTime @updatedAt @map("updatedAt")
-
-  @@map("profiles")
-  @@schema("public")
-}
-
-model AnalyticsJob {
-  id            String      @id @default(cuid())
-  projectId     String      @map("projectId")
-  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status        String      @default("PENDING")
-  totalRecords  Int         @default(0) @map("totalRecords")
-  processedCount Int         @default(0) @map("processedCount")
-  error         String?     @db.Text
-  createdAt     DateTime    @default(now()) @map("createdAt")
-  updatedAt     DateTime    @updatedAt @map("updatedAt")
-
-  @@map("analytics_jobs")
-  @@schema("public")
-}
-
 enum RecordType {
-  TASK        // Individual prompt/request
-  FEEDBACK    // Human or AI evaluation of a task
+  TASK
+  FEEDBACK
 
   @@schema("public")
 }
 
 enum RecordCategory {
-  TOP_10      // High quality/aligned
-  BOTTOM_10   // Low quality/unaligned
+  TOP_10
+  BOTTOM_10
 
   @@schema("public")
 }
 
-/**
- * DATA RECORD: The core data unit.
- * Contains the raw text content, original JSON metadata, and vector embeddings.
- */
-model DataRecord {
-  id            String         @id @default(cuid())
-  projectId     String         @map("projectId")
-  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type          RecordType
-  category      RecordCategory?
-  source        String         // Tracking field, e.g., "csv:filename.csv" or "api:endpoint"
-  content       String         @db.Text
-  metadata      Json?          // Stores all original fields from the source file
-  embedding     Unsupported("vector")? // pgvector variable-length - supports any embedding model dimension
-  hasBeenReviewed Boolean      @default(false) // Whether a human rater has reviewed this record
-  isCategoryCorrect Boolean?    // Rater's agreement: true if they agree with TOP_10/BOTTOM_10 classification
-  reviewedBy    String?        // TODO: Update to authenticated user once auth is implemented
+enum aal_level {
+  aal1
+  aal2
+  aal3
 
-  // AI-generated comparison against the project guidelines
-  alignmentAnalysis String?    @map("alignmentAnalysis") @db.Text
-
-  // User tracking fields from ingestion
-  createdById     String?        @map("createdById")
-  createdByName   String?        @map("createdByName")
-  createdByEmail  String?        @map("createdByEmail")
-
-  ingestJobId   String?        @map("ingestJobId")
-
-  likertScores  LikertScore[]
-
-  createdAt     DateTime       @default(now()) @map("createdAt")
-  updatedAt     DateTime       @updatedAt @map("updatedAt")
-
-  @@map("data_records")
-  @@schema("public")
+  @@schema("auth")
 }
 
-/**
- * INGEST JOB: Background process tracker.
- * Used to manage long-running CSV uploads and API syncs.
- * Allows the UI to poll for real-time progress bars.
- */
-model IngestJob {
-  id            String      @id @default(cuid())
-  projectId     String      @map("projectId")
-  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type          RecordType
-  status        String      @default("PENDING") // Status Lifecycle: PENDING -> PROCESSING -> COMPLETED or FAILED
-  totalRecords  Int         @default(0) @map("totalRecords")
-  savedCount    Int         @default(0) @map("savedCount")
-  skippedCount  Int         @default(0) @map("skippedCount")
-  skippedDetails Json?      @map("skippedDetails")
-  error         String?     @db.Text
-  createdAt     DateTime    @default(now()) @map("createdAt")
-  updatedAt     DateTime    @updatedAt @map("updatedAt")
+enum code_challenge_method {
+  s256
+  plain
 
-  @@map("ingest_jobs")
-  @@schema("public")
+  @@schema("auth")
 }
 
-model SystemSetting {
-  key         String   @id
-  value       String
-  description String?
-  updatedAt   DateTime @updatedAt @map("updatedAt")
+enum factor_status {
+  unverified
+  verified
 
-  @@map("system_settings")
-  @@schema("public")
+  @@schema("auth")
 }
 
-/**
- * BONUS WINDOW: Tracks time-based performance windows for all users.
- * Managers configure windows to measure collective record creation against targets.
- * Supports optional second tier targets for enhanced bonuses.
- */
-model BonusWindow {
-  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                    String   @default("Bonus Window")
-  startTime               DateTime @map("start_time") @db.Timestamptz
-  endTime                 DateTime @map("end_time") @db.Timestamptz
-  targetTaskCount         Int      @default(0) @map("target_task_count")
-  targetFeedbackCount     Int      @default(0) @map("target_feedback_count")
-  targetTaskCountTier2    Int      @default(0) @map("target_task_count_tier2")
-  targetFeedbackCountTier2 Int     @default(0) @map("target_feedback_count_tier2")
-  createdBy               String   @map("created_by") @db.Uuid
-  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz
+enum factor_type {
+  totp
+  webauthn
+  phone
 
-  @@map("bonus_windows")
-  @@schema("public")
+  @@schema("auth")
 }
 
-/**
- * LIKERT SCORE: User or LLM ratings for prompts on Realism and Quality scales (1-7).
- * Each user can rate a prompt only once.
- * For LLM evaluations, userId is the reserved LLM UUID (00000000-0000-0000-0000-000000000000)
- * and llmModel contains the model name (e.g., "gpt-4", "claude-3").
- */
-model LikertScore {
-  id              String      @id @default(cuid())
-  recordId        String      @map("recordId")
-  record          DataRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  userId          String      @map("userId")
-  realismScore    Int         @map("realismScore") // 1-7 scale
-  qualityScore    Int         @map("qualityScore") // 1-7 scale
-  llmModel        String?     @map("llmModel") // Name of LLM if this is an LLM evaluation
-  createdAt       DateTime    @default(now()) @map("createdAt")
-  updatedAt       DateTime    @updatedAt @map("updatedAt")
+enum oauth_authorization_status {
+  pending
+  approved
+  denied
+  expired
 
-  @@index([recordId])
-  @@index([userId])
-  @@index([llmModel])
-  @@map("likert_scores")
-  @@schema("public")
+  @@schema("auth")
 }
 
-/**
- * AUDIT LOG: Tracks user actions and administrative operations.
- * Logs all major actions throughout the application for security and compliance.
- */
-model AuditLog {
-  id          String    @id
-  action      String
-  entityType  String    @map("entity_type")
-  entityId    String?   @map("entity_id")
-  projectId   String?   @map("project_id")
-  userId      String    @map("user_id") @db.Uuid
-  userEmail   String    @map("user_email")
-  metadata    Json?
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+enum oauth_client_type {
+  public
+  confidential
 
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([entityType, entityId])
-  @@index([action, createdAt(sort: Desc)])
-  @@index([projectId])
-  @@index([createdAt(sort: Desc)])
-  @@map("audit_logs")
-  @@schema("public")
+  @@schema("auth")
 }
 
+enum oauth_registration_type {
+  dynamic
+  manual
+
+  @@schema("auth")
+}
+
+enum oauth_response_type {
+  code
+
+  @@schema("auth")
+}
+
+enum one_time_token_type {
+  confirmation_token
+  reauthentication_token
+  recovery_token
+  email_change_token_new
+  email_change_token_current
+  phone_change_token
+
+  @@schema("auth")
+}

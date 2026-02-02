@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ShieldAlert, Database, Sparkles, Activity, Shield } from 'lucide-react';
+import { Users, ShieldAlert, Database, Sparkles, Activity, Shield, Bug } from 'lucide-react';
 import { useRoleCheck } from '@/hooks/useRoleCheck';
 
 const adminNavItems = [
@@ -35,6 +35,12 @@ const adminNavItems = [
         label: 'Audit Logs',
         icon: Shield,
         description: 'Track user actions and operations'
+    },
+    {
+        href: '/admin/bug-reports',
+        label: 'Bug Reports',
+        icon: Bug,
+        description: 'View user-submitted bug reports'
     },
 ];
 

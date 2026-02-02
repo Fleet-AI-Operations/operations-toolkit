@@ -59,11 +59,11 @@ export async function GET() {
                     ? Math.min(100, Math.round((feedbackCount / window.targetFeedbackCount) * 100))
                     : 100
 
-                const taskProgressTier2 = window.targetTaskCountTier2 > 0
+                const taskProgressTier2 = window.targetTaskCountTier2 && window.targetTaskCountTier2 > 0
                     ? Math.min(100, Math.round((taskCount / window.targetTaskCountTier2) * 100))
                     : 100
 
-                const feedbackProgressTier2 = window.targetFeedbackCountTier2 > 0
+                const feedbackProgressTier2 = window.targetFeedbackCountTier2 && window.targetFeedbackCountTier2 > 0
                     ? Math.min(100, Math.round((feedbackCount / window.targetFeedbackCountTier2) * 100))
                     : 100
 
