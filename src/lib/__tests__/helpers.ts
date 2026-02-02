@@ -168,7 +168,7 @@ export function createTestDataRecord(overrides?: Partial<any>) {
     source: 'test',
     content: 'Test content',
     metadata: {},
-    embedding: null,
+    embedding: null as any, // Type assertion needed since Prisma schema is Float[]
     hasBeenReviewed: false,
     isCategoryCorrect: null,
     reviewedBy: null,

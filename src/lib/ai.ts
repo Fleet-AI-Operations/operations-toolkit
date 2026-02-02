@@ -125,6 +125,7 @@ export async function getActiveProvider(): Promise<AIProvider> {
 /**
  * Generates a vector embedding for a given string.
  * Used for semantic search and finding similar prompts/feedback.
+ * Returns an empty array on failure (caller should check length before storing).
  */
 export async function getEmbedding(text: string): Promise<number[]> {
   const embeddings = await getEmbeddings([text]);

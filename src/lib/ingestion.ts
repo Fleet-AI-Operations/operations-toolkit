@@ -152,6 +152,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
 
         // Fetch records that need embeddings (null or empty) using raw SQL
         // This handles both DOUBLE PRECISION[] and vector column types
+        // Note: Query DataRecord model (mapped to 'data_records' table in schema.prisma)
         const batch = await prisma.$queryRaw<Array<{
             id: string;
             content: string;
@@ -161,6 +162,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
             FROM data_records
             WHERE "projectId" = ${projectId}
             AND (embedding IS NULL OR cardinality(embedding) = 0)
+            AND (metadata->>'embeddingError' IS NULL)
             ORDER BY id ASC
             LIMIT ${RECORDS_BATCH_SIZE}
         `;
@@ -185,7 +187,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
             await prisma.dataRecord.update({
                 where: { id: record.id },
                 data: {
-                    embedding: null, // Keep as null to mark as failed
+                    embedding: null as any, // Keep as null to mark as failed (type assertion needed since Prisma schema is Float[])
                     metadata: {
                         ...(typeof record.metadata === 'object' ? record.metadata : {}),
                         embeddingError: `Failed to generate embedding after ${MAX_RETRIES_PER_RECORD} attempts`
@@ -381,7 +383,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
-                    embedding: null,
+                    embedding: null as any, // Set to null initially (type assertion needed since Prisma schema is Float[])
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: v.record?.created_by_name ? String(v.record.created_by_name) : null,
                     createdByEmail: v.record?.created_by_email ? String(v.record.created_by_email) : null,
