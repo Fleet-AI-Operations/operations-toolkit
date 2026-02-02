@@ -4,6 +4,22 @@ import { cosineSimilarity } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 
+interface RecordWithEmbedding {
+    id: string;
+    content: string;
+    category: string | null;
+    metadata: unknown;
+    embedding: string; // pgvector returns as string
+}
+
+// Parse pgvector string format "[0.1,0.2,...]" to number[]
+function parseVector(vectorStr: string): number[] {
+    if (!vectorStr) return [];
+    const inner = vectorStr.slice(1, -1); // Remove [ and ]
+    if (!inner) return [];
+    return inner.split(',').map(Number);
+}
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get('projectId');
@@ -15,36 +31,55 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Fetch all Tasks and Feedback for the project
-        const tasks = await prisma.dataRecord.findMany({
-            where: { projectId, type: 'TASK' },
-        });
+        // Fetch all Tasks and Feedback with embeddings using raw SQL
+        const tasks: RecordWithEmbedding[] = await prisma.$queryRaw`
+            SELECT id, content, category, metadata, embedding::text as embedding
+            FROM public.data_records
+            WHERE "projectId" = ${projectId}
+            AND type = 'TASK'
+            AND embedding IS NOT NULL
+        `;
 
-        const feedbacks = await prisma.dataRecord.findMany({
-            where: { projectId, type: 'FEEDBACK' },
-        });
+        const feedbacks: RecordWithEmbedding[] = await prisma.$queryRaw`
+            SELECT id, content, category, metadata, embedding::text as embedding
+            FROM public.data_records
+            WHERE "projectId" = ${projectId}
+            AND type = 'FEEDBACK'
+            AND embedding IS NOT NULL
+        `;
 
-        const taskEmbeds = tasks.filter(t => t.embedding && t.embedding.length > 0);
-        const feedbackEmbeds = feedbacks.filter(f => f.embedding && f.embedding.length > 0);
+        // Parse embeddings
+        const taskEmbeds = tasks.map(t => ({
+            ...t,
+            parsedEmbedding: parseVector(t.embedding)
+        })).filter(t => t.parsedEmbedding.length > 0);
+
+        const feedbackEmbeds = feedbacks.map(f => ({
+            ...f,
+            parsedEmbedding: parseVector(f.embedding)
+        })).filter(f => f.parsedEmbedding.length > 0);
 
         if (taskEmbeds.length === 0 || feedbackEmbeds.length === 0) {
             return NextResponse.json({ matches: [], message: 'Insufficient data for cross-analysis' });
         }
 
-        const matches: any[] = [];
+        const matches: {
+            task: { id: string; content: string; category: string | null; score: unknown };
+            feedback: { id: string; content: string; category: string | null };
+            similarity: number;
+        }[] = [];
 
         // Cross-compare every task with every feedback
-        // Note: For very large datasets, this O(N*M) is slow.
         for (const task of taskEmbeds) {
             for (const feedback of feedbackEmbeds) {
-                const sim = await cosineSimilarity(task.embedding as number[], feedback.embedding as number[]);
+                const sim = cosineSimilarity(task.parsedEmbedding, feedback.parsedEmbedding);
                 if (sim >= threshold) {
                     matches.push({
                         task: {
                             id: task.id,
                             content: task.content,
                             category: task.category,
-                            score: (task.metadata as any)?.avg_score
+                            score: (task.metadata as Record<string, unknown>)?.avg_score
                         },
                         feedback: {
                             id: feedback.id,
@@ -63,8 +98,9 @@ export async function GET(req: NextRequest) {
             .slice(0, limit);
 
         return NextResponse.json({ matches: sortedMatches });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Analytics API Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

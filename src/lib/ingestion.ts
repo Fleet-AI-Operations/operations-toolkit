@@ -133,7 +133,7 @@ async function processJobs(projectId: string) {
  * Note: Scoped to the Project ID. This serves as a self-healing mechanism: any record in the project
  * missing an embedding (from this job or previous failed jobs) will be processed.
  *
- * Uses raw SQL for vector operations because Prisma's Unsupported("vector(1536)") type
+ * Uses raw SQL for vector operations because Prisma's Unsupported("vector") type
  * is excluded from the TypeScript client - this is the documented pattern for pgvector.
  *
  * Retry Strategy:
@@ -220,7 +220,7 @@ async function vectorizeJob(jobId: string, projectId: string) {
             const vector = embeddings[i];
             const record = recordsToProcess[i];
 
-            if (vector && vector.length === 1536) {
+            if (vector && vector.length > 0) {
                 // Use parameterized raw SQL - Prisma escapes all parameters
                 const vectorString = `[${vector.join(',')}]`;
                 await prisma.$executeRaw`
@@ -377,7 +377,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
-                    // embedding is Unsupported("vector(1536)") - defaults to NULL, set via raw SQL in vectorizeJob
+                    // embedding is Unsupported("vector") - defaults to NULL, set via raw SQL in vectorizeJob
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: v.record?.created_by_name ? String(v.record.created_by_name) : null,
                     createdByEmail: v.record?.created_by_email ? String(v.record.created_by_email) : null,

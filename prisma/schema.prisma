@@ -111,7 +111,7 @@ model DataRecord {
   source        String         // Tracking field, e.g., "csv:filename.csv" or "api:endpoint"
   content       String         @db.Text
   metadata      Json?          // Stores all original fields from the source file
-  embedding     Unsupported("vector(1536)")? // pgvector type for HNSW/IVFFlat index compatibility
+  embedding     Unsupported("vector")? // pgvector variable-length - supports any embedding model dimension
   hasBeenReviewed Boolean      @default(false) // Whether a human rater has reviewed this record
   isCategoryCorrect Boolean?    // Rater's agreement: true if they agree with TOP_10/BOTTOM_10 classification
   reviewedBy    String?        // TODO: Update to authenticated user once auth is implemented
