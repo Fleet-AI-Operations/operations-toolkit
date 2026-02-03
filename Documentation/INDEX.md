@@ -19,7 +19,9 @@ Documentation/
 ├── Getting Started/
 │   ├── Quick Start                → ../LOCALDEV_QUICKSTART.md
 │   ├── User Guide                 → ./USER_GUIDE.md
-│   └── User Management            → ./USER_MANAGEMENT.md
+│   ├── User Role Reference        → ./USER_ROLE_REFERENCE.md
+│   ├── User Management            → ./USER_MANAGEMENT.md
+│   └── Bug Reports                → ./BUG_REPORTS.md
 │
 ├── Development/
 │   ├── Local Development          → ./LOCAL_DEVELOPMENT.md
@@ -64,7 +66,9 @@ Documentation/
 
 #### **Use the Application**
 → [User Guide](./USER_GUIDE.md)
+→ [User Role Reference](./USER_ROLE_REFERENCE.md) (for USER role)
 → [User Management](./USER_MANAGEMENT.md)
+→ [Bug Reports](./BUG_REPORTS.md)
 
 #### **Develop Features**
 → [Local Development](./LOCAL_DEVELOPMENT.md)
@@ -121,7 +125,9 @@ Documentation/
 
 **Essential Reading**:
 1. [User Guide](./USER_GUIDE.md)
-2. [User Management](./USER_MANAGEMENT.md)
+2. [User Role Reference](./USER_ROLE_REFERENCE.md) - Quick reference for USER role
+3. [User Management](./USER_MANAGEMENT.md)
+4. [Bug Reports](./BUG_REPORTS.md)
 
 **Reference**:
 - [Troubleshooting](./TROUBLESHOOTING.md) (Common Issues section)

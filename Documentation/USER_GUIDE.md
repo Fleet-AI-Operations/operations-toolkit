@@ -224,8 +224,56 @@ Use the collapsible filter panel to narrow down logs:
 
 ---
 
+## Reporting Bugs
+
+If you encounter any issues while using the application, you can easily report them using the built-in bug reporting system.
+
+### Submitting a Bug Report
+
+1. **Find the Bug Button**: Look for the purple bug icon in the bottom-right corner of any page
+2. **Click to Open**: A modal will appear with a form
+3. **Describe the Issue**:
+   - The current page URL is automatically captured
+   - Enter a detailed description of what went wrong
+   - Include what you were trying to do when the bug occurred
+4. **Submit**: Click "Submit Report"
+5. **Confirmation**: You'll see a success message and a toast notification confirming your report was submitted
+
+### Tracking Your Reports
+
+- **Header Icon**: Click the bug icon in the top navigation bar to see all your submitted reports
+- **Status Updates**: Each report shows its current status:
+  - **Pending** (Amber): Waiting for admin review
+  - **In Progress** (Blue): Being investigated
+  - **Resolved** (Green): Bug has been fixed
+- **Badge Count**: The number on the icon shows how many reports you've submitted
+- **Smart Filtering**: If you have more than 5 reports, only active ones (Pending/In Progress) are shown to keep the list focused
+
+### What Information is Captured
+
+When you submit a bug report, the system automatically records:
+- The page where the bug occurred
+- Your email address
+- Your browser and device information
+- Timestamp of submission
+- Your description of the issue
+
+This information helps administrators quickly identify and fix the problem.
+
+### Tips for Good Bug Reports
+
+- **Be Specific**: Describe exactly what you were doing when the bug occurred
+- **Include Steps**: If you can reproduce the bug, list the steps
+- **One Issue Per Report**: Submit separate reports for different bugs
+- **Check Your Tracker**: Monitor your reports to see when they're resolved
+
+For detailed bug report documentation, see [BUG_REPORTS.md](./BUG_REPORTS.md).
+
+---
+
 ## Best Practices
 
 - **Guideline Clarity**: Ensure your PDF is text-readable (not just images) for the best AI grounding results.
 - **GPU Optimization**: For the fastest "Vectorizing" phase, ensure LM Studio is configured to use GPU acceleration for your embedding model.
 - **Bonus Window Timing**: Configure bonus windows in advance to give team members clear visibility on targets and timelines.
+- **Report Issues Promptly**: Use the bug reporting system to report any issues you encounter so they can be addressed quickly.
