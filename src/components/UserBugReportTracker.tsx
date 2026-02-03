@@ -106,15 +106,15 @@ export default function UserBugReportTracker() {
     }
   }
 
-  if (loading) return null
-
   return (
     <div className={styles.container} ref={dropdownRef}>
       <button
         className={styles.iconButton}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => !loading && setIsOpen(!isOpen)}
         aria-label="My Bug Reports"
         title="My Bug Reports"
+        disabled={loading}
+        style={{ opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

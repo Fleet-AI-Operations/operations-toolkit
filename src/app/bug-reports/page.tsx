@@ -45,6 +45,14 @@ export default function BugReportsPage() {
 
       const data = await response.json()
 
+      // Validate response structure
+      if (!data.bugReports || !Array.isArray(data.bugReports)) {
+        console.error('Invalid API response: bugReports is not an array')
+        setError('Invalid response from server')
+        setReports([])
+        return
+      }
+
       // Sort by status priority (PENDING > IN_PROGRESS > RESOLVED), then by date (newest first)
       const sortedReports = data.bugReports.sort((a: BugReport, b: BugReport) => {
         const statusDiff = getStatusPriority(a.status) - getStatusPriority(b.status)

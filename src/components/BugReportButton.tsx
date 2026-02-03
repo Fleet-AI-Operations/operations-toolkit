@@ -61,7 +61,7 @@ export default function BugReportButton() {
     // Handle Escape key to close modal
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsOpen(false)
+        handleClose()
       }
     }
 
@@ -73,6 +73,22 @@ export default function BugReportButton() {
       document.removeEventListener('keydown', handleEscape)
     }
   }, [isOpen])
+
+  const handleClose = () => {
+    // Clear any pending timers
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
+
+    // Close modal and reset state
+    setIsOpen(false)
+    setSubmitStatus('idle')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -148,7 +164,7 @@ export default function BugReportButton() {
 
       {/* Modal */}
       {isOpen && (
-        <div className={styles.modalOverlay} onClick={() => setIsOpen(false)}>
+        <div className={styles.modalOverlay} onClick={handleClose}>
           <div
             ref={modalRef}
             className={styles.modal}
@@ -161,7 +177,7 @@ export default function BugReportButton() {
               <h2 id="bug-report-modal-title">Report a Bug</h2>
               <button
                 className={styles.closeButton}
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 aria-label="Close"
               >
                 ×
@@ -220,7 +236,7 @@ export default function BugReportButton() {
                 <button
                   type="button"
                   className={styles.cancelButton}
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleClose}
                   disabled={isSubmitting}
                 >
                   Cancel
