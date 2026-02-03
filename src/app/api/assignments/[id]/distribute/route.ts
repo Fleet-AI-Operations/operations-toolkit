@@ -95,13 +95,13 @@ export async function POST(
             memberIndex = (memberIndex + 1) % members.length;
         }
 
-        // Update records in bulk
+        // Update records in bulk using the assignment array
         await prisma.$transaction(
             assignments.map(a =>
                 prisma.assignmentRecord.updateMany({
                     where: {
                         assignmentBatchId: id,
-                        id: a.recordId
+                        recordId: a.recordId
                     },
                     data: {
                         assignedToUserId: a.userId
@@ -109,21 +109,6 @@ export async function POST(
                 })
             )
         );
-
-        // Actually we need to update by the assignmentRecord id, not recordId
-        // Let me fix this with proper updates
-        for (const record of unassignedRecords) {
-            const memberUserId = members[assignments.findIndex(a => a.recordId === record.id) % members.length].userId;
-            await prisma.assignmentRecord.updateMany({
-                where: {
-                    assignmentBatchId: id,
-                    recordId: record.id
-                },
-                data: {
-                    assignedToUserId: memberUserId
-                }
-            });
-        }
 
         await logAudit({
             action: 'ASSIGNMENT_BATCH_DISTRIBUTED',
