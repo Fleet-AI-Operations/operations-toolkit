@@ -51,13 +51,18 @@ function ListContent() {
     const [records, setRecords] = useState<Record[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     const pageSize = 10;
 
     useEffect(() => {
         if (selectedProjectId && selectedType && selectedCategory) {
             fetchRecords();
+        } else {
+            // No project selected: clear records and stop loading
+            setRecords([]);
+            setTotal(0);
+            setLoading(false);
         }
     }, [selectedProjectId, selectedType, selectedCategory, page]);
 
@@ -344,7 +349,7 @@ function ListContent() {
 
                         <button
                             className="btn-outline"
-                            disabled={page === totalPages}
+                            disabled={totalPages === 0 || page >= totalPages}
                             onClick={() => setPage(p => p + 1)}
                             style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                         >Next</button>

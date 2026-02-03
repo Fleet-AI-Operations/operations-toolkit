@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { Inbox } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useProjects } from '@/hooks/useProjects';
@@ -35,7 +36,7 @@ export default function LikertScoring() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [realismScore, setRealismScore] = useState<number | null>(null);
     const [qualityScore, setQualityScore] = useState<number | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [evaluatingLLM, setEvaluatingLLM] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -74,6 +75,12 @@ export default function LikertScoring() {
     useEffect(() => {
         if (userId && selectedProjectId) {
             fetchRecords();
+        } else {
+            // No project selected or no user yet: clear data
+            setRecords([]);
+            setCurrentIndex(0);
+            setError(null);
+            setLoading(false);
         }
     }, [selectedProjectId, userId]);
 
@@ -360,6 +367,12 @@ export default function LikertScoring() {
                         Go to Login
                     </button>
                 </div>
+            ) : !selectedProjectId ? (
+                <div style={{ padding: '80px', textAlign: 'center' }}>
+                    <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+                    <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>No project selected</div>
+                    <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>Select a project from the dropdown above to view prompts</div>
+                </div>
             ) : loading ? (
                 <div style={{ textAlign: "center", color: "#60a5fa", padding: "60px 20px" }}>
                     <p style={{ fontSize: "16px" }}>Loading prompts...</p>
@@ -596,7 +609,16 @@ export default function LikertScoring() {
                             <button
                                 onClick={handleEvaluateWithLLM}
                                 disabled={evaluatingLLM || llmAlreadyEvaluated || llmEvaluatedThisSession}
-                                data-tooltip={llmAlreadyEvaluated || llmEvaluatedThisSession ? "LLM Check already run" : ""}
+                                data-tooltip={
+                                    llmAlreadyEvaluated || llmEvaluatedThisSession
+                                        ? "LLM Check already run"
+                                        : "Run this prompt against the configured LLM"
+                                }
+                                title={
+                                    llmAlreadyEvaluated || llmEvaluatedThisSession
+                                        ? "LLM Check already run"
+                                        : "Run this prompt against the configured LLM"
+                                }
                                 style={{
                                     padding: "12px 36px",
                                     fontSize: "14px",

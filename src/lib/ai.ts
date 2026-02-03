@@ -354,6 +354,144 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 /**
+ * Computes cross-encoded similarity score between two texts using LLM.
+ * This uses the chat completion API to have the model assess semantic similarity.
+ * 
+ * Cross-encoders take both texts as input simultaneously (unlike bi-encoders which
+ * encode texts separately), providing more accurate similarity assessment.
+ * 
+ * Returns a similarity score from 0-100.
+ */
+export interface CrossEncoderResult {
+  score: number;
+  reasoning?: string;
+  llmModel?: string;
+}
+
+export async function computeCrossEncoderSimilarity(text1: string, text2: string): Promise<CrossEncoderResult> {
+    if (text1.trim().toLowerCase() === text2.trim().toLowerCase())  {
+      return { score: 100, reasoning: 'Texts are identical', llmModel: (await getProviderConfig()).llmModel };
+    }
+
+  const config = await getProviderConfig();
+  
+  console.log(`[CrossEncoder] Computing similarity using ${config.provider}`);
+
+  const systemPrompt = `You are a semantic similarity expert analyzing two prompts.
+    Evaluate similarity by comparing:
+    - **Primary objective**: What is the main task or goal being requested?
+    - **Key details**: Are the same entities, names, projects, or specific information mentioned?
+    - **Instructions & constraints**: Do they require the same actions, format, style, or tone?
+    - **Context & scope**: Are they addressing the same situation or use case?
+
+    Provide a precise similarity score (e.g., don't always round to the nearest 5 or 10, but always use whole numbers and round up where necesasry).
+    - Score 95-100: Functionally identical or trivial paraphrases
+    - Score 80-94: Very similar with minor wording differences
+    - Score 60-79: Similar core task with some different details
+    - Score 40-59: Related topic but different approach or specifics
+    - Score 20-39: Loosely related but different objectives
+    - Score 0-19: Completely unrelated topics
+
+    Output your response in valid JSON format:
+    {
+      "reasoning": "A one-sentence explanation of why they are similar or different",
+      "score": number (0-100, decimals allowed)
+    }`;
+
+  const userPrompt = `Text 1: ${text1}\n\nText 2: ${text2}`;
+
+  try {
+    const requestBody: any = {
+      model: config.llmModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0, // 0 is best for "classification" tasks like this
+      max_tokens: 150, // Slightly more room for the 'reasoning'
+      response_format: { type: 'json_object' }
+    };
+
+      // LMStudio requires json_schema with explicit schema
+    if (config.provider !== 'openrouter') {
+      requestBody.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: 'similarity_score',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              reasoning: {
+                type: 'string',
+                description: 'A one-sentence explanation of why the prompts are similar or different'
+              },
+              score: {
+                type: 'number',
+                description: 'Similarity score from 0-100'
+              }
+            },
+            required: ['reasoning', 'score'],
+            additionalProperties: false
+          }
+        }
+      };
+    }
+
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: getHeaders(config),
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`[CrossEncoder] ${config.provider} error:`, response.statusText, errorData);
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      console.error('[CrossEncoder] No content in response');
+      return { score: 0, reasoning: 'No content in LLM response' };
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseError) {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch (e: any) {
+          console.error('[CrossEncoder] Failed to parse extracted JSON:', e.message);
+          return { score: 0, reasoning: 'Failed to parse JSON from model output' };
+        }
+      } else {
+        console.error('[CrossEncoder] Could not extract JSON from response:', content);
+        return { score: 0, reasoning: 'Could not extract JSON from model output' };
+      }
+    }
+
+    const reasoning = parsed.reasoning || parsed.explanation || '';
+    const rawScore = parsed.score ?? parsed.similarity ?? 0;
+    const numericScore = Number(rawScore) || 0;
+
+    console.log(`[CrossEncoder] Reasoning: ${reasoning}`);
+    console.log(`[CrossEncoder] Similarity score: ${numericScore}`);
+
+    return { score: Math.max(0, Math.min(100, numericScore)), reasoning, llmModel: config.llmModel };
+
+  } catch (error: any) {
+    console.error(`[CrossEncoder] Error, returning 0:`, error.message);
+    return { score: 0, reasoning: error.message || 'Error computing cross-encoder similarity', llmModel: config.llmModel };
+  }
+}
+
+/**
  * Fetches the current OpenRouter API key balance.
  * Returns null if not using OpenRouter or if the request fails.
  */

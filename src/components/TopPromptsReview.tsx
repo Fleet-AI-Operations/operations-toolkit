@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Inbox } from "lucide-react";
 import { useProjects } from "@/hooks/useProjects";
 
 interface TopPromptRecord {
@@ -38,7 +38,7 @@ export default function TopPromptsReview() {
     const [environments, setEnvironments] = useState<string[]>([]);
     const [selectedEnv, setSelectedEnv] = useState<string>("all");
     const [verifiedOnly, setVerifiedOnly] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Filter records based on environment and verification status
@@ -95,6 +95,11 @@ export default function TopPromptsReview() {
     useEffect(() => {
         if (selectedProjectId) {
             fetchRecords();
+        } else {
+            setAllRecords([]);
+            setEnvironments([]);
+            setLoading(false);
+            setError(null);
         }
     }, [selectedProjectId, fetchRecords]);
 
@@ -109,7 +114,13 @@ export default function TopPromptsReview() {
                 <p style={{ color: "rgba(255,255,255,0.6)" }}>Browse and filter top-performing prompts</p>
             </div>
 
-                {loading ? (
+                {!selectedProjectId ? (
+                <div style={{ padding: '80px', textAlign: 'center' }}>
+                    <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+                    <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>No project selected</div>
+                    <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>Select a project from the dropdown above to view prompts</div>
+                </div>
+            ) : loading ? (
                 <div
                     style={{
                         textAlign: "center",
@@ -249,7 +260,7 @@ export default function TopPromptsReview() {
                     {filteredRecords.length === 0 ? (
                         <div className="glass-card" style={{ textAlign: "center", padding: "80px 20px" }}>
                             <div style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.3 }}>🔍</div>
-                            <p style={{ fontSize: "18px", marginBottom: "8px", color: "rgba(255,255,255,0.8)" }}>
+                                <p style={{ fontSize: "18px", marginBottom: "8px", color: "rgba(255,255,255,0.8)" }}>
                                 No prompts found
                             </p>
                             <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)" }}>
@@ -280,6 +291,7 @@ export default function TopPromptsReview() {
                                                 alignItems: "center",
                                                 marginBottom: "16px",
                                                 gap: "12px",
+                                                overflow: "visible",
                                             }}
                                         >
                                             <span
@@ -299,7 +311,6 @@ export default function TopPromptsReview() {
                                             {record.likertScores && record.likertScores.count > 0 && (
                                                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                                                     <span
-                                                        data-tooltip="Average Realism Score"
                                                         style={{
                                                             padding: "5px 10px",
                                                             background: "rgba(0, 112, 243, 0.15)",
@@ -310,15 +321,12 @@ export default function TopPromptsReview() {
                                                             display: "flex",
                                                             alignItems: "center",
                                                             gap: "4px",
-                                                            cursor: "pointer",
-                                                            position: "relative",
                                                         }}
                                                     >
                                                         <span style={{ color: "rgba(255,255,255,0.5)" }}>R:</span>
                                                         <span style={{ color: "#0070f3" }}>{record.likertScores.avgRealism}/7</span>
                                                     </span>
                                                     <span
-                                                        data-tooltip="Average Quality Score"
                                                         style={{
                                                             padding: "5px 10px",
                                                             background: "rgba(34, 197, 94, 0.15)",
@@ -329,8 +337,6 @@ export default function TopPromptsReview() {
                                                             display: "flex",
                                                             alignItems: "center",
                                                             gap: "4px",
-                                                            cursor: "pointer",
-                                                            position: "relative",
                                                         }}
                                                     >
                                                         <span style={{ color: "rgba(255,255,255,0.5)" }}>Q:</span>
@@ -341,7 +347,6 @@ export default function TopPromptsReview() {
 
                                             {isVerified && (
                                                 <div
-                                                    data-tooltip="Reviewed and confirmed as top 10% performer"
                                                     style={{
                                                         display: "flex",
                                                         alignItems: "center",
@@ -350,8 +355,6 @@ export default function TopPromptsReview() {
                                                         background: "linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(22, 163, 74, 0.25))",
                                                         borderRadius: "16px",
                                                         border: "1px solid rgba(34, 197, 94, 0.3)",
-                                                        cursor: "help",
-                                                        position: "relative",
                                                     }}
                                                     className="verified-badge"
                                                 >
@@ -377,7 +380,8 @@ export default function TopPromptsReview() {
                                                 padding: "16px",
                                                 borderRadius: "8px",
                                                 border: "1px solid rgba(255,255,255,0.05)",
-                                                minHeight: "80px",
+                                                height: "400px",
+                                                overflowY: "auto",
                                             }}
                                         >
                                             <p

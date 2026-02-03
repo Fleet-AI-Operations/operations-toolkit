@@ -57,6 +57,7 @@ export async function PUT(req: NextRequest) {
         updatedAt: new Date(),
         reviewedBy: profile?.email || user.email || reviewedBy || 'admin',
       },
+      select: { id: true }, // Exclude embedding field to prevent serialization error
     });
 
     return NextResponse.json({

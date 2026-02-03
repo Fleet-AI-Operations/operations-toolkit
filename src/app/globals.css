@@ -29,6 +29,36 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Custom Scrollbar Styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.1);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -166,11 +196,6 @@ h3 {
   padding: 40px 20px;
 }
 /* Custom Tooltip for Badges */
-.prompt-card:has(.verified-badge:hover) {
-  z-index: 100;
-}
-
-.verified-badge::after,
 [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -193,7 +218,6 @@ h3 {
   z-index: 9999;
 }
 
-.verified-badge::before,
 [data-tooltip]::before {
   content: '';
   position: absolute;
@@ -208,8 +232,6 @@ h3 {
   z-index: 9999;
 }
 
-.verified-badge:hover::after,
-.verified-badge:hover::before,
 [data-tooltip]:hover::after,
 [data-tooltip]:hover::before {
   opacity: 1;

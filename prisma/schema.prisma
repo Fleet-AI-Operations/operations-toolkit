@@ -88,12 +88,36 @@ model DataRecord {
   createdByEmail    String?                @map("createdByEmail")
   project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   likertScores      LikertScore[]
+  /// Cross-encoder cache relations: lists of cache entries where this record is source/target
+  ceAsSource        CrossEncoderCache[]    @relation("ce_source")
+  ceAsTarget        CrossEncoderCache[]    @relation("ce_target")
+  
 
   @@index([category], map: "idx_data_records_category")
   @@index([createdById], map: "idx_data_records_created_by")
   @@index([projectId], map: "idx_data_records_project")
   @@index([type], map: "idx_data_records_type")
   @@map("data_records")
+  @@schema("public")
+}
+
+/// Cross-encoder cache: stores pairwise cross-encoder scores and reasoning
+model CrossEncoderCache {
+  id             String     @id @default(cuid())
+  sourceRecordId String     @map("sourceRecordId")
+  targetRecordId String     @map("targetRecordId")
+  sourceRecord   DataRecord @relation("ce_source", fields: [sourceRecordId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  targetRecord   DataRecord @relation("ce_target", fields: [targetRecordId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  score          Float
+  llmModel       String?    @map("llmModel")
+  reasoning      String?
+  createdAt      DateTime   @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt      DateTime   @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+
+  @@unique([sourceRecordId, targetRecordId], map: "cross_encoder_cache_unique_pair")
+  @@index([sourceRecordId], map: "idx_ce_cache_source")
+  @@index([targetRecordId], map: "idx_ce_cache_target")
+  @@map("cross_encoder_cache")
   @@schema("public")
 }
 

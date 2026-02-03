@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Inbox } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import RedZoneModal from "./RedZoneModal";
 import { useProjects } from "@/hooks/useProjects";
@@ -21,6 +22,7 @@ interface SimilarPrompt {
   category: string | null;
   similarity: number;
   createdAt: string;
+  crossEncoderScore?: number;
 }
 
 interface User {
@@ -43,6 +45,7 @@ export default function PromptSimilarityPage() {
   const [error, setError] = useState<string | null>(null);
   const [showRedZoneModal, setShowRedZoneModal] = useState(false);
   const [redZoneThreshold, setRedZoneThreshold] = useState(70);
+  const [computingCrossEncoder, setComputingCrossEncoder] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!selectedProjectId) return;
@@ -101,6 +104,31 @@ export default function PromptSimilarityPage() {
         }
 
         setSimilarPrompts(data.similarPrompts);
+
+        // After loading similar prompts, probe cache for existing cross-encoder results
+        (async () => {
+          try {
+            await Promise.all(data.similarPrompts.map(async (p: any) => {
+              try {
+                const res = await fetch('/api/similarity/cross-encoder', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sourceId: selectedPrompt.id, targetId: p.id }),
+                });
+
+                if (!res.ok) {
+                  return;
+                }
+
+                const json = await res.json();
+                if (json?.score !== undefined) {
+                  setSimilarPrompts((prev) => prev.map((pp) => pp.id === p.id ? { ...pp, crossEncoderScore: json.score } : pp));
+                }
+              } catch (e) {
+              }
+            }));
+          } catch (e) {}
+        })();
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -134,13 +162,53 @@ export default function PromptSimilarityPage() {
     return "#22c55e";
   };
 
-  if (!selectedProjectId && projects.length === 0) {
-    return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        <p>Please select a project to view prompt similarity.</p>
-      </div>
-    );
-  }
+  const handleComputeCrossEncoder = async (targetId: string) => {
+    if (!selectedPrompt) {
+      return;
+    }
+
+    const targetPrompt = similarPrompts.find(p => p.id === targetId);
+    if (!targetPrompt) {
+      return;
+    }
+
+    setComputingCrossEncoder(prev => ({ ...prev, [targetId]: true }));
+
+    try {
+      const response = await fetch('/api/similarity/cross-encoder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceId: selectedPrompt.id,
+          targetId,
+          sourceContent: selectedPrompt.content,
+          targetContent: targetPrompt.content,
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to compute cross-encoder score');
+      }
+
+      const { score } = await response.json();
+
+      // Update the similarPrompts array with the cross-encoder score
+      setSimilarPrompts(prev =>
+        prev.map(p =>
+          p.id === targetId
+            ? { ...p, crossEncoderScore: score }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error('Error computing cross-encoder score:', error);
+      alert('Failed to compute cross-encoder score');
+    } finally {
+      setComputingCrossEncoder(prev => ({ ...prev, [targetId]: false }));
+    }
+  };
+
+
 
   return (
     <div
@@ -156,9 +224,7 @@ export default function PromptSimilarityPage() {
     >
       <div
         style={{
-          padding: "12px 24px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--glass)",
+          padding: "12px 0",
           flexShrink: 0,
           display: "flex",
           justifyContent: "space-between",
@@ -240,16 +306,29 @@ export default function PromptSimilarityPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          flex: 1,
-          height: '100%',
-          overflow: "hidden",
-          gap: "16px",
-          padding: 0,
-        }}
-      >
+      {projects.length === 0 ? (
+        <div style={{ padding: '80px', textAlign: 'center', width: '100%' }}>
+          <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+          <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>No projects available</div>
+          <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>Create a project to begin using similarity analysis</div>
+        </div>
+      ) : !selectedProjectId ? (
+        <div style={{ padding: '80px', textAlign: 'center', width: '100%' }}>
+          <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+          <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>No project selected</div>
+          <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>Select a project from the dropdown above to view prompts</div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            height: '100%',
+            overflow: "hidden",
+            gap: "16px",
+            padding: 0,
+          }}
+        >
         <div
           style={{
             width: "40%",
@@ -551,6 +630,7 @@ export default function PromptSimilarityPage() {
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
+                              gap: "12px",
                               transition: "all 0.2s",
                             }}
                             onMouseEnter={(e) => {
@@ -574,17 +654,70 @@ export default function PromptSimilarityPage() {
                               {prompt.content.substring(0, 80)}
                               {prompt.content.length > 80 && "..."}
                             </span>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                fontSize: "16px",
-                                color: getSimilarityColor(prompt.similarity),
-                                minWidth: "50px",
-                                textAlign: "right",
-                              }}
-                            >
-                              {prompt.similarity}%
-                            </span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                              {prompt.crossEncoderScore !== undefined ? (
+                                <div
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: "6px",
+                                    backgroundColor: "rgba(59, 130, 246, 0.15)",
+                                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                                    color: "#60a5fa",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    whiteSpace: "nowrap"
+                                  }}
+                                >
+                                  CE: {prompt.crossEncoderScore}%
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleComputeCrossEncoder(prompt.id);
+                                  }}
+                                  disabled={computingCrossEncoder[prompt.id]}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: "6px",
+                                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                                    backgroundColor: computingCrossEncoder[prompt.id]
+                                      ? "rgba(59, 130, 246, 0.1)"
+                                      : "rgba(59, 130, 246, 0.2)",
+                                    color: "#60a5fa",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    cursor: computingCrossEncoder[prompt.id] ? "not-allowed" : "pointer",
+                                    transition: "all 0.2s",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!computingCrossEncoder[prompt.id]) {
+                                      e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.3)";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!computingCrossEncoder[prompt.id]) {
+                                      e.currentTarget.style.backgroundColor = "rgba(59, 130, 246, 0.2)";
+                                    }
+                                  }}
+                                >
+                                  {computingCrossEncoder[prompt.id] ? "..." : "Cross-Encode"}
+                                </button>
+                              )}
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: "16px",
+                                  color: getSimilarityColor(prompt.similarity),
+                                  minWidth: "50px",
+                                  textAlign: "right",
+                                }}
+                              >
+                                {prompt.similarity}%
+                              </span>
+                            </div>
                           </summary>
                           <div
                             style={{
@@ -608,6 +741,7 @@ export default function PromptSimilarityPage() {
           )}
         </div>
       </div>
+      )}
 
       <RedZoneModal
         isOpen={showRedZoneModal}

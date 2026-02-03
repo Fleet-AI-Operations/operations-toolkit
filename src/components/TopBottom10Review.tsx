@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useProjects } from '@/hooks/useProjects';
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, X, Inbox } from "lucide-react";
 
 interface ReviewRecord {
   id: string;
@@ -23,7 +23,7 @@ export default function TopBottom10Review() {
   const [category, setCategory] = useState<"TOP_10" | "BOTTOM_10">("TOP_10");
   const [allRecords, setAllRecords] = useState<ReviewRecord[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [hovered, setHovered] = useState<"TOP_10" | "BOTTOM_10" | null>(null);
@@ -44,6 +44,11 @@ export default function TopBottom10Review() {
   useEffect(() => {
     if (selectedProjectId) {
       fetchRecords();
+    } else {
+      setAllRecords([]);
+      setCurrentIndex(0);
+      setError(null);
+      setLoading(false);
     }
   }, [selectedProjectId]);
 
@@ -155,7 +160,17 @@ export default function TopBottom10Review() {
 
       {/* Project selection is handled in the header; no inline project dropdown here. */}
 
-      {loading ? (
+      { !selectedProjectId ? (
+        <div style={{ padding: '80px', textAlign: 'center' }}>
+          <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+          <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>
+            No project selected
+          </div>
+          <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>
+            Select a project from the dropdown above to view records
+          </div>
+        </div>
+      ) : loading ? (
         <div
           style={{
             textAlign: "center",
@@ -190,17 +205,11 @@ export default function TopBottom10Review() {
           </button>
         </div>
       ) : allRecords.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            color: "#9ca3af",
-            padding: "40px 20px",
-          }}
-        >
-          <p style={{ fontSize: "16px", marginBottom: "8px" }}>
-            No unreviewed records found for this project.
-          </p>
-        </div>
+          <div className="glass-card" style={{ textAlign: "center", padding: "60px 20px" }}>
+            <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
+            <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>No prompts found</div>
+            <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>There are no Top/Bottom prompts to review for this project</div>
+          </div>
       ) : (
         <>
           <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
@@ -271,8 +280,8 @@ export default function TopBottom10Review() {
               }}
             >
               <span style={{ color: "#9ca3af", fontSize: "12px" }}>
-                Prompt {currentIndex + 1} of {records.length}
-              </span>
+                  Prompt {currentIndex + 1} of {records.length}
+                </span>
             </div>
 
             <div>
@@ -318,7 +327,7 @@ export default function TopBottom10Review() {
                 fontSize: "13px",
               }}
             >
-              <p style={{ color: "white", fontWeight: "600", margin: 0 }}>
+                <p style={{ color: "white", fontWeight: "600", margin: 0 }}>
                 Is this prompt correctly classified as{" "}
                 {category === "TOP_10" ? "TOP 10" : "BOTTOM 10"}?
               </p>
