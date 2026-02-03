@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_ce_cache_target ON public.cross_encoder_cache("ta
 ALTER TABLE public.cross_encoder_cache ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Authenticated users can insert cache entries
+DROP POLICY IF EXISTS "Authenticated can insert cross encoder cache" ON public.cross_encoder_cache;
 CREATE POLICY "Authenticated can insert cross encoder cache"
   ON public.cross_encoder_cache
   FOR INSERT
@@ -26,6 +27,7 @@ CREATE POLICY "Authenticated can insert cross encoder cache"
   WITH CHECK (true);
 
 -- Policy: Authenticated users can view cache (needed by UI to read cached scores)
+DROP POLICY IF EXISTS "Authenticated can view cross encoder cache" ON public.cross_encoder_cache;
 CREATE POLICY "Authenticated can view cross encoder cache"
   ON public.cross_encoder_cache
   FOR SELECT
@@ -33,6 +35,7 @@ CREATE POLICY "Authenticated can view cross encoder cache"
   USING (true);
 
 -- Policy: Authenticated can update cache entries (allow system to refresh)
+DROP POLICY IF EXISTS "Authenticated can update cross encoder cache" ON public.cross_encoder_cache;
 CREATE POLICY "Authenticated can update cross encoder cache"
   ON public.cross_encoder_cache
   FOR UPDATE
