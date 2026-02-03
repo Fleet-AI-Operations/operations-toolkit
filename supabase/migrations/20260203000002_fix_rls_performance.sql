@@ -9,7 +9,8 @@
 -- HELPER FUNCTIONS
 -- ============================================================================
 
--- Optimize is_admin() helper function with subquery pattern
+-- Helper function to check if user is admin
+-- SECURITY DEFINER allows this function to bypass RLS, preventing infinite recursion
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -18,7 +19,20 @@ BEGIN
     WHERE id = (SELECT auth.uid()) AND role = 'ADMIN'::"UserRole"
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+-- Helper function to check if user is manager or admin
+-- SECURITY DEFINER allows this function to bypass RLS, preventing infinite recursion
+CREATE OR REPLACE FUNCTION public.is_manager_or_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid())
+    AND role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- ============================================================================
 -- PROFILES TABLE
@@ -32,7 +46,7 @@ DROP POLICY IF EXISTS "All users can view profiles" ON public.profiles;
 
 -- Combined SELECT policy (fixes multiple permissive policies warning)
 -- Users can view their own profile, managers/admins can view all
--- Wraps auth.uid() in subquery (fixes auth RLS initplan warning)
+-- Uses helper function to avoid infinite recursion
 CREATE POLICY "Users can view profiles"
   ON public.profiles
   FOR SELECT
@@ -42,12 +56,8 @@ CREATE POLICY "Users can view profiles"
     (id = (select auth.uid()))
     OR
     -- User is a manager or admin (can view all profiles)
-    EXISTS (
-      SELECT 1
-      FROM profiles
-      WHERE profiles.id = (select auth.uid())
-      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-    )
+    -- Use SECURITY DEFINER function to bypass RLS and prevent recursion
+    public.is_manager_or_admin()
   );
 
 -- Separate policies for INSERT, UPDATE, DELETE (admin only)
@@ -75,20 +85,13 @@ CREATE POLICY "Admins can delete profiles"
 DROP POLICY IF EXISTS "Admins can read all audit logs" ON public.audit_logs;
 DROP POLICY IF EXISTS "Authenticated users can insert audit logs" ON public.audit_logs;
 
--- Recreate SELECT policy with optimized auth.uid() call
+-- Recreate SELECT policy using helper function
 CREATE POLICY "Admins can read all audit logs"
   ON public.audit_logs
   AS PERMISSIVE
   FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles
-      WHERE profiles.id = (select auth.uid())
-      AND profiles.role = 'ADMIN'::public."UserRole"
-    )
-  );
+  USING (public.is_admin());
 
 -- Allow all authenticated users to insert audit logs
 CREATE POLICY "Authenticated users can insert audit logs"
@@ -112,7 +115,7 @@ DROP POLICY IF EXISTS "All users can view bug reports" ON public.bug_reports;
 
 -- Combined SELECT policy (fixes multiple permissive policies warning)
 -- Users can view their own bug reports, managers/admins can view all
--- Wraps auth.uid() in subquery (fixes auth RLS initplan warning)
+-- Uses helper function to avoid potential recursion issues
 CREATE POLICY "Users can view bug reports"
   ON public.bug_reports
   FOR SELECT
@@ -122,12 +125,7 @@ CREATE POLICY "Users can view bug reports"
     (user_id = (select auth.uid()))
     OR
     -- User is a manager or admin (can view all bug reports)
-    EXISTS (
-      SELECT 1
-      FROM public.profiles
-      WHERE profiles.id = (select auth.uid())
-      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-    )
+    public.is_manager_or_admin()
   );
 
 -- Allow all authenticated users to create bug reports
@@ -137,27 +135,13 @@ CREATE POLICY "Users can create bug reports"
   TO authenticated
   WITH CHECK (true);
 
--- Recreate update policy with optimized auth.uid() call and WITH CHECK clause
+-- Recreate update policy using helper function with WITH CHECK clause
 CREATE POLICY "Admins can update bug reports"
   ON public.bug_reports
   FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles
-      WHERE profiles.id = (select auth.uid())
-      AND profiles.role = 'ADMIN'::"UserRole"
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles
-      WHERE profiles.id = (select auth.uid())
-      AND profiles.role = 'ADMIN'::"UserRole"
-    )
-  );
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- ============================================================================
 -- LIKERT_SCORES TABLE
@@ -186,65 +170,30 @@ BEGIN
     DROP POLICY IF EXISTS "Managers and Admins can update bonus windows" ON public.bonus_windows;
     DROP POLICY IF EXISTS "Managers and Admins can delete bonus windows" ON public.bonus_windows;
 
-    -- Recreate with optimized auth.uid() calls wrapped in subqueries
+    -- Recreate with helper function to avoid recursion
     CREATE POLICY "Managers and Admins can view all bonus windows"
       ON public.bonus_windows
       FOR SELECT
       TO authenticated
-      USING (
-        EXISTS (
-          SELECT 1
-          FROM profiles
-          WHERE profiles.id = (select auth.uid())
-          AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-        )
-      );
+      USING (public.is_manager_or_admin());
 
     CREATE POLICY "Managers and Admins can create bonus windows"
       ON public.bonus_windows
       FOR INSERT
       TO authenticated
-      WITH CHECK (
-        EXISTS (
-          SELECT 1
-          FROM profiles
-          WHERE profiles.id = (select auth.uid())
-          AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-        )
-      );
+      WITH CHECK (public.is_manager_or_admin());
 
     CREATE POLICY "Managers and Admins can update bonus windows"
       ON public.bonus_windows
       FOR UPDATE
       TO authenticated
-      USING (
-        EXISTS (
-          SELECT 1
-          FROM profiles
-          WHERE profiles.id = (select auth.uid())
-          AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-        )
-      )
-      WITH CHECK (
-        EXISTS (
-          SELECT 1
-          FROM profiles
-          WHERE profiles.id = (select auth.uid())
-          AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-        )
-      );
+      USING (public.is_manager_or_admin())
+      WITH CHECK (public.is_manager_or_admin());
 
     CREATE POLICY "Managers and Admins can delete bonus windows"
       ON public.bonus_windows
       FOR DELETE
       TO authenticated
-      USING (
-        EXISTS (
-          SELECT 1
-          FROM profiles
-          WHERE profiles.id = (select auth.uid())
-          AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
-        )
-      );
+      USING (public.is_manager_or_admin());
   END IF;
 END $$;
