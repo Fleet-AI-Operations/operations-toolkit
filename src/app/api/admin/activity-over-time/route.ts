@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
+
+export const dynamic = 'force-dynamic'
 
 interface DailyActivity {
     date: string;
@@ -15,17 +18,32 @@ export async function GET(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
+        console.warn('[Activity Over Time API] Unauthorized access attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user is MANAGER or ADMIN
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single()
 
+    if (profileError) {
+        console.error('[Activity Over Time API] Profile query error:', {
+            userId: user.id,
+            error: profileError.message
+        })
+        return NextResponse.json({
+            error: 'Failed to verify permissions. Please try again.'
+        }, { status: 500 })
+    }
+
     if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
+        console.warn('[Activity Over Time API] Forbidden access attempt:', {
+            userId: user.id,
+            userRole: profile?.role || 'NONE'
+        })
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -94,41 +112,40 @@ export async function GET(req: Request) {
         }
 
         // Count records by day
-        console.log(`[Activity API] Processing ${records.length} records`)
-        const recordDateSample = records.slice(0, 3).map(r => ({
-            date: r.createdAt.toISOString().split('T')[0],
-            type: r.type
-        }))
-        console.log(`[Activity API] Sample record dates:`, recordDateSample)
-        console.log(`[Activity API] Map has ${dailyActivityMap.size} date keys, first 3:`, Array.from(dailyActivityMap.keys()).slice(0, 3))
-
         records.forEach(record => {
-            const dateKey = record.createdAt.toISOString().split('T')[0]
-            const counts = dailyActivityMap.get(dateKey)
-
-            if (counts) {
-                if (record.type === 'TASK') {
-                    counts.taskCount++
-                } else if (record.type === 'FEEDBACK') {
-                    counts.feedbackCount++
+            try {
+                if (!record.createdAt || !(record.createdAt instanceof Date)) {
+                    console.error('[Activity Over Time API] Invalid createdAt date:', {
+                        recordType: record.type,
+                        createdAt: record.createdAt
+                    })
+                    return // Skip this record
                 }
-            } else {
-                console.log(`[Activity API] WARNING: No map entry for date ${dateKey}`)
+
+                const dateKey = record.createdAt.toISOString().split('T')[0]
+                const counts = dailyActivityMap.get(dateKey)
+
+                if (counts) {
+                    if (record.type === 'TASK') {
+                        counts.taskCount++
+                    } else if (record.type === 'FEEDBACK') {
+                        counts.feedbackCount++
+                    }
+                } else {
+                    // Record falls outside requested range - data integrity issue
+                    console.warn('[Activity Over Time API] Record outside date range:', {
+                        dateKey,
+                        requestedRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+                        recordType: record.type
+                    })
+                }
+            } catch (error) {
+                console.error('[Activity Over Time API] Error processing record:', {
+                    error: error instanceof Error ? error.message : String(error)
+                })
+                // Continue processing other records
             }
         })
-
-        const totalCounted = Array.from(dailyActivityMap.values()).reduce((sum, day) => sum + day.taskCount + day.feedbackCount, 0)
-        console.log(`[Activity API] Total records counted: ${totalCounted} (should be ${records.length})`)
-
-        const nonZeroDays = Array.from(dailyActivityMap.entries()).filter(([_, counts]) => counts.taskCount > 0 || counts.feedbackCount > 0)
-        console.log(`[Activity API] Non-zero days: ${nonZeroDays.length}/${dailyActivityMap.size}`)
-        if (nonZeroDays.length > 0) {
-            console.log(`[Activity API] Sample non-zero days:`, nonZeroDays.slice(0, 3).map(([date, counts]) => ({
-                date,
-                tasks: counts.taskCount,
-                feedback: counts.feedbackCount
-            })))
-        }
 
         // Convert map to sorted array
         const dailyActivity: DailyActivity[] = Array.from(dailyActivityMap.entries())
@@ -146,7 +163,35 @@ export async function GET(req: Request) {
             endDate: endDate.toISOString()
         })
     } catch (error) {
-        console.error('[Activity Over Time API] GET error:', error)
-        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
+        // Handle specific error types
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            console.error('[Activity Over Time API] Database error:', {
+                code: error.code,
+                meta: error.meta,
+                message: error.message
+            })
+            return NextResponse.json({
+                error: 'Database query failed. Please try again or contact support if the issue persists.'
+            }, { status: 500 })
+        }
+
+        if (error instanceof RangeError) {
+            console.error('[Activity Over Time API] Date range calculation error:', {
+                error: error.message
+            })
+            return NextResponse.json({
+                error: 'Invalid date range calculation. Please verify your dates and try again.'
+            }, { status: 400 })
+        }
+
+        // Unexpected errors
+        console.error('[Activity Over Time API] Unexpected error:', {
+            userId: user?.id,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+        })
+        return NextResponse.json({
+            error: 'An unexpected error occurred. Please try again.'
+        }, { status: 500 })
     }
 }

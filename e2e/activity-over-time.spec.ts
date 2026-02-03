@@ -24,7 +24,6 @@ test.describe('Activity Over Time (Manager/Admin Access)', () => {
         await expect(page.locator('h1')).toContainText(/Activity Over Time/);
 
         // Check for date range controls
-        await expect(page.locator('text=Date Range')).toBeVisible();
         await expect(page.locator('input[type="date"]')).toHaveCount(2); // Start and End date
 
         // Check for quick select buttons
@@ -35,7 +34,6 @@ test.describe('Activity Over Time (Manager/Admin Access)', () => {
         // Check for chart legend
         await expect(page.locator('text=Tasks')).toBeVisible();
         await expect(page.locator('text=Feedback')).toBeVisible();
-        await expect(page.locator('text=Total')).toBeVisible();
     });
 
     test('should display statistics summary', async ({ page }) => {
@@ -63,7 +61,7 @@ test.describe('Activity Over Time (Manager/Admin Access)', () => {
 
         // Check for chart paths (lines)
         const paths = page.locator('svg path');
-        await expect(paths).toHaveCount(3); // Tasks, Feedback, Total lines
+        await expect(paths).toHaveCount(2); // Tasks and Feedback lines
     });
 });
 
@@ -183,27 +181,24 @@ test.describe('Activity Over Time - Interactive Features', () => {
         }
     });
 
-    test('should toggle total line visibility', async ({ page }) => {
+    test('should toggle both lines independently', async ({ page }) => {
         await page.goto('/activity-over-time');
 
         // Wait for chart to render
         await page.waitForSelector('svg path', { timeout: 5000 });
 
-        // Find the Total toggle button (in legend)
-        const totalToggle = page.locator('button:has-text("Total")');
+        // Toggle both lines off
+        await page.locator('button:has-text("Tasks")').click();
+        await page.locator('button:has-text("Feedback")').click();
+        await page.waitForTimeout(100);
 
-        if (await totalToggle.count() > 0) {
-            // Click to toggle off
-            await totalToggle.click();
-            await page.waitForTimeout(100);
+        // Toggle both back on
+        await page.locator('button:has-text("Tasks")').click();
+        await page.locator('button:has-text("Feedback")').click();
+        await page.waitForTimeout(100);
 
-            // Click to toggle back on
-            await totalToggle.click();
-            await page.waitForTimeout(100);
-
-            // Chart should still be visible
-            await expect(page.locator('svg').first()).toBeVisible();
-        }
+        // Chart should still be visible
+        await expect(page.locator('svg').first()).toBeVisible();
     });
 });
 

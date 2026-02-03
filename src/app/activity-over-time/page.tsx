@@ -23,6 +23,7 @@ export default function ActivityOverTimePage() {
     const [loading, setLoading] = useState(true);
     const [authorized, setAuthorized] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Date range state
     const getDefaultStartDate = () => {
@@ -47,6 +48,7 @@ export default function ActivityOverTimePage() {
 
     const fetchData = async (customStart?: string, customEnd?: string) => {
         setRefreshing(true);
+        setError(null);
         try {
             const start = customStart || startDate;
             const end = customEnd || endDate;
@@ -63,18 +65,27 @@ export default function ActivityOverTimePage() {
                 return;
             }
 
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                throw new Error(errorData.error || `Server error: ${res.status}`);
+            }
+
             const activityData = await res.json();
-            console.log('[Frontend] Received activity data:', {
-                totalDays: activityData.dailyActivity?.length,
-                startDate: activityData.startDate,
-                endDate: activityData.endDate,
-                sampleDays: activityData.dailyActivity?.slice(0, 3),
-                nonZeroDays: activityData.dailyActivity?.filter((d: any) => d.totalCount > 0).length
-            });
+
+            // Validate response structure
+            if (!activityData ||
+                !Array.isArray(activityData.dailyActivity) ||
+                !activityData.startDate ||
+                !activityData.endDate) {
+                throw new Error('Invalid response format from server');
+            }
+
             setData(activityData);
             setAuthorized(true);
         } catch (err) {
             console.error('Failed to fetch activity data', err);
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load activity data. Please check your connection and try again.';
+            setError(errorMessage);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -113,6 +124,31 @@ export default function ActivityOverTimePage() {
                 >
                     Return to Dashboard
                 </button>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div style={{ textAlign: 'center', padding: '48px' }}>
+                <div style={{
+                    padding: '24px',
+                    background: 'rgba(255, 77, 77, 0.1)',
+                    borderRadius: '12px',
+                    marginBottom: '24px',
+                    maxWidth: '500px',
+                    margin: '0 auto'
+                }}>
+                    <ShieldAlert size={48} color="#ff4d4d" style={{ marginBottom: '16px' }} />
+                    <p style={{ color: '#ff4d4d', marginBottom: '16px', fontSize: '1.1rem' }}>{error}</p>
+                    <button
+                        onClick={() => fetchData()}
+                        className="btn-primary"
+                        style={{ padding: '12px 32px' }}
+                    >
+                        Retry
+                    </button>
+                </div>
             </div>
         );
     }
@@ -494,7 +530,7 @@ export default function ActivityOverTimePage() {
                             {showTasks && (
                                 <path
                                     d={data.dailyActivity.map((day, index) => {
-                                        const x = (index / (dayCount - 1)) * 1000;
+                                        const x = dayCount > 1 ? (index / (dayCount - 1)) * 1000 : 500;
                                         const y = 380 - ((day.taskCount / maxCount) * 380);
                                         return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
                                     }).join(' ')}
@@ -511,7 +547,7 @@ export default function ActivityOverTimePage() {
                             {showFeedback && (
                                 <path
                                     d={data.dailyActivity.map((day, index) => {
-                                        const x = (index / (dayCount - 1)) * 1000;
+                                        const x = dayCount > 1 ? (index / (dayCount - 1)) * 1000 : 500;
                                         const y = 380 - ((day.feedbackCount / maxCount) * 380);
                                         return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
                                     }).join(' ')}
@@ -527,7 +563,7 @@ export default function ActivityOverTimePage() {
                             {/* Data point circles for tasks */}
                             {showTasks && data.dailyActivity.map((day, index) => {
                                 if (day.taskCount === 0) return null;
-                                const x = (index / (dayCount - 1)) * 1000;
+                                const x = dayCount > 1 ? (index / (dayCount - 1)) * 1000 : 500;
                                 const y = 380 - ((day.taskCount / maxCount) * 380);
                                 const [year, month, dayNum] = day.date.split('-').map(Number);
                                 const dateLabel = `${month}/${dayNum}`;
@@ -560,7 +596,7 @@ export default function ActivityOverTimePage() {
                             {/* Data point circles for feedback */}
                             {showFeedback && data.dailyActivity.map((day, index) => {
                                 if (day.feedbackCount === 0) return null;
-                                const x = (index / (dayCount - 1)) * 1000;
+                                const x = dayCount > 1 ? (index / (dayCount - 1)) * 1000 : 500;
                                 const y = 380 - ((day.feedbackCount / maxCount) * 380);
                                 const [year, month, dayNum] = day.date.split('-').map(Number);
                                 const dateLabel = `${month}/${dayNum}`;
