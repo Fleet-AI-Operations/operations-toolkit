@@ -23,8 +23,7 @@ export async function GET(request: NextRequest) {
         .eq('id', user.id)
         .single();
 
-    const role = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
+    if (!profile || !['ADMIN', 'MANAGER'].includes((profile as any)?.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -81,8 +80,7 @@ export async function POST(request: NextRequest) {
         .eq('id', user.id)
         .single();
 
-    const role = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
+    if (!profile || !['ADMIN', 'MANAGER'].includes((profile as any)?.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
