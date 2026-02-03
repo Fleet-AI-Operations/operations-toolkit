@@ -7,6 +7,7 @@ import styles from './page.module.css'
 
 interface BugReport {
   id: string
+  reportNumber: number
   userEmail: string
   pageUrl: string
   description: string
@@ -164,6 +165,7 @@ export default function BugReportsPage() {
           <table className={styles.table}>
             <thead>
               <tr>
+                <th className={styles.th}>ID</th>
                 <th className={styles.th}>Status</th>
                 <th className={styles.th}>Assigned To</th>
                 <th className={styles.th}>Created By</th>
@@ -186,8 +188,11 @@ export default function BugReportsPage() {
                     tabIndex={0}
                     role="button"
                     aria-expanded={expandedId === report.id}
-                    aria-label={`Bug report from ${report.userEmail} - ${getStatusLabel(report.status)}`}
+                    aria-label={`Bug report #${report.reportNumber} from ${report.userEmail} - ${getStatusLabel(report.status)}`}
                   >
+                    <td className={styles.td}>
+                      <span className={styles.reportNumber}>#{report.reportNumber}</span>
+                    </td>
                     <td className={styles.td}>
                       <div
                         className={styles.statusBadge}
@@ -227,7 +232,7 @@ export default function BugReportsPage() {
                   </tr>
                   {expandedId === report.id && (
                     <tr key={`${report.id}-details`} className={styles.detailsRow}>
-                      <td colSpan={5} className={styles.detailsCell}>
+                      <td colSpan={6} className={styles.detailsCell}>
                         <div className={styles.detailsContent}>
                           <div className={styles.detailsSection}>
                             <div className={styles.field}>

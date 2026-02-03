@@ -245,6 +245,13 @@
   font-size: 0.875rem;
 }
 
+.reportNumber {
+  font-weight: 700;
+  color: rgba(96, 165, 250, 0.9);
+  font-size: 0.9375rem;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
 .field {
   display: flex;
   flex-direction: column;

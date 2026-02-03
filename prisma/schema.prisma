@@ -206,6 +206,7 @@ model AuditLog {
 ///  * Captures page context, user info, and description of the issue.
 model BugReport {
   id                                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportNumber                         Int      @unique @default(autoincrement()) @map("report_number")
   userId                               String?  @map("user_id") @db.Uuid
   userEmail                            String   @map("user_email")
   pageUrl                              String   @map("page_url")
@@ -221,6 +222,7 @@ model BugReport {
 
   @@index([assignedTo], map: "idx_bug_reports_assigned_to")
   @@index([createdAt(sort: Desc)], map: "idx_bug_reports_created_at")
+  @@index([reportNumber], map: "idx_bug_reports_report_number")
   @@index([status], map: "idx_bug_reports_status")
   @@index([userId], map: "idx_bug_reports_user_id")
   @@map("bug_reports")
