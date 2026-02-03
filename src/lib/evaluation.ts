@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { JobStatus } from '@prisma/client';
+import { createId } from '@paralleldrive/cuid2';
 import {
     LLM_SYSTEM_UUID,
     DEFAULT_SYSTEM_PROMPT,
@@ -185,6 +186,7 @@ export async function processEvaluationBatch(jobId: string): Promise<{ completed
                 } else {
                     await prisma.likertScore.create({
                         data: {
+                            id: createId(),
                             recordId: record.id,
                             userId: LLM_SYSTEM_UUID,
                             realismScore: result.realism,

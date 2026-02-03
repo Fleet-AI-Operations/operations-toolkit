@@ -104,8 +104,7 @@ export async function POST(req: NextRequest) {
                 });
 
                 checkAuditResult(auditResult, 'LIKERT_SCORES_CLEARED', {
-                    userId: user.id,
-                    projectId
+                    userId: user.id
                 });
 
                 return NextResponse.json({
@@ -181,8 +180,7 @@ export async function POST(req: NextRequest) {
             });
 
             checkAuditResult(auditResult, 'PROJECT_RECORDS_CLEARED', {
-                userId: user.id,
-                projectId
+                userId: user.id
             });
 
             return NextResponse.json({
