@@ -1,0 +1,197 @@
+-- Fix RLS performance issues identified by Supabase linter
+-- 1. Wrap auth.uid() calls in subqueries to prevent re-evaluation per row
+-- 2. Combine multiple permissive policies into single policies
+-- 3. Maintain proper access control: USERS see own data, MANAGERS/ADMINS see all
+
+-- ============================================================================
+-- PROFILES TABLE
+-- ============================================================================
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view profiles" ON public.profiles;
+DROP POLICY IF EXISTS "All users can view profiles" ON public.profiles;
+
+-- Combined SELECT policy (fixes multiple permissive policies warning)
+-- Users can view their own profile, managers/admins can view all
+-- Wraps auth.uid() in subquery (fixes auth RLS initplan warning)
+CREATE POLICY "Users can view profiles"
+  ON public.profiles
+  FOR SELECT
+  TO authenticated
+  USING (
+    -- User viewing their own profile
+    (id = (select auth.uid()))
+    OR
+    -- User is a manager or admin (can view all profiles)
+    EXISTS (
+      SELECT 1
+      FROM profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  );
+
+-- Separate policies for INSERT, UPDATE, DELETE (admin only)
+CREATE POLICY "Admins can insert profiles"
+  ON public.profiles
+  FOR INSERT
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can update profiles"
+  ON public.profiles
+  FOR UPDATE
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can delete profiles"
+  ON public.profiles
+  FOR DELETE
+  USING (public.is_admin());
+
+-- ============================================================================
+-- AUDIT_LOGS TABLE
+-- ============================================================================
+
+-- Drop existing policy
+DROP POLICY IF EXISTS "Admins can read all audit logs" ON public.audit_logs;
+
+-- Recreate with optimized auth.uid() call
+CREATE POLICY "Admins can read all audit logs"
+  ON public.audit_logs
+  AS PERMISSIVE
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = 'ADMIN'::public."UserRole"
+    )
+  );
+
+-- ============================================================================
+-- BUG_REPORTS TABLE
+-- ============================================================================
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Admins can view all bug reports" ON public.bug_reports;
+DROP POLICY IF EXISTS "Users can view own bug reports" ON public.bug_reports;
+DROP POLICY IF EXISTS "Admins can update bug reports" ON public.bug_reports;
+DROP POLICY IF EXISTS "Users can view bug reports" ON public.bug_reports;
+DROP POLICY IF EXISTS "All users can view bug reports" ON public.bug_reports;
+
+-- Combined SELECT policy (fixes multiple permissive policies warning)
+-- Users can view their own bug reports, managers/admins can view all
+-- Wraps auth.uid() in subquery (fixes auth RLS initplan warning)
+CREATE POLICY "Users can view bug reports"
+  ON public.bug_reports
+  FOR SELECT
+  TO authenticated
+  USING (
+    -- User viewing their own bug report
+    (user_id = (select auth.uid()))
+    OR
+    -- User is a manager or admin (can view all bug reports)
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  );
+
+-- Recreate update policy with optimized auth.uid() call
+CREATE POLICY "Admins can update bug reports"
+  ON public.bug_reports
+  FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = 'ADMIN'
+    )
+  );
+
+-- ============================================================================
+-- LIKERT_SCORES TABLE
+-- ============================================================================
+
+-- Drop existing policy
+DROP POLICY IF EXISTS "Users can update own likert scores" ON public.likert_scores;
+DROP POLICY IF EXISTS "Users can update any likert scores" ON public.likert_scores;
+
+-- Recreate with optimized auth.uid() call
+-- Note: Will be updated in next migration to allow all users to update any scores
+CREATE POLICY "Users can update own likert scores"
+  ON public.likert_scores
+  FOR UPDATE
+  TO authenticated
+  USING ("userId" = (select auth.uid())::text);
+
+-- ============================================================================
+-- BONUS_WINDOWS TABLE
+-- ============================================================================
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Managers and Admins can view all bonus windows" ON public.bonus_windows;
+DROP POLICY IF EXISTS "Managers and Admins can create bonus windows" ON public.bonus_windows;
+DROP POLICY IF EXISTS "Managers and Admins can update bonus windows" ON public.bonus_windows;
+DROP POLICY IF EXISTS "Managers and Admins can delete bonus windows" ON public.bonus_windows;
+
+-- Recreate with optimized auth.uid() calls wrapped in subqueries
+CREATE POLICY "Managers and Admins can view all bonus windows"
+  ON public.bonus_windows
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  );
+
+CREATE POLICY "Managers and Admins can create bonus windows"
+  ON public.bonus_windows
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  );
+
+CREATE POLICY "Managers and Admins can update bonus windows"
+  ON public.bonus_windows
+  FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  );
+
+CREATE POLICY "Managers and Admins can delete bonus windows"
+  ON public.bonus_windows
+  FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  );
