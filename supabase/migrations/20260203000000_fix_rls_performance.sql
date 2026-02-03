@@ -2,6 +2,23 @@
 -- 1. Wrap auth.uid() calls in subqueries to prevent re-evaluation per row
 -- 2. Combine multiple permissive policies into single policies
 -- 3. Maintain proper access control: USERS see own data, MANAGERS/ADMINS see all
+-- 4. Add WITH CHECK clauses to UPDATE policies for completeness
+-- 5. Optimize is_admin() helper function
+
+-- ============================================================================
+-- HELPER FUNCTIONS
+-- ============================================================================
+
+-- Optimize is_admin() helper function with subquery pattern
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid()) AND role = 'ADMIN'::"UserRole"
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================================
 -- PROFILES TABLE
@@ -103,7 +120,7 @@ CREATE POLICY "Users can view bug reports"
     )
   );
 
--- Recreate update policy with optimized auth.uid() call
+-- Recreate update policy with optimized auth.uid() call and WITH CHECK clause
 CREATE POLICY "Admins can update bug reports"
   ON public.bug_reports
   FOR UPDATE
@@ -113,7 +130,15 @@ CREATE POLICY "Admins can update bug reports"
       SELECT 1
       FROM public.profiles
       WHERE profiles.id = (select auth.uid())
-      AND profiles.role = 'ADMIN'
+      AND profiles.role = 'ADMIN'::"UserRole"
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = 'ADMIN'::"UserRole"
     )
   );
 
@@ -131,7 +156,8 @@ CREATE POLICY "Users can update own likert scores"
   ON public.likert_scores
   FOR UPDATE
   TO authenticated
-  USING ("userId" = (select auth.uid())::text);
+  USING ("userId" = (select auth.uid())::text)
+  WITH CHECK ("userId" = (select auth.uid())::text);
 
 -- ============================================================================
 -- BONUS_WINDOWS TABLE
@@ -175,6 +201,14 @@ CREATE POLICY "Managers and Admins can update bonus windows"
   FOR UPDATE
   TO authenticated
   USING (
+    EXISTS (
+      SELECT 1
+      FROM profiles
+      WHERE profiles.id = (select auth.uid())
+      AND profiles.role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+    )
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1
       FROM profiles
