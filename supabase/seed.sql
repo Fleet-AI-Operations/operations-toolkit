@@ -3,6 +3,9 @@
 
 -- IMPORTANT: These are test credentials. Never use in production!
 
+-- Enable pgcrypto extension for password hashing
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- SAFETY CHECK: Prevent running in production
 -- Uses opt-in approach: databases must explicitly allow seeding
 -- To enable: ALTER DATABASE postgres SET app.seed_allowed = 'true';
@@ -35,7 +38,18 @@ END $$;
 -- Clean up existing seed users if they exist
 DO $$
 BEGIN
-    -- Delete profiles first (to avoid FK constraint issues)
+    -- Delete projects owned by seed users first (to avoid FK constraint issues)
+    DELETE FROM public."Project"
+    WHERE "ownerId" IN (
+        SELECT id FROM public.profiles
+        WHERE email IN (
+            'admin@test.com',
+            'manager@test.com',
+            'user@test.com'
+        )
+    );
+
+    -- Delete profiles
     DELETE FROM public.profiles
     WHERE email IN (
         'admin@test.com',
