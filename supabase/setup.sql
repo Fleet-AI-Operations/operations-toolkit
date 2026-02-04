@@ -35,28 +35,68 @@ NOTIFY pgrst, 'reload schema';
 -- 3. Enable RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- 4. Create a helper function to check admin status without recursion
+-- 4. Create helper functions (SECURITY DEFINER bypasses RLS to prevent circular dependencies)
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'ADMIN'
+    WHERE id = auth.uid() AND role = 'ADMIN'::"UserRole"
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Create Policies
--- Users can view their own profile
+CREATE OR REPLACE FUNCTION public.is_manager_or_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+    AND role = ANY (ARRAY['MANAGER'::"UserRole", 'ADMIN'::"UserRole"])
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Create Policies for profiles table
+-- Drop old policies
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
-
-CREATE POLICY "Users can view own profile" ON public.profiles FOR
-SELECT USING (auth.uid () = id);
-
--- Admins can view and manage all profiles
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view profiles" ON public.profiles;
+DROP POLICY IF EXISTS "All users can view profiles" ON public.profiles;
 
-CREATE POLICY "Admins can manage all profiles" ON public.profiles FOR ALL USING (public.is_admin ());
+-- Combined SELECT policy: Users can view their own profile OR are a manager/admin
+-- Uses SECURITY DEFINER function to avoid circular RLS dependency
+CREATE POLICY "Users can view profiles"
+  ON public.profiles
+  FOR SELECT
+  TO authenticated
+  USING (
+    -- User viewing their own profile
+    (id = (select auth.uid()))
+    OR
+    -- User is a manager or admin (SECURITY DEFINER function bypasses RLS)
+    public.is_manager_or_admin()
+  );
+
+-- Separate policies for INSERT, UPDATE, DELETE (admin only)
+DROP POLICY IF EXISTS "Admins can insert profiles" ON public.profiles;
+CREATE POLICY "Admins can insert profiles"
+  ON public.profiles
+  FOR INSERT
+  WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can update profiles" ON public.profiles;
+CREATE POLICY "Admins can update profiles"
+  ON public.profiles
+  FOR UPDATE
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins can delete profiles" ON public.profiles;
+CREATE POLICY "Admins can delete profiles"
+  ON public.profiles
+  FOR DELETE
+  USING (public.is_admin());
 
 -- 6. Create a function to handle new user signups
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -99,20 +139,14 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(create
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- 10. Create audit_logs policies
--- Admin can read all audit logs
+-- Admin can read all audit logs (uses SECURITY DEFINER function to avoid RLS circular dependency)
 DROP POLICY IF EXISTS "Admins can read all audit logs" ON public.audit_logs;
 
 CREATE POLICY "Admins can read all audit logs"
   ON public.audit_logs
   FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'ADMIN'
-    )
-  );
+  USING (public.is_admin());
 
 -- All authenticated users can insert (for system logging)
 DROP POLICY IF EXISTS "Authenticated users can insert audit logs" ON public.audit_logs;
