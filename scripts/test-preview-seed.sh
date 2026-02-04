@@ -35,11 +35,15 @@ echo -e "${YELLOW}Target branch: $BRANCH_NAME${NC}\n"
 # Step 1: Fetch all projects (including branches)
 echo -e "${BLUE}Step 1: Fetching projects and branches from Supabase...${NC}"
 
-PROJECTS=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
     "https://api.supabase.com/v1/organizations/$SUPABASE_ORG_ID/projects")
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}ERROR: Failed to fetch projects${NC}"
+HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+PROJECTS=$(echo "$HTTP_RESPONSE" | sed '$d')
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo -e "${RED}ERROR: Failed to fetch projects (HTTP $HTTP_CODE)${NC}"
+    echo "Response: $PROJECTS"
     exit 1
 fi
 
@@ -80,8 +84,16 @@ MAIN_PROJECT_REF=$(echo "$PROJECTS_ARRAY" | jq -r '.[0].ref // .[0].id')
 
 # Also try to fetch branches via the branches API endpoint
 echo -e "\n${BLUE}Fetching branches for main project...${NC}"
-BRANCHES=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-    "https://api.supabase.com/v1/projects/$MAIN_PROJECT_REF/branches" 2>/dev/null || echo "[]")
+BRANCHES_RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+    "https://api.supabase.com/v1/projects/$MAIN_PROJECT_REF/branches" 2>/dev/null || echo "[]\n200")
+
+BRANCHES_HTTP_CODE=$(echo "$BRANCHES_RESPONSE" | tail -n1)
+BRANCHES=$(echo "$BRANCHES_RESPONSE" | sed '$d')
+
+if [ "$BRANCHES_HTTP_CODE" != "200" ]; then
+    echo -e "${YELLOW}Warning: Failed to fetch branches (HTTP $BRANCHES_HTTP_CODE), continuing without branches API${NC}"
+    BRANCHES="[]"
+fi
 
 # Check if we got branches
 if echo "$BRANCHES" | jq empty 2>/dev/null; then
@@ -158,6 +170,13 @@ if [ -z "$PROJECT_REF" ] || [ "$PROJECT_REF" == "null" ]; then
     exit 1
 fi
 
+# Validate PROJECT_REF format (Supabase project refs are 20 lowercase alphanumeric chars)
+if [[ ! "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
+    echo -e "\n${RED}ERROR: Invalid project ref format: $PROJECT_REF${NC}"
+    echo "Expected 20 lowercase alphanumeric characters"
+    exit 1
+fi
+
 PROJECT_NAME=$(echo "$PROJECTS_ARRAY" | jq -r ".[] | select((.project_ref // .ref // .id) == \"$PROJECT_REF\") | .name")
 echo -e "\n${GREEN}✓ Found preview project!${NC}"
 echo "  Name: $PROJECT_NAME"
@@ -193,11 +212,20 @@ echo "Executing SQL on remote database via API..."
 SEED_SQL=$(cat supabase/seed.sql)
 
 # Execute via Supabase Management API
-EXEC_RESPONSE=$(curl -s -X POST \
+EXEC_HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
     -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
     -d "{\"query\": $(echo "$SEED_SQL" | jq -Rs .)}")
+
+EXEC_HTTP_CODE=$(echo "$EXEC_HTTP_RESPONSE" | tail -n1)
+EXEC_RESPONSE=$(echo "$EXEC_HTTP_RESPONSE" | sed '$d')
+
+if [ "$EXEC_HTTP_CODE" != "200" ]; then
+    echo -e "${RED}ERROR: HTTP $EXEC_HTTP_CODE${NC}"
+    echo "Response: $EXEC_RESPONSE"
+    exit 1
+fi
 
 # Check if execution was successful
 if echo "$EXEC_RESPONSE" | jq -e '.error' >/dev/null 2>&1; then
@@ -216,11 +244,20 @@ echo -e "\n${BLUE}Step 5: Verifying users were created...${NC}"
 
 # Get database connection details from Supabase API
 echo "Fetching database connection details..."
-DB_SETTINGS=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+DB_SETTINGS_RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
     "https://api.supabase.com/v1/projects/$PROJECT_REF/settings")
 
-DB_HOST=$(echo "$DB_SETTINGS" | jq -r '.db_host // empty')
-DB_NAME=$(echo "$DB_SETTINGS" | jq -r '.db_name // "postgres"')
+DB_SETTINGS_HTTP_CODE=$(echo "$DB_SETTINGS_RESPONSE" | tail -n1)
+DB_SETTINGS=$(echo "$DB_SETTINGS_RESPONSE" | sed '$d')
+
+if [ "$DB_SETTINGS_HTTP_CODE" != "200" ]; then
+    echo -e "${YELLOW}Warning: Failed to fetch database settings (HTTP $DB_SETTINGS_HTTP_CODE)${NC}"
+    DB_HOST=""
+    DB_NAME="postgres"
+else
+    DB_HOST=$(echo "$DB_SETTINGS" | jq -r '.db_host // empty')
+    DB_NAME=$(echo "$DB_SETTINGS" | jq -r '.db_name // "postgres"')
+fi
 
 if [ -n "$DB_HOST" ]; then
     echo -e "${GREEN}✓ Database host: $DB_HOST${NC}"

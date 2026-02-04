@@ -94,6 +94,13 @@ jobs:
             exit 1
           fi
 
+          # Validate PROJECT_REF format (Supabase project refs are 20 lowercase alphanumeric chars)
+          if [[ ! "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "ERROR: Invalid project ref format: $PROJECT_REF"
+            echo "Expected 20 lowercase alphanumeric characters"
+            exit 1
+          fi
+
           PROJECT_NAME=$(echo "$PROJECTS_ARRAY" | jq -r \
             ".[] | select((.project_ref // .ref // .id) == \"$PROJECT_REF\") | .name")
 
@@ -101,6 +108,35 @@ jobs:
           echo "  Name: $PROJECT_NAME"
           echo "  Ref: $PROJECT_REF"
           echo "ref=$PROJECT_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to Preview Project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ steps.preview-ref.outputs.ref }}
+        run: |
+          echo "Linking to preview project: $PROJECT_REF"
+          supabase link --project-ref "$PROJECT_REF"
+
+      - name: Deploy Migrations to Preview Database
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "Deploying migrations to preview database..."
+
+          # Preview changes (dry-run)
+          echo "Previewing database changes..."
+          supabase db push --dry-run
+
+          # Apply migrations
+          echo "Applying migrations..."
+          supabase db push
+
+          echo "✅ Migrations deployed successfully"
 
       - name: Seed Preview Database
         env:

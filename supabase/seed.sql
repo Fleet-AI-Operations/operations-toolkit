@@ -4,24 +4,24 @@
 -- IMPORTANT: These are test credentials. Never use in production!
 
 -- SAFETY CHECK: Prevent running in production
--- Production databases should have SEED_SAFE_MODE disabled
+-- Uses opt-in approach: databases must explicitly allow seeding
+-- To enable: ALTER DATABASE postgres SET app.seed_allowed = 'true';
 DO $$
 DECLARE
-    is_production BOOLEAN;
+    is_seed_allowed BOOLEAN;
 BEGIN
-    -- Check if this is a production environment
-    -- Production should have current_setting('app.environment') = 'production'
-    -- or the database should be named differently than 'postgres'
+    -- Check if seeding is explicitly allowed
+    -- Databases must opt-in by setting app.seed_allowed = 'true'
     BEGIN
-        is_production := current_setting('app.environment', TRUE) = 'production';
+        is_seed_allowed := current_setting('app.seed_allowed', TRUE) = 'true';
     EXCEPTION
         WHEN OTHERS THEN
-            is_production := FALSE;
+            is_seed_allowed := FALSE;
     END;
 
-    -- If running on a database that looks like production, abort
-    IF is_production THEN
-        RAISE EXCEPTION 'SEED BLOCKED: Cannot run seed data in production environment. This file contains test credentials.';
+    -- Block seeding unless explicitly allowed
+    IF NOT is_seed_allowed THEN
+        RAISE EXCEPTION 'SEED BLOCKED: Database does not have app.seed_allowed = ''true''. This file contains test credentials and should only run in development/preview environments. To enable: ALTER DATABASE postgres SET app.seed_allowed = ''true'';';
     END IF;
 
     -- Additional check: warn if database URL contains 'supabase.co' (cloud hosting)
@@ -29,7 +29,7 @@ BEGIN
         RAISE WARNING 'Running seed data on database: %. This should only be used in dev/preview.', current_database();
     END IF;
 
-    RAISE NOTICE 'SEED SAFETY CHECK PASSED: Running seed data in % environment', COALESCE(current_setting('app.environment', TRUE), 'development');
+    RAISE NOTICE 'SEED SAFETY CHECK PASSED: Seeding allowed on database %', current_database();
 END $$;
 
 -- Clean up existing seed users if they exist

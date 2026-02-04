@@ -6,10 +6,11 @@ The `seed-preview.yml` workflow automatically seeds test users into Supabase pre
 
 ### How It Works
 
-1. **Triggers** when you push to preview/feature branches (`preview/**`, `feat/**`, `fix/**`)
+1. **Triggers** when you open/reopen a PR to main from preview/feature branches
 2. **Finds** the preview project reference dynamically using Supabase API
-3. **Seeds** the database with test users (admin, manager, user)
-4. **Protects** production - refuses to run on main or production branches
+3. **Deploys** database migrations to the preview database
+4. **Seeds** the database with test users (admin, manager, user)
+5. **Protects** production - refuses to run on main or production branches
 
 ### Setup Requirements
 
@@ -67,7 +68,11 @@ GET /v1/projects/{main_ref}/branches
 # 3. Finds the branch matching your Git branch name
 jq '.[] | select(.git_branch == "branch-name") | .project_ref'
 
-# 4. Executes SQL on the remote database via Management API
+# 4. Links to the preview project and deploys migrations
+supabase link --project-ref {branch_ref}
+supabase db push
+
+# 5. Executes seed SQL on the remote database via Management API
 POST /v1/projects/{branch_ref}/database/query
 ```
 

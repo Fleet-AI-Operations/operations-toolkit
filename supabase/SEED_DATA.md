@@ -73,38 +73,33 @@ This seed data has **three layers of protection** against running in production:
 
 1. **Supabase Config**: `seed.sql` only runs with `supabase db reset` command (local dev only)
 2. **Cloud Hosting**: Supabase Cloud projects don't auto-run seed files
-3. **Explicit Safety Check**: The seed file checks the environment and aborts if it detects production
+3. **Opt-In Safety Check**: The seed file requires explicit permission to run (blocks by default)
 
 ### How It's Protected
 
-The seed file includes safety checks that:
-- Check for `app.environment = 'production'` setting
-- Warn if running on a non-standard database name
-- Abort execution if production environment is detected
+The seed file uses an **opt-in approach** that blocks seeding by default:
+- Requires `app.seed_allowed = 'true'` setting to run
+- Databases must explicitly allow seeding (safer than opt-out)
+- Warns if running on a non-standard database name
+- Refuses to run unless explicitly enabled
 
 ### Setting Environment Variables
 
-To enable seed data in **preview environments** (Vercel Preview deployments):
+To **enable seed data** in development/preview environments:
 
 ```sql
--- Run this in your preview database
-ALTER DATABASE postgres SET app.environment = 'preview';
+-- Run this in your dev/preview database
+ALTER DATABASE postgres SET app.seed_allowed = 'true';
 ```
 
-To **protect production** (recommended):
-
-```sql
--- Run this in your production database
-ALTER DATABASE postgres SET app.environment = 'production';
-```
-
-If `app.environment = 'production'` is set, the seed file will refuse to run.
+**Production databases** are protected by default - seeding is blocked unless you explicitly enable it. No additional configuration needed for production protection.
 
 ### Production Best Practices
 
 - Never manually run seed.sql in production
 - Production user creation should always go through the proper admin UI
-- Set `app.environment = 'production'` in your production database
+- Production databases are protected by default (opt-in required for seeding)
+- Never set `app.seed_allowed = 'true'` in production databases
 - Test credentials should never exist in production
 
 ## Modifying Seed Data
