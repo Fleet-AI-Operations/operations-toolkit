@@ -171,7 +171,7 @@ async function getUserFeedbackDetails(projectId: string, userId: string) {
 }
 
 async function getCandidateStatus(projectId: string, userId: string) {
-    const status = await prisma.CandidateStatus.findUnique({
+    const status = await prisma.candidateStatus.findUnique({
         where: {
             userId_projectId: {
                 userId,
@@ -229,7 +229,7 @@ export async function GET(req: NextRequest) {
 
         // Handle all-statuses action - returns all candidate statuses for the project
         if (action === 'all-statuses') {
-            const statuses = await prisma.CandidateStatus.findMany({
+            const statuses = await prisma.candidateStatus.findMany({
                 where: { projectId },
                 select: {
                     userId: true,
@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
 
-        const candidateStatus = await prisma.CandidateStatus.upsert({
+        const candidateStatus = await prisma.candidateStatus.upsert({
             where: {
                 userId_projectId: {
                     userId,
