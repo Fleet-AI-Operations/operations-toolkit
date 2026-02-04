@@ -349,25 +349,34 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
         let existingTaskIds: Set<string> = new Set();
         if (taskIds.length > 0) {
             const taskIdStrings = taskIds.map(id => String(id));
-            const existing = await prisma.$queryRaw<{ task_id: string }[]>`
-                SELECT DISTINCT
-                    COALESCE(
-                        metadata->>'task_id',
-                        metadata->>'id',
-                        metadata->>'uuid',
-                        metadata->>'record_id'
-                    ) as task_id
+            const existing = await prisma.$queryRaw<{
+                task_id: string | null;
+                id: string | null;
+                uuid: string | null;
+                record_id: string | null;
+            }[]>`
+                SELECT
+                    metadata->>'task_id' as task_id,
+                    metadata->>'id' as id,
+                    metadata->>'uuid' as uuid,
+                    metadata->>'record_id' as record_id
                 FROM public.data_records
                 WHERE "projectId" = ${projectId}
                 AND type = ${type}::"RecordType"
                 AND (
-                    metadata->>'task_id' = ANY(${taskIdStrings})
-                    OR metadata->>'id' = ANY(${taskIdStrings})
-                    OR metadata->>'uuid' = ANY(${taskIdStrings})
-                    OR metadata->>'record_id' = ANY(${taskIdStrings})
+                    metadata->>'task_id' IN (${Prisma.join(taskIdStrings)})
+                    OR metadata->>'id' IN (${Prisma.join(taskIdStrings)})
+                    OR metadata->>'uuid' IN (${Prisma.join(taskIdStrings)})
+                    OR metadata->>'record_id' IN (${Prisma.join(taskIdStrings)})
                 )
             `;
-            existingTaskIds = new Set(existing.map(row => row.task_id).filter(id => id != null));
+            // Add all non-null IDs from all fields to the set
+            for (const row of existing) {
+                if (row.task_id) existingTaskIds.add(row.task_id);
+                if (row.id) existingTaskIds.add(row.id);
+                if (row.uuid) existingTaskIds.add(row.uuid);
+                if (row.record_id) existingTaskIds.add(row.record_id);
+            }
         }
 
         // Filter out duplicates in memory
