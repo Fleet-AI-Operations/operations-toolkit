@@ -511,6 +511,10 @@ export default function CandidateReview() {
   const handleCandidateStatusChange = async (newStatus: string) => {
     if (!selectedUserId || !selectedProjectId) return;
 
+    // Store previous status values for rollback
+    const previousStatus = candidateStatus;
+    const previousStatuses = new Map(candidateStatuses);
+
     // Optimistic update - show the change immediately
     setCandidateStatus(newStatus);
     setCandidateStatuses((prev) => {
@@ -537,7 +541,9 @@ export default function CandidateReview() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status");
-      // Revert on error would go here if needed
+      // Revert to previous state on error
+      setCandidateStatus(previousStatus);
+      setCandidateStatuses(previousStatuses);
     } finally {
       setUpdatingStatus(false);
     }
