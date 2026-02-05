@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
+import { Prisma, RecordCategory } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { findSimilarRecords } from '@/lib/similarity';
 import { createClient } from '@/lib/supabase/server';
@@ -158,9 +158,9 @@ export async function GET(req: NextRequest) {
                 type: (type as 'TASK' | 'FEEDBACK') || undefined,
                 // For STANDARD category, count both STANDARD and NULL records
                 ...(category === 'STANDARD'
-                    ? { OR: [{ category: 'STANDARD' }, { category: null }] }
+                    ? { OR: [{ category: RecordCategory.STANDARD }, { category: null }] }
                     : category
-                        ? { category: category as 'TOP_10' | 'BOTTOM_10' | 'STANDARD' }
+                        ? { category: category as RecordCategory }
                         : {}
                 ),
             }
