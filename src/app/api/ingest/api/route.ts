@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest } from '@/lib/ingestion';
+import { startBackgroundIngest, processQueuedJobs } from '@/lib/ingestion';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 
@@ -49,6 +49,12 @@ export async function POST(req: NextRequest) {
             filterKeywords,
             generateEmbeddings,
         });
+
+        // IMPORTANT: In serverless, we must await initial processing or it gets killed
+        // Status endpoint will continue processing on each poll
+        await processQueuedJobs(projectId).catch(err =>
+            console.error('Initial Queue Processor Error:', err)
+        );
 
         return NextResponse.json({
             message: `Ingestion started in the background.`,
