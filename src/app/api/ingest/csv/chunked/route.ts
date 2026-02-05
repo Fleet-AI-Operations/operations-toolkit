@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest } from '@/lib/ingestion';
+import { startBackgroundIngest, processQueuedJobs } from '@/lib/ingestion';
 import { RecordType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { writeFile, readFile, mkdir, rm, readdir } from 'fs/promises';
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
 
                 const csvContent = chunks.join('');
 
-                // Start background ingestion (fire-and-forget)
+                // Start background ingestion
                 const jobId = await startBackgroundIngest('CSV', csvContent, {
                     projectId: meta.projectId,
                     source: `csv:${meta.fileName}`,
@@ -248,6 +248,12 @@ export async function POST(req: NextRequest) {
                     filterKeywords: undefined,
                     generateEmbeddings: meta.generateEmbeddings,
                 });
+
+                // IMPORTANT: In serverless, we must await initial processing or it gets killed
+                // Status endpoint will continue processing on each poll
+                await processQueuedJobs(meta.projectId).catch(err =>
+                    console.error('Initial Queue Processor Error:', err)
+                );
 
                 // Cleanup session directory (non-blocking)
                 rm(sessionDir, { recursive: true, force: true }).catch(() => {});

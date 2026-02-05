@@ -29,7 +29,7 @@ export async function GET() {
         const users = await prisma.profile.findMany({
             orderBy: { createdAt: 'desc' }
         })
-        return NextResponse.json({ users })
+        return NextResponse.json(users)
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }

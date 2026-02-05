@@ -454,17 +454,15 @@ List all users (Admin/Manager only).
 
 **Response** (200 OK)
 ```json
-{
-  "users": [
-    {
-      "id": "uuid",
-      "email": "user@example.com",
-      "role": "USER",
-      "mustResetPassword": false,
-      "createdAt": "2024-01-15T10:30:00Z"
-    }
-  ]
-}
+[
+  {
+    "id": "uuid",
+    "email": "user@example.com",
+    "role": "USER",
+    "mustResetPassword": false,
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+]
 ```
 
 ---

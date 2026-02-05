@@ -23,11 +23,17 @@ export async function GET(req: NextRequest) {
 
         // SERVERLESS FIX: Trigger processing on status check
         // This ensures jobs actually get processed even if the initial trigger was killed
+        // IMPORTANT: Must await in serverless - there is no "background" after response is sent
         if (job.status === 'PENDING' || job.status === 'QUEUED_FOR_VEC') {
-            // Don't await - let it run in the background during this request
-            processQueuedJobs(job.projectId).catch(err =>
+            await processQueuedJobs(job.projectId).catch(err =>
                 console.error('Queue Processor Error:', err)
             );
+
+            // Refetch job to get updated status
+            const updatedJob = await prisma.ingestJob.findUnique({
+                where: { id: jobId },
+            });
+            return NextResponse.json(updatedJob || job);
         }
 
         return NextResponse.json(job);

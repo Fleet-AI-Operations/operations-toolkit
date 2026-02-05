@@ -102,7 +102,7 @@ export default function RaterGroupsPage() {
             const res = await fetch('/api/admin/users');
             if (res.ok) {
                 const data = await res.json();
-                setUsers(data.users?.filter((u: User) => u.role !== 'PENDING') || []);
+                setUsers(Array.isArray(data) ? data.filter((u: User) => u.role !== 'PENDING') : []);
             }
         } catch (error) {
             console.error('Error fetching users:', error);
