@@ -13,7 +13,7 @@ datasource db {
 ///  * PROJECT: The primary organizational unit.
 ///  * All data records, ingestion jobs, and guidelines are scoped to a project.
 model Project {
-  id                   String         @id @default(cuid())
+  id                   String         @id @default(dbgenerated("gen_random_uuid()::text"))
   name                 String         @unique
   ownerId              String?        @map("ownerId") @db.Uuid
   lastTaskAnalysis     String?        @map("lastTaskAnalysis") @db.Text
@@ -25,6 +25,7 @@ model Project {
   analyticsJobs        AnalyticsJob[]
   records              DataRecord[]
   ingestJobs           IngestJob[]
+  candidateStatuses    CandidateStatus[]
   owner                Profile?       @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   // Rater management relations
@@ -676,6 +677,23 @@ model users {
   @@index([instance_id])
   @@index([is_anonymous])
   @@schema("auth")
+}
+
+model CandidateStatus {
+  id        String   @id @default(cuid())
+  userId    String   @map("userId")
+  email     String
+  projectId String   @map("projectId")
+  status    String   // 'ACCEPTED' or 'REJECTED'
+  createdAt DateTime @default(now()) @map("createdAt") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId], map: "idx_candidate_status_project")
+  @@map("candidate_status")
+  @@schema("public")
 }
 
 enum UserRole {

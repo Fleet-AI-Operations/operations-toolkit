@@ -309,7 +309,7 @@ export default function TopPromptsReview() {
                                             </span>
 
                                             {record.likertScores && record.likertScores.count > 0 && (
-                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, justifyContent: 'center' }}>
                                                     <span
                                                         style={{
                                                             padding: "5px 10px",

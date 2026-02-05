@@ -199,7 +199,7 @@ h3 {
 [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%) scale(0.95);
   opacity: 0;
@@ -221,13 +221,13 @@ h3 {
 [data-tooltip]::before {
   content: '';
   position: absolute;
-  bottom: calc(100% + 2px);
+  top: calc(100% + 2px);
   left: 50%;
   transform: translateX(-50%) scale(0.95);
   opacity: 0;
   pointer-events: none;
   border: 6px solid transparent;
-  border-top-color: rgba(0, 0, 0, 0.95);
+  border-bottom-color: rgba(0, 0, 0, 0.95);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 9999;
 }
@@ -248,3 +248,72 @@ h3 {
   background-color: rgba(0, 112, 243, 0.15) !important;
   color: rgba(255, 255, 255, 0.9) !important;
 }
+
+/* Candidate Review reusable styles */
+.stat-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0px;
+  width: 52px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.stat-pill--inbox { background: rgba(100, 150, 255, 0.15); color: rgba(100, 200, 255, 0.9); }
+.stat-pill--accepted { background: rgba(81, 207, 102, 0.15); color: var(--success, #51cf66); }
+.stat-pill--denied { background: rgba(255, 107, 107, 0.15); color: var(--error, #ff6b6b); }
+
+.feedback-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+.feedback-card__toggle {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+.feedback-card__toggle:hover { background: rgba(255, 255, 255, 0.03); }
+.feedback-card__toggle.expanded { background: rgba(255, 255, 255, 0.03); }
+.feedback-card__content { padding: 0 12px 10px 12px; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+
+.feedback-accepted {
+  background-color: rgba(81, 207, 102, 0.08);
+  border: 1px solid rgba(81, 207, 102, 0.2);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.feedback-denied {
+  background-color: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.candidate-action-btn {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.candidate-action-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+.candidate-action-btn.accept { color: rgba(255,255,255,0.6); background: transparent; }
+.candidate-action-btn.accept.active { background-color: #22c55e; color: white; }
+.candidate-action-btn.reject { color: rgba(255,255,255,0.6); background: transparent; }
+.candidate-action-btn.reject.active { background-color: #ef4444; color: white; }

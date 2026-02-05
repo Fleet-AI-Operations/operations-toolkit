@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const unratedRecords = await prisma.dataRecord.findMany({
       where: {
         projectId,
+        type: 'TASK',
         id: {
           notIn: ratedIds,
         },

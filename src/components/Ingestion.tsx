@@ -370,7 +370,18 @@ export default function IngestionPage() {
                     <select
                         value={selectedProjectId}
                         onChange={(e) => setSelectedProjectId(e.target.value)}
-                        style={{ background: 'none', color: 'white', border: 'none', outline: 'none', width: '100%', cursor: 'pointer', fontSize: '1rem' }}
+                        style={{ 
+                          background: 'rgba(0,0,0,0.8)',
+                          color: 'rgba(255,255,255,0.9)',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '6px',
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          fontSize: '1rem',
+                          outline: 'none',
+                          width: '100%',
+                          transition: 'all 0.2s ease',
+                        }}
                     >
                         {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         {projects.length === 0 && <option value="">No Projects Available</option>}

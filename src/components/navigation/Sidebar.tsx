@@ -16,6 +16,7 @@ import {
     Activity,
     ChevronLeft,
     ChevronRight,
+    MessageSquare,
     LucideIcon,
     Bot,
     Users,
@@ -70,6 +71,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                 { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3, role: ['ADMIN', 'MANAGER'] },
                 { label: 'Time Analytics', href: '/time-analytics', icon: TrendingUp, role: ['ADMIN', 'MANAGER'] },
                 { label: 'Project Management', href: '/manage', icon: Settings, role: ['ADMIN', 'MANAGER'] },
+                { label: 'Candidate Review', href: '/candidate-review', icon: MessageSquare, role: ['ADMIN', 'MANAGER'] },
             ]
         },
         {
