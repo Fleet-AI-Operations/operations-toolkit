@@ -148,6 +148,8 @@ const CandidateListItem = memo(
   ),
 );
 
+CandidateListItem.displayName = 'CandidateListItem';
+
 // Memoized feedback item component
 const FeedbackItemCard = memo(
   ({
@@ -236,6 +238,8 @@ const FeedbackItemCard = memo(
     </div>
   ),
 );
+
+FeedbackItemCard.displayName = 'FeedbackItemCard';
 
 // Helper function to render feedback content
 const renderFeedback = (fb: FeedbackDetails, taskKey: string | null) => {
@@ -596,7 +600,6 @@ export default function CandidateReview() {
         width: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: "",
       }}>
       <div style={{ marginBottom: "12px" }}>
         <h1
