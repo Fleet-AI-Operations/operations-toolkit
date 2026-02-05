@@ -26,7 +26,6 @@ interface FeedbackDetails {
 interface FeedbackItem {
   id: string;
   content: string;
-  source: string;
   createdAt: string;
   taskKey: string | null;
   feedback: FeedbackDetails[];
