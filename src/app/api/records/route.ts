@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 // Valid enum values matching Prisma schema
 const VALID_TYPES = ['TASK', 'FEEDBACK'] as const;
-const VALID_CATEGORIES = ['TOP_10', 'BOTTOM_10'] as const;
+const VALID_CATEGORIES = ['TOP_10', 'BOTTOM_10', 'STANDARD'] as const;
 const VALID_SORT_FIELDS = ['createdAt', 'alignmentScore', 'environment'] as const;
 const VALID_SORT_ORDERS = ['asc', 'desc'] as const;
 
@@ -101,7 +101,12 @@ export async function GET(req: NextRequest) {
             whereConditions.push(Prisma.sql`type = ${type}::"RecordType"`);
         }
         if (category) {
-            whereConditions.push(Prisma.sql`category = ${category}::"RecordCategory"`);
+            // For STANDARD category, include both STANDARD enum value AND NULL (for backward compatibility with existing records)
+            if (category === 'STANDARD') {
+                whereConditions.push(Prisma.sql`(category = 'STANDARD'::"RecordCategory" OR category IS NULL)`);
+            } else {
+                whereConditions.push(Prisma.sql`category = ${category}::"RecordCategory"`);
+            }
         }
 
         const orderDirection = sortOrder === 'asc' ? 'ASC' : 'DESC';
@@ -151,7 +156,13 @@ export async function GET(req: NextRequest) {
             where: {
                 projectId: projectId || undefined,
                 type: (type as 'TASK' | 'FEEDBACK') || undefined,
-                category: (category as 'TOP_10' | 'BOTTOM_10') || undefined,
+                // For STANDARD category, count both STANDARD and NULL records
+                ...(category === 'STANDARD'
+                    ? { OR: [{ category: 'STANDARD' }, { category: null }] }
+                    : category
+                        ? { category: category as 'TOP_10' | 'BOTTOM_10' | 'STANDARD' }
+                        : {}
+                ),
             }
         });
 

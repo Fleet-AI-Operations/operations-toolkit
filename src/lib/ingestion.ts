@@ -405,7 +405,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
         const currentDetails = (currentJob?.skippedDetails as Record<string, number>) || {};
         const chunkSkipDetails: Record<string, number> = {};
 
-        const validChunk: { record: any, content: string, category: RecordCategory | null }[] = [];
+        const validChunk: { record: any, content: string, category: RecordCategory }[] = [];
 
         // 1. FILTER: Content, Ratings, Keywords
         for (let j = 0; j < chunk.length; j++) {
@@ -430,7 +430,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
             }
 
             // --- Rating Detection ---
-            let category: RecordCategory | null = null;
+            let category: RecordCategory = RecordCategory.STANDARD; // Default to STANDARD if no rating found
             const ratingValue = record.prompt_quality_rating || record.feedback_quality_rating || record.quality_rating ||
                 record.rating || record.category || record.label || record.score || record.avg_score;
             const ratingRaw = (ratingValue || '').toString().toLowerCase().trim();

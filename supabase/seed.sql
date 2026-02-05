@@ -18,12 +18,12 @@ BEGIN
         AND column_name = 'embedding'
         AND data_type = 'ARRAY'
     ) THEN
-        -- Convert to vector type with 1024 dimensions (adjust for your model)
+        -- Convert to vector type with 1536 dimensions (for OpenRouter models)
         ALTER TABLE public.data_records
-        ALTER COLUMN embedding TYPE vector(1024)
+        ALTER COLUMN embedding TYPE vector(1536)
         USING embedding::text::vector;
 
-        RAISE NOTICE 'Fixed embedding column type to vector(1024)';
+        RAISE NOTICE 'Fixed embedding column type to vector(1536)';
     END IF;
 END $$;
 
