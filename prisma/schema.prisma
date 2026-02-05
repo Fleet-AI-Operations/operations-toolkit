@@ -13,7 +13,7 @@ datasource db {
 ///  * PROJECT: The primary organizational unit.
 ///  * All data records, ingestion jobs, and guidelines are scoped to a project.
 model Project {
-  id                   String         @id @default(cuid())
+  id                   String         @id @default(dbgenerated("gen_random_uuid()::text"))
   name                 String         @unique
   ownerId              String?        @map("ownerId") @db.Uuid
   lastTaskAnalysis     String?        @map("lastTaskAnalysis")

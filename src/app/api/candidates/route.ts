@@ -5,6 +5,20 @@ import { createClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+interface TaskMetadata {
+    task_key?: string;
+    [key: string]: unknown;
+}
+
+interface FeedbackMetadata {
+    task_key?: string;
+    is_positive?: boolean | string;
+    feedback_id?: string;
+    prompt_quality_rating?: number;
+    rejection_reason?: string;
+    [key: string]: unknown;
+}
+
 interface FeedbackStats {
     userId: string;
     userEmail: string;
@@ -46,7 +60,7 @@ async function getUserStats(projectId: string) {
 
     // Count tasks per user
     taskRecords.forEach((task) => {
-        const metadata = task.metadata as any;
+        const metadata = task.metadata as TaskMetadata;
         const taskKey = metadata?.task_key;
         const userId = task.createdById;
 
@@ -71,7 +85,7 @@ async function getUserStats(projectId: string) {
 
     // Count feedback per user
     feedbackRecords.forEach((fb) => {
-        const metadata = fb.metadata as any;
+        const metadata = fb.metadata as FeedbackMetadata;
         const taskKey = metadata?.task_key;
         const isPositive = metadata?.is_positive;
 
@@ -115,41 +129,47 @@ async function getUserFeedbackDetails(projectId: string, userId: string) {
         },
     });
 
-    // Fetch all feedback for the project
-    const allFeedback = await prisma.dataRecord.findMany({
-        where: {
-            projectId,
-            type: 'FEEDBACK',
-        },
-        select: {
-            id: true,
-            metadata: true,
-            content: true,
-            createdAt: true,
-        },
-    });
-
     // Build map of task keys for this user
     const taskKeySet = new Set<string>();
     taskRecords.forEach((task) => {
-        const metadata = task.metadata as any;
+        const metadata = task.metadata as TaskMetadata;
         const taskKey = metadata?.task_key;
         if (taskKey) taskKeySet.add(taskKey);
     });
 
+    // If no tasks, return empty array early
+    if (taskKeySet.size === 0) {
+        return [];
+    }
+
+    // Fetch only feedback related to this user's tasks using raw query for JSON filtering
+    const taskKeysArray = Array.from(taskKeySet);
+    const allFeedback = await prisma.$queryRaw<Array<{
+        id: string;
+        metadata: unknown;
+        content: string;
+        createdAt: Date;
+    }>>`
+        SELECT id, metadata, content, "createdAt"
+        FROM data_records
+        WHERE "projectId" = ${projectId}
+          AND type = 'FEEDBACK'
+          AND metadata->>'task_key' = ANY(${taskKeysArray})
+    `;
+
     // Return tasks with feedback filtered by task_key
     return taskRecords.map((task) => {
-        const taskMetadata = task.metadata as any;
+        const taskMetadata = task.metadata as TaskMetadata;
         const taskKey = taskMetadata?.task_key;
 
         // Get feedback for this task
         const taskFeedback = allFeedback
             .filter((fb) => {
-                const fbMetadata = fb.metadata as any;
+                const fbMetadata = fb.metadata as FeedbackMetadata;
                 return fbMetadata?.task_key === taskKey;
             })
             .map((fb) => {
-                const fbMetadata = fb.metadata as any;
+                const fbMetadata = fb.metadata as FeedbackMetadata;
                 return {
                     id: fb.id,
                     feedbackContent: fb.content,

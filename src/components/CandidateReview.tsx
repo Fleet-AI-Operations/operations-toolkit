@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, memo, useCallback } from "react";
+import { useState, useEffect, useMemo, memo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Inbox, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 import { useProjects } from "@/hooks/useProjects";
@@ -26,6 +26,7 @@ interface FeedbackDetails {
 interface FeedbackItem {
   id: string;
   content: string;
+  source: string;
   createdAt: string;
   taskKey: string | null;
   feedback: FeedbackDetails[];
@@ -357,6 +358,7 @@ export default function CandidateReview() {
   const [candidateStatuses, setCandidateStatuses] = useState<
     Map<string, string>
   >(new Map());
+  const pendingStatusUpdateRef = useRef<AbortController | null>(null);
 
   // Fetch user stats when project changes
   useEffect(() => {
@@ -432,7 +434,7 @@ export default function CandidateReview() {
     };
 
     fetchFeedbackDetails();
-  }, [selectedProjectId, selectedUserId]);
+  }, [selectedProjectId, selectedUserId, candidateStatuses]);
 
   const selectedUserStats = useMemo(
     () => userStats.find((u) => u.userId === selectedUserId),
@@ -511,6 +513,15 @@ export default function CandidateReview() {
   const handleCandidateStatusChange = async (newStatus: string) => {
     if (!selectedUserId || !selectedProjectId) return;
 
+    // Cancel any pending request
+    if (pendingStatusUpdateRef.current) {
+      pendingStatusUpdateRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController();
+    pendingStatusUpdateRef.current = abortController;
+
     // Store previous status values for rollback
     const previousStatus = candidateStatus;
     const previousStatuses = new Map(candidateStatuses);
@@ -534,18 +545,27 @@ export default function CandidateReview() {
           status: newStatus,
           email: selectedUserStats?.userEmail || "",
         }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
         throw new Error("Failed to update candidate status");
       }
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       setError(err instanceof Error ? err.message : "Failed to update status");
       // Revert to previous state on error
       setCandidateStatus(previousStatus);
       setCandidateStatuses(previousStatuses);
     } finally {
-      setUpdatingStatus(false);
+      // Only clear updating status if this is still the current request
+      if (pendingStatusUpdateRef.current === abortController) {
+        setUpdatingStatus(false);
+        pendingStatusUpdateRef.current = null;
+      }
     }
   };
 
