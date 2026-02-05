@@ -174,6 +174,23 @@ function DataSection({ title, records, type, category, projectId }: {
                             <ExpandableText content={record.content} />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {(record.metadata?.environment_name || record.metadata?.env_key) && (
+                                        <div style={{
+                                            fontSize: '0.7rem',
+                                            background: 'rgba(147, 51, 234, 0.1)',
+                                            color: '#a78bfa',
+                                            fontWeight: 700,
+                                            padding: '4px 10px',
+                                            borderRadius: '20px',
+                                            border: '1px solid rgba(147, 51, 234, 0.2)',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}>
+                                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#a78bfa' }}></div>
+                                            {record.metadata.environment_name || record.metadata.env_key}
+                                        </div>
+                                    )}
                                     {type === 'TASK' && (
                                         <div style={{
                                             fontSize: '0.7rem',
