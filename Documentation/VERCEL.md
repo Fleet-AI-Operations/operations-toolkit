@@ -8,7 +8,7 @@ When deploying to Vercel, **use OpenRouter** (cloud-based AI) instead of local L
 
 1. **LM Studio (localhost)**: Cannot be accessed from Vercel's servers
 2. **OpenRouter (Recommended)**: Cloud-based, works perfectly with Vercel
-3. **Serverless Limits**: Long-running ingestion jobs may exceed Vercel's timeout (10-60s on Hobby/Pro). For massive datasets, consider Vercel Pro or Enterprise.
+3. **Queue-Based Processing**: Ingestion jobs are processed by Vercel Cron workers (every minute) within the 60s Pro plan limit. Large datasets are automatically split across multiple worker invocations.
 
 ---
 

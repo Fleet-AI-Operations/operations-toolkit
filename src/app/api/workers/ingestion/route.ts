@@ -5,7 +5,7 @@
  * It handles Phase 1 of ingestion: loading data into the database.
  *
  * Cron Schedule: Every minute (defined in vercel.json)
- * Max Duration: 300 seconds (5 minutes - requires Enterprise plan)
+ * Max Duration: 60 seconds (Vercel Pro plan)
  * Concurrency: Multiple instances can run in parallel
  *
  * Processing Flow:
@@ -22,7 +22,7 @@ import { prisma } from '@/lib/prisma';
 import { parseCSV } from '@/lib/ingestion';
 
 // Vercel function configuration
-export const maxDuration = 300; // 5 minutes (Enterprise)
+export const maxDuration = 60; // 60 seconds (Pro plan)
 export const dynamic = 'force-dynamic';
 
 /**
@@ -102,12 +102,12 @@ export async function GET(request: Request) {
   console.log('[Ingestion Worker] Starting job processing...');
 
   let processedCount = 0;
-  const maxJobsPerRun = 5; // Process up to 5 jobs per cron invocation
+  const maxJobsPerRun = 3; // Process up to 3 jobs per cron invocation (Pro plan: 60s limit)
   const startTime = Date.now();
 
   try {
-    // Process jobs until max reached or timeout approaching
-    while (processedCount < maxJobsPerRun && (Date.now() - startTime) < 240000) {
+    // Process jobs until max reached or timeout approaching (50s buffer for 60s limit)
+    while (processedCount < maxJobsPerRun && (Date.now() - startTime) < 50000) {
       // Claim next job
       const job = await DatabaseQueue.claimJob(['INGEST_DATA']);
 

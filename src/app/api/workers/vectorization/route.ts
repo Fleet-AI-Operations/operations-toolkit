@@ -5,7 +5,7 @@
  * It handles Phase 2 of ingestion: generating AI embeddings for records.
  *
  * Cron Schedule: Every minute (defined in vercel.json)
- * Max Duration: 300 seconds (5 minutes - requires Enterprise plan)
+ * Max Duration: 60 seconds (Vercel Pro plan)
  * Concurrency: Single instance per project (enforced by queue logic)
  *
  * Processing Flow:
@@ -23,7 +23,7 @@ import { prisma } from '@/lib/prisma';
 import { getEmbeddings } from '@/lib/ai';
 
 // Vercel function configuration
-export const maxDuration = 300; // 5 minutes (Enterprise)
+export const maxDuration = 60; // 60 seconds (Pro plan)
 export const dynamic = 'force-dynamic';
 
 /**
@@ -94,12 +94,12 @@ export async function GET(request: Request) {
   console.log('[Vectorization Worker] Starting job processing...');
 
   let processedCount = 0;
-  const maxJobsPerRun = 3; // Process fewer jobs due to AI latency
+  const maxJobsPerRun = 2; // Process fewer jobs due to AI latency (Pro plan: 60s limit)
   const startTime = Date.now();
 
   try {
-    // Process jobs until max reached or timeout approaching
-    while (processedCount < maxJobsPerRun && (Date.now() - startTime) < 240000) {
+    // Process jobs until max reached or timeout approaching (50s buffer for 60s limit)
+    while (processedCount < maxJobsPerRun && (Date.now() - startTime) < 50000) {
       // Claim next job
       const job = await DatabaseQueue.claimJob(['VECTORIZE']);
 
@@ -120,12 +120,13 @@ export async function GET(request: Request) {
         });
 
         // Fetch records without embeddings using raw SQL
+        // Reduced batch size to fit within 60s Pro plan limit
         const records: { id: string; content: string }[] = await prisma.$queryRaw`
           SELECT id, content
           FROM public.data_records
           WHERE "projectId" = ${projectId}
           AND embedding IS NULL
-          LIMIT 1000
+          LIMIT 250
         `;
 
         console.log(`[Vectorization Worker] Found ${records.length} records to vectorize`);
