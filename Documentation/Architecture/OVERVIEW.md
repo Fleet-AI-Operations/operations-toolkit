@@ -8,20 +8,26 @@ The Operations Tools is built with a **Local-First AI** philosophy. Heavy liftin
 graph TD
     User((User)) --> WebUI[Next.js Frontend]
     WebUI --> API[Next.js API Routes]
-    
+
     subgraph "Backend Services"
         API --> DB[(PostgreSQL / Prisma)]
-        API --> IngestLib[Ingestion Service]
+        API --> Queue[Database Queue]
         API --> AIService[AI Service Layer]
     end
-    
-    subgraph "Local AI Host (LM Studio)"
-        AIService --> LLM[LLM / Llama 3.1]
-        AIService --> Vector[Embedding / Qwen]
+
+    subgraph "Queue Workers (Vercel Cron)"
+        Queue --> Worker1[Ingestion Worker]
+        Queue --> Worker2[Vectorization Worker]
+        Queue --> Worker3[Cleanup Worker]
+        Worker1 --> DB
+        Worker2 --> DB
+        Worker2 --> AIService
     end
-    
-    IngestLib --> Queue[Parallel Phase Queue]
-    Queue --> DB
+
+    subgraph "AI Provider (LM Studio or OpenRouter)"
+        AIService --> LLM[LLM / Llama 3.1]
+        AIService --> Vector[Embedding / text-embedding-3-small]
+    end
 ```
 
 ## Tech Stack
@@ -44,7 +50,8 @@ graph TD
 ## Core Data Models
 
 1. **Project**: Organizational container holding Guidelines (PDF grounding data).
-2. **DataRecord**: Individual tasks/feedback containing raw content and generated embeddings.
-3. **IngestJob**: Lifecycle tracker for background processes. Supports parallel loading and sequential vectorization across jobs.
-4. **BonusWindow**: Time-bounded performance tracking for collective team bonus qualification.
-5. **AuditLog**: Security and compliance trail tracking all administrative and user actions across the system.
+2. **DataRecord**: Individual tasks/feedback containing raw content and vector embeddings (pgvector).
+3. **JobQueue**: Database-backed job queue for reliable ingestion and vectorization (new).
+4. **IngestJob**: Legacy lifecycle tracker (deprecated in favor of JobQueue).
+5. **BonusWindow**: Time-bounded performance tracking for collective team bonus qualification.
+6. **AuditLog**: Security and compliance trail tracking all administrative and user actions across the system.

@@ -37,6 +37,30 @@ export interface IngestOptions {
 }
 
 /**
+ * Parse CSV content into records
+ * Used by the new queue-based ingestion system
+ */
+export function parseCSV(csvContent: string, options?: { type?: RecordType; filterKeywords?: string[] }) {
+    const records = parse(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true
+    });
+
+    // Transform records to include type and metadata, filtering out empty content
+    return records
+        .map((record: any) => ({
+            content: record.content || record.feedback_content || record.feedback || record.prompt || record.text || '',
+            type: options?.type || 'TASK',
+            metadata: record,
+            createdByEmail: record.createdByEmail || record.created_by_email || record.email || null,
+            createdAt: record.createdAt || record.created_at || null,
+        }))
+        .filter((record) => record.content && record.content.length >= 10); // Filter out empty or very short content
+}
+
+/**
  * ENTRY POINT: startBackgroundIngest
  *
  * NOTE: Stores payload and options in database instead of memory for serverless compatibility.

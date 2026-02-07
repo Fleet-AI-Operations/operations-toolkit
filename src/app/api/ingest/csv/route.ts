@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest, processQueuedJobs } from '@/lib/ingestion';
+import { parseCSV } from '@/lib/ingestion';
 import { RecordType } from '@prisma/client';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { DatabaseQueue } from '@/lib/queue/db-queue';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -88,24 +89,47 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'CSV file is empty' }, { status: 400 });
         }
 
-        // Start background ingestion
-        const jobId = await startBackgroundIngest('CSV', csvContent, {
-            projectId,
-            source: `csv:${file.name}`,
+        // Parse CSV to get records
+        const records = await parseCSV(csvContent, {
             type: type as RecordType,
             filterKeywords,
-            generateEmbeddings,
         });
 
-        // IMPORTANT: In serverless, we must await initial processing or it gets killed
-        // Status endpoint will continue processing on each poll
-        await processQueuedJobs(projectId).catch(err =>
-            console.error('Initial Queue Processor Error:', err)
-        );
+        if (records.length === 0) {
+            return NextResponse.json({ error: 'No valid records found in CSV' }, { status: 400 });
+        }
+
+        // Create IngestJob record
+        const ingestJob = await prisma.ingestJob.create({
+            data: {
+                projectId,
+                type: type as RecordType,
+                status: 'PENDING',
+                totalRecords: records.length,
+                options: {
+                    source: `csv:${file.name}`,
+                    filterKeywords,
+                    generateEmbeddings,
+                },
+            },
+        });
+
+        // Enqueue job for processing by worker
+        await DatabaseQueue.enqueue({
+            jobType: 'INGEST_DATA',
+            payload: {
+                ingestJobId: ingestJob.id,
+                projectId,
+                records,
+                generateEmbeddings,
+                source: `csv:${file.name}`,
+            },
+            priority: 1, // Higher priority for user-initiated uploads
+        });
 
         return NextResponse.json({
-            message: 'Ingestion started in the background.',
-            jobId
+            message: 'Ingestion queued for processing. Workers will process this shortly.',
+            jobId: ingestJob.id,
         });
     } catch (error: unknown) {
         console.error('CSV Ingestion Error:', error);

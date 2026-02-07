@@ -4,5 +4,19 @@
   "installCommand": "npm install",
   "github": {
     "silent": true
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/workers/ingestion",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/workers/vectorization",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/workers/cleanup",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }

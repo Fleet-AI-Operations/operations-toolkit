@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createClient } from '@/lib/supabase/server';
 import { logAudit, checkAuditResult } from '@/lib/audit';
+import { createId } from '@paralleldrive/cuid2';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
         // Get user's role
         const profile = await prisma.profile.findUnique({
             where: { id: user.id },
-            select: { role: true }
+            select: { role: true, email: true, id: true }
         });
 
         const role = profile?.role || 'USER';
@@ -47,8 +48,13 @@ export async function POST(req: NextRequest) {
         }
 
         const { name } = await req.json();
+
+        // Generate ID explicitly (database doesn't have DEFAULT clause)
+        const projectId = createId();
+
         const project = await prisma.project.create({
             data: {
+                id: projectId,
                 name,
                 ownerId: user.id
             },

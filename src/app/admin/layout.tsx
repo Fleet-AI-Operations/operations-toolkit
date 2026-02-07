@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ShieldAlert, Database, Sparkles, Activity, Shield } from 'lucide-react';
+import { Users, ShieldAlert, Database, Sparkles, Activity, Shield, ListChecks } from 'lucide-react';
 import { useRoleCheck } from '@/hooks/useRoleCheck';
 
 const adminNavItems = [
@@ -17,6 +17,12 @@ const adminNavItems = [
         label: 'System Management',
         icon: Database,
         description: 'Bulk operations and maintenance'
+    },
+    {
+        href: '/admin/queue-monitor',
+        label: 'Queue Monitor',
+        icon: ListChecks,
+        description: 'Monitor ingestion job queue'
     },
     {
         href: '/admin/users',

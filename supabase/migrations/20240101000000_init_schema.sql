@@ -1,6 +1,9 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Enable pgvector extension for vector similarity search
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- Create enum types
 CREATE TYPE "UserRole" AS ENUM ('PENDING', 'USER', 'MANAGER', 'ADMIN');
 CREATE TYPE "RecordType" AS ENUM ('TASK', 'FEEDBACK');
@@ -50,7 +53,7 @@ CREATE TABLE IF NOT EXISTS public.data_records (
   source TEXT NOT NULL,
   content TEXT NOT NULL,
   metadata JSONB,
-  embedding DOUBLE PRECISION[],
+  embedding vector(1536), -- pgvector type for semantic search (1536 dimensions for text-embedding-3-small)
   "hasBeenReviewed" BOOLEAN DEFAULT FALSE NOT NULL,
   "isCategoryCorrect" BOOLEAN,
   "reviewedBy" TEXT,
@@ -87,6 +90,8 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 CREATE INDEX IF NOT EXISTS idx_data_records_project ON public.data_records("projectId");
 CREATE INDEX IF NOT EXISTS idx_data_records_type ON public.data_records(type);
 CREATE INDEX IF NOT EXISTS idx_data_records_category ON public.data_records(category);
+-- Vector similarity search index (ivfflat with cosine distance for semantic search)
+CREATE INDEX IF NOT EXISTS idx_data_records_embedding ON public.data_records USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_ingest_jobs_project ON public.ingest_jobs("projectId");
 CREATE INDEX IF NOT EXISTS idx_analytics_jobs_project ON public.analytics_jobs("projectId");
 

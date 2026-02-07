@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest, processQueuedJobs } from '@/lib/ingestion';
+import { parseCSV } from '@/lib/ingestion';
 import { RecordType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { DatabaseQueue } from '@/lib/queue/db-queue';
 import { writeFile, readFile, mkdir, rm, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -240,27 +241,51 @@ export async function POST(req: NextRequest) {
 
                 const csvContent = chunks.join('');
 
-                // Start background ingestion
-                const jobId = await startBackgroundIngest('CSV', csvContent, {
-                    projectId: meta.projectId,
-                    source: `csv:${meta.fileName}`,
+                // Parse CSV to get records
+                const records = await parseCSV(csvContent, {
                     type: meta.type as RecordType,
                     filterKeywords: undefined,
-                    generateEmbeddings: meta.generateEmbeddings,
                 });
 
-                // IMPORTANT: In serverless, we must await initial processing or it gets killed
-                // Status endpoint will continue processing on each poll
-                await processQueuedJobs(meta.projectId).catch(err =>
-                    console.error('Initial Queue Processor Error:', err)
-                );
+                if (records.length === 0) {
+                    await rm(sessionDir, { recursive: true, force: true }).catch(() => {});
+                    return NextResponse.json({ error: 'No valid records found in CSV' }, { status: 400 });
+                }
+
+                // Create IngestJob record
+                const ingestJob = await prisma.ingestJob.create({
+                    data: {
+                        projectId: meta.projectId,
+                        type: meta.type as RecordType,
+                        status: 'PENDING',
+                        totalRecords: records.length,
+                        options: {
+                            source: `csv:${meta.fileName}`,
+                            filterKeywords: undefined,
+                            generateEmbeddings: meta.generateEmbeddings,
+                        },
+                    },
+                });
+
+                // Enqueue job for processing by worker
+                await DatabaseQueue.enqueue({
+                    jobType: 'INGEST_DATA',
+                    payload: {
+                        ingestJobId: ingestJob.id,
+                        projectId: meta.projectId,
+                        records,
+                        generateEmbeddings: meta.generateEmbeddings,
+                        source: `csv:${meta.fileName}`,
+                    },
+                    priority: 1, // Higher priority for user-initiated uploads
+                });
 
                 // Cleanup session directory (non-blocking)
                 rm(sessionDir, { recursive: true, force: true }).catch(() => {});
 
                 return NextResponse.json({
-                    message: 'Ingestion started in the background.',
-                    jobId
+                    message: 'Ingestion queued for processing. Workers will process this shortly.',
+                    jobId: ingestJob.id,
                 });
             }
 

@@ -162,6 +162,32 @@ model IngestJob {
   @@schema("public")
 }
 
+/// *
+///  * JOB QUEUE: Database-backed job queue for ingestion and vectorization.
+///  * Replaces in-memory queue with persistent, scalable solution using PostgreSQL.
+model JobQueue {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobType      String    @map("job_type") // 'INGEST_DATA', 'VECTORIZE'
+  status       String    @default("PENDING") // 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'
+  priority     Int       @default(0) // Higher = more urgent
+  payload      Json      // Job data (ingestJobId, projectId, records, etc)
+  result       Json?     // Job result or error details
+  progress     Json?     // Progress tracking: { current: number, total: number, message?: string }
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(3) @map("max_attempts")
+  scheduledFor DateTime  @default(now()) @map("scheduled_for") @db.Timestamptz(6)
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([priority, scheduledFor], map: "idx_job_queue_pending")
+  @@index([status, createdAt], map: "idx_job_queue_status")
+  @@index([completedAt], map: "idx_job_queue_completed")
+  @@map("job_queue")
+  @@schema("public")
+}
+
 model SystemSetting {
   key         String   @id
   value       String
