@@ -1,0 +1,31 @@
+{
+  "name": "@repo/types",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./database": {
+      "import": "./dist/database.js",
+      "types": "./dist/database.d.ts"
+    },
+    "./api": {
+      "import": "./dist/api.js",
+      "types": "./dist/api.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@prisma/client": "^7.3.0",
+    "typescript": "^5"
+  }
+}

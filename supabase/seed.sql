@@ -64,26 +64,35 @@ BEGIN
     WHERE "ownerId" IN (
         SELECT id FROM public.profiles
         WHERE email IN (
+            'user@test.com',
+            'qa@test.com',
+            'core@test.com',
+            'fleet@test.com',
             'admin@test.com',
-            'manager@test.com',
-            'user@test.com'
+            'manager@test.com'  -- Keep for backward compatibility
         )
     );
 
     -- Delete profiles
     DELETE FROM public.profiles
     WHERE email IN (
+        'user@test.com',
+        'qa@test.com',
+        'core@test.com',
+        'fleet@test.com',
         'admin@test.com',
-        'manager@test.com',
-        'user@test.com'
+        'manager@test.com'  -- Keep for backward compatibility
     );
 
     -- Delete auth users
     DELETE FROM auth.users
     WHERE email IN (
+        'user@test.com',
+        'qa@test.com',
+        'core@test.com',
+        'fleet@test.com',
         'admin@test.com',
-        'manager@test.com',
-        'user@test.com'
+        'manager@test.com'  -- Keep for backward compatibility
     );
 END $$;
 
@@ -108,11 +117,11 @@ INSERT INTO auth.users (
     role,
     aud
 ) VALUES
-    -- Admin user
+    -- USER role
     (
         '00000000-0000-0000-0000-000000000001',
         '00000000-0000-0000-0000-000000000000',
-        'admin@test.com',
+        'user@test.com',
         crypt('test', gen_salt('bf')),
         NOW(),
         '',
@@ -127,11 +136,11 @@ INSERT INTO auth.users (
         'authenticated',
         'authenticated'
     ),
-    -- Manager user
+    -- QA role
     (
         '00000000-0000-0000-0000-000000000002',
         '00000000-0000-0000-0000-000000000000',
-        'manager@test.com',
+        'qa@test.com',
         crypt('test', gen_salt('bf')),
         NOW(),
         '',
@@ -146,11 +155,49 @@ INSERT INTO auth.users (
         'authenticated',
         'authenticated'
     ),
-    -- Regular user
+    -- CORE role
     (
         '00000000-0000-0000-0000-000000000003',
         '00000000-0000-0000-0000-000000000000',
-        'user@test.com',
+        'core@test.com',
+        crypt('test', gen_salt('bf')),
+        NOW(),
+        '',
+        '',
+        '',
+        '',
+        NOW(),
+        NOW(),
+        '{"provider":"email","providers":["email"]}',
+        '{}',
+        false,
+        'authenticated',
+        'authenticated'
+    ),
+    -- FLEET role
+    (
+        '00000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000000',
+        'fleet@test.com',
+        crypt('test', gen_salt('bf')),
+        NOW(),
+        '',
+        '',
+        '',
+        '',
+        NOW(),
+        NOW(),
+        '{"provider":"email","providers":["email"]}',
+        '{}',
+        false,
+        'authenticated',
+        'authenticated'
+    ),
+    -- ADMIN role
+    (
+        '00000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000000',
+        'admin@test.com',
         crypt('test', gen_salt('bf')),
         NOW(),
         '',
@@ -177,9 +224,11 @@ BEGIN
     -- Update or insert profiles with correct roles
     INSERT INTO public.profiles (id, email, role, "createdAt", "updatedAt")
     VALUES
-        ('00000000-0000-0000-0000-000000000001', 'admin@test.com', 'ADMIN', NOW(), NOW()),
-        ('00000000-0000-0000-0000-000000000002', 'manager@test.com', 'MANAGER', NOW(), NOW()),
-        ('00000000-0000-0000-0000-000000000003', 'user@test.com', 'USER', NOW(), NOW())
+        ('00000000-0000-0000-0000-000000000001', 'user@test.com', 'USER', NOW(), NOW()),
+        ('00000000-0000-0000-0000-000000000002', 'qa@test.com', 'QA', NOW(), NOW()),
+        ('00000000-0000-0000-0000-000000000003', 'core@test.com', 'CORE', NOW(), NOW()),
+        ('00000000-0000-0000-0000-000000000004', 'fleet@test.com', 'FLEET', NOW(), NOW()),
+        ('00000000-0000-0000-0000-000000000005', 'admin@test.com', 'ADMIN', NOW(), NOW())
     ON CONFLICT (id)
     DO UPDATE SET
         role = EXCLUDED.role,
@@ -192,7 +241,7 @@ DECLARE
     user_count INTEGER;
 BEGIN
     SELECT COUNT(*) INTO user_count FROM public.profiles
-    WHERE email IN ('admin@test.com', 'manager@test.com', 'user@test.com');
+    WHERE email IN ('user@test.com', 'qa@test.com', 'core@test.com', 'fleet@test.com', 'admin@test.com');
 
-    RAISE NOTICE 'Seed complete: % test users created', user_count;
+    RAISE NOTICE 'Seed complete: % test users created (USER, QA, CORE, FLEET, ADMIN)', user_count;
 END $$;

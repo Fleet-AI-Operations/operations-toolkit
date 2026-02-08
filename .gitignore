@@ -58,3 +58,11 @@ next-env.d.ts
 
 .claude
 CLAUDE.md
+.turbo/
+
+# Turborepo
+.turbo/
+
+# App-specific build artifacts and dependencies
+apps/*/.next/
+apps/*/node_modules/

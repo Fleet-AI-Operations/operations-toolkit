@@ -1,0 +1,2 @@
+// Common utility types
+export {};
