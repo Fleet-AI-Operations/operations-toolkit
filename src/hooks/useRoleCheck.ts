@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { hasPermission } from '@/lib/permissions';
+import type { UserRole } from '@prisma/client';
 
 interface UseRoleCheckOptions {
     allowedRoles?: string[];
@@ -39,7 +41,7 @@ export function useRoleCheck(options: UseRoleCheckOptions = {}) {
                 .eq('id', user.id)
                 .single();
 
-            const role = profile?.role || user.user_metadata?.role || 'USER';
+            const role = profile?.role || 'USER';
             setUserRole(role);
 
             // If no specific roles required, just check authentication
@@ -48,8 +50,12 @@ export function useRoleCheck(options: UseRoleCheckOptions = {}) {
                 return;
             }
 
-            // Check if user has one of the allowed roles
-            if (allowedRoles.includes(role)) {
+            // Check if user has permission for any of the allowed roles using hierarchical check
+            const hasRequiredPermission = allowedRoles.some(allowedRole =>
+                hasPermission(role as UserRole, allowedRole as UserRole)
+            );
+
+            if (hasRequiredPermission) {
                 setIsAuthorized(true);
             } else {
                 router.push(redirectOnUnauthorized);

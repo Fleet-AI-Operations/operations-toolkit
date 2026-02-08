@@ -7,7 +7,7 @@ import { Shield, User as UserIcon, Loader2, UserPlus, KeyRound } from 'lucide-re
 interface Profile {
     id: string;
     email: string;
-    role: 'PENDING' | 'USER' | 'MANAGER' | 'ADMIN';
+    role: 'PENDING' | 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
     mustResetPassword?: boolean;
     createdAt: string;
 }
@@ -172,7 +172,7 @@ export default function UserManagementPage() {
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '16px', color: 'var(--accent)' }}>
                     Role Permissions
                 </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                     <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00ff88' }}>
                             USER
@@ -182,11 +182,35 @@ export default function UserManagementPage() {
                         </div>
                     </div>
                     <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00d2ff' }}>
-                            MANAGER
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#ffab00' }}>
+                            QA
                         </div>
                         <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
-                            Enhanced permissions for managing projects and data. Can perform administrative tasks but cannot manage users.
+                            Quality Assurance tools including records, analysis, and similarity search.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00d2ff' }}>
+                            CORE
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Core team features including Likert scoring and review decisions.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#9c27b0' }}>
+                            FLEET
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Fleet management including ingestion, analytics, projects, and bonus windows.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#2196f3' }}>
+                            MANAGER (Legacy)
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Same permissions as FLEET. Kept for backward compatibility.
                         </div>
                     </div>
                     <div>
@@ -237,7 +261,10 @@ export default function UserManagementPage() {
                                     style={{ padding: '10px' }}
                                 >
                                     <option value="USER">User</option>
-                                    <option value="MANAGER">Manager</option>
+                                    <option value="QA">QA</option>
+                                    <option value="CORE">Core</option>
+                                    <option value="FLEET">Fleet</option>
+                                    <option value="MANAGER">Manager (Legacy)</option>
                                     <option value="ADMIN">Admin</option>
                                 </select>
                             </div>
@@ -469,7 +496,10 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
                     }}
                 >
                     <option value="USER">User</option>
-                    <option value="MANAGER">Manager</option>
+                    <option value="QA">QA</option>
+                    <option value="CORE">Core</option>
+                    <option value="FLEET">Fleet</option>
+                    <option value="MANAGER">Manager (Legacy)</option>
                     <option value="ADMIN">Admin</option>
                 </select>
             </div>
