@@ -112,7 +112,7 @@ test.describe('Audit Logs - Log Creation', () => {
     // Find a user and change role
     const firstUser = page.locator('table tbody tr').first();
     await firstUser.locator('button:has-text("Edit")').click();
-    await page.selectOption('select[name="role"]', 'MANAGER');
+    await page.selectOption('select[name="role"]', 'FLEET');
     await page.click('button:has-text("Save")');
 
     // Wait for success
@@ -129,7 +129,7 @@ test.describe('Audit Logs - Log Creation', () => {
     });
 
     expect(auditLog).toBeTruthy();
-    expect(auditLog?.metadata).toHaveProperty('newRole', 'MANAGER');
+    expect(auditLog?.metadata).toHaveProperty('newRole', 'FLEET');
   });
 
   test('should create audit log when project is created', async ({ page }) => {

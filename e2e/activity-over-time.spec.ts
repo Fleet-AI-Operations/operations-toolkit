@@ -202,18 +202,18 @@ test.describe('Activity Over Time - Interactive Features', () => {
     });
 });
 
-test.describe('Operations Tools - Navigation from Activity Over Time', () => {
-    test('should show Operations Tools in main sidebar', async ({ page }) => {
+test.describe('Fleet Tools - Navigation from Activity Over Time', () => {
+    test('should show Fleet Tools in main sidebar', async ({ page }) => {
         await page.goto('/activity-over-time');
 
-        // Check for main sidebar navigation items under Operations Tools
-        await expect(page.locator('text=Operations Tools')).toBeVisible();
+        // Check for main sidebar navigation items under Fleet Tools
+        await expect(page.locator('text=Fleet Tools')).toBeVisible();
         await expect(page.locator('a:has-text("Bonus Windows")')).toBeVisible();
         await expect(page.locator('a:has-text("Activity Over Time")')).toBeVisible();
         await expect(page.locator('a:has-text("Time Analytics")')).toBeVisible();
     });
 
-    test('should navigate between Operations Tools pages', async ({ page }) => {
+    test('should navigate between Fleet Tools pages', async ({ page }) => {
         await page.goto('/activity-over-time');
 
         // Navigate to Bonus Windows
