@@ -1,0 +1,38 @@
+{
+  "name": "@repo/core",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./ai": "./dist/ai/index.js",
+    "./ingestion": "./dist/ingestion/index.js",
+    "./evaluation": "./dist/evaluation/index.js",
+    "./analytics": "./dist/analytics/index.js",
+    "./audit": "./dist/audit/index.js",
+    "./similarity": "./dist/similarity/index.js",
+    "./utils": "./dist/utils/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
+    "@repo/types": "workspace:*",
+    "@repo/database": "workspace:*",
+    "@repo/auth": "workspace:*",
+    "csv-parse": "^6.1.0",
+    "pdf-parse": "^1.1.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.4",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  }
+}
