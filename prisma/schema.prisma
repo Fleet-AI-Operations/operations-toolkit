@@ -699,7 +699,10 @@ model CandidateStatus {
 enum UserRole {
   PENDING
   USER
-  MANAGER
+  QA
+  CORE
+  FLEET
+  MANAGER  // Deprecated: Use FLEET instead
   ADMIN
 
   @@schema("public")
