@@ -10,6 +10,8 @@ import Sidebar from "@/components/navigation/Sidebar";
 import BugReportButton from "@/components/BugReportButton";
 import { createClient } from '@/lib/supabase/server'
 import { ProjectProvider } from "@/context/ProjectContext";
+import { prisma } from '@/lib/prisma';
+import type { UserRole } from '@prisma/client';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,15 +30,14 @@ export default async function RootLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  let role = 'USER'
+  let role: UserRole = 'USER'
   if (user) {
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    
-    role = profileData?.role || user.user_metadata?.role || 'USER'
+    const profile = await prisma.profile.findUnique({
+      where: { id: user.id },
+      select: { role: true }
+    })
+
+    role = profile?.role || 'USER'
   }
 
   return (

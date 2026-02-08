@@ -102,6 +102,7 @@ export function getAccessibleRoles(userRole: UserRole): UserRole[] {
 
   return (Object.entries(ROLE_HIERARCHY) as [UserRole, number][])
     .filter(([role, level]) => level > 0 && level <= userLevel && role !== 'MANAGER')
+    .sort(([, levelA], [, levelB]) => levelA - levelB)
     .map(([role]) => role);
 }
 

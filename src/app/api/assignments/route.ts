@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth, requireRole } from '@/lib/auth-helpers';
 import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -10,12 +10,9 @@ export const dynamic = 'force-dynamic';
  * List assignment batches (filterable by project, status, group)
  */
 export async function GET(request: NextRequest) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Any authenticated user can view assignments
+    const authResult = await requireAuth();
+    if ('error' in authResult) return authResult.error;
 
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -73,23 +70,10 @@ export async function GET(request: NextRequest) {
  * Create a new assignment batch
  */
 export async function POST(request: NextRequest) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const role = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const body = await request.json();
@@ -207,7 +191,7 @@ export async function POST(request: NextRequest) {
             entityId: batch.id,
             projectId,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: {
                 name: batch.name,
                 recordCount: recordIds.length,

@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/auth-helpers';
 import { logAudit, checkAuditResult } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // Only ADMIN can clear data
+    const authResult = await requireRole('ADMIN');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if ((profile as any)?.role !== 'ADMIN') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    try {
+    try{
         const { target, projectId } = await req.json();
 
         if (target === 'ALL_DATA') {
@@ -44,7 +32,7 @@ export async function POST(req: NextRequest) {
                 action: 'DATA_CLEARED',
                 entityType: 'DATA_RECORD',
                 userId: user.id,
-                userEmail: user.email!,
+                userEmail: user.email,
                 metadata: { target: 'ALL_DATA', includedLikertScores: true }
             });
 
@@ -69,7 +57,7 @@ export async function POST(req: NextRequest) {
                 action: 'ANALYTICS_CLEARED',
                 entityType: 'DATA_RECORD',
                 userId: user.id,
-                userEmail: user.email!,
+                userEmail: user.email,
                 metadata: { target: 'ANALYTICS_ONLY' }
             });
 
@@ -99,7 +87,7 @@ export async function POST(req: NextRequest) {
                     entityType: 'LIKERT_SCORE',
                     projectId,
                     userId: user.id,
-                    userEmail: user.email!,
+                    userEmail: user.email,
                     metadata: { projectId, count: result.count }
                 });
 
@@ -119,7 +107,7 @@ export async function POST(req: NextRequest) {
                     action: 'LIKERT_SCORES_CLEARED',
                     entityType: 'LIKERT_SCORE',
                     userId: user.id,
-                    userEmail: user.email!,
+                    userEmail: user.email,
                     metadata: { target: 'ALL', count: result.count }
                 });
 
@@ -171,7 +159,7 @@ export async function POST(req: NextRequest) {
                 entityType: 'DATA_RECORD',
                 projectId,
                 userId: user.id,
-                userEmail: user.email!,
+                userEmail: user.email,
                 metadata: {
                     projectId,
                     recordsDeleted: recordResult.count,

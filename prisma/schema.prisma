@@ -696,13 +696,18 @@ model CandidateStatus {
   @@schema("public")
 }
 
+/// User role enum with hierarchical permissions.
+/// IMPORTANT: Do not rely on enum ordering for hierarchy logic.
+/// Use ROLE_HIERARCHY from src/lib/permissions.ts for all permission checks.
+/// Hierarchy: PENDING (0) < USER (1) < QA (2) < CORE (3) < FLEET (4) < ADMIN (5)
+/// Note: MANAGER is deprecated and maps to FLEET level (4).
 enum UserRole {
   PENDING
   USER
   QA
   CORE
   FLEET
-  MANAGER  // Deprecated: Use FLEET instead
+  MANAGER  // Deprecated: Use FLEET instead (same level as FLEET)
   ADMIN
 
   @@schema("public")

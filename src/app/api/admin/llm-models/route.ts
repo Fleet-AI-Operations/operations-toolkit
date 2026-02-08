@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/auth-helpers';
 import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -10,23 +10,9 @@ export const dynamic = 'force-dynamic';
  * List all LLM model configurations
  */
 export async function GET() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const role = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
 
     try {
         const models = await prisma.lLMModelConfig.findMany({
@@ -55,23 +41,10 @@ export async function GET() {
  * Create a new LLM model configuration
  */
 export async function POST(request: Request) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const postRole = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(postRole)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const body = await request.json();
@@ -111,7 +84,7 @@ export async function POST(request: Request) {
             entityType: 'LLM_MODEL_CONFIG',
             entityId: model.id,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { name: model.name, modelId: model.modelId }
         });
 

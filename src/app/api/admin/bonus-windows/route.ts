@@ -1,32 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { logAudit } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
-
-interface ProfileWithRole {
-    role: string | null;
-}
+import { requireRole } from '@/lib/auth-helpers'
 
 // GET all bonus windows with calculated progress
 export async function GET() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user is MANAGER or ADMIN
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
 
     try {
         const windows = await prisma.bonusWindow.findMany({
@@ -93,22 +74,9 @@ export async function GET() {
 
 // POST - Create new bonus window
 export async function POST(req: Request) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const { name, startTime, endTime, targetTaskCount, targetFeedbackCount, targetTaskCountTier2, targetFeedbackCountTier2 } = await req.json()
@@ -147,7 +115,7 @@ export async function POST(req: Request) {
             entityType: 'BONUS_WINDOW',
             entityId: newWindow.id,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: {
                 name: newWindow.name,
                 startTime: newWindow.startTime,
@@ -164,22 +132,9 @@ export async function POST(req: Request) {
 
 // PATCH - Update existing bonus window
 export async function PATCH(req: Request) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const { id, name, startTime, endTime, targetTaskCount, targetFeedbackCount, targetTaskCountTier2, targetFeedbackCountTier2 } = await req.json()
@@ -212,7 +167,7 @@ export async function PATCH(req: Request) {
             entityType: 'BONUS_WINDOW',
             entityId: id,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { updatedFields: Object.keys(updateData) }
         })
 
@@ -225,22 +180,10 @@ export async function PATCH(req: Request) {
 
 // DELETE - Remove bonus window
 export async function DELETE(req: Request) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const { searchParams } = new URL(req.url)
@@ -260,7 +203,7 @@ export async function DELETE(req: Request) {
             entityType: 'BONUS_WINDOW',
             entityId: id,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: {}
         })
 
