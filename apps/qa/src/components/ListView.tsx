@@ -46,7 +46,7 @@ function ListContent() {
     });
 
     const [selectedType, setSelectedType] = useState<string>(searchParams.get('type') || 'TASK');
-    const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'TOP_10');
+    const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'ALL');
 
     const [records, setRecords] = useState<Record[]>([]);
     const [total, setTotal] = useState(0);
@@ -56,7 +56,7 @@ function ListContent() {
     const pageSize = 10;
 
     useEffect(() => {
-        if (selectedProjectId && selectedType && selectedCategory) {
+        if (selectedProjectId && selectedType) {
             fetchRecords();
         } else {
             // No project selected: clear records and stop loading
@@ -70,7 +70,9 @@ function ListContent() {
         setLoading(true);
         try {
             const skip = (page - 1) * pageSize;
-            const res = await fetch(`/api/records?projectId=${selectedProjectId}&type=${selectedType}&category=${selectedCategory}&skip=${skip}&take=${pageSize}`);
+            // Only include category parameter if not 'ALL'
+            const categoryParam = selectedCategory !== 'ALL' ? `&category=${selectedCategory}` : '';
+            const res = await fetch(`/api/records?projectId=${selectedProjectId}&type=${selectedType}${categoryParam}&skip=${skip}&take=${pageSize}`);
             const data = await res.json();
             setRecords(data.records || []);
             setTotal(data.total || 0);
@@ -94,7 +96,7 @@ function ListContent() {
         <div style={{ width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
             <div style={{ marginBottom: '24px' }}>
                 <h1 className="premium-gradient" style={{ fontSize: '1.5rem', marginBottom: '8px', textTransform: 'capitalize' }}>
-                    {selectedCategory?.replace('_', ' ').toLowerCase()} {selectedType === 'TASK' ? 'Tasks' : 'Feedback'}
+                    {selectedCategory === 'ALL' ? 'All' : selectedCategory?.replace('_', ' ').toLowerCase()} {selectedType === 'TASK' ? 'Tasks' : 'Feedback'}
                 </h1>
                 <p style={{ color: 'rgba(255,255,255,0.6)' }}>Exploration View • {total} Total Records</p>
             </div>
@@ -157,6 +159,20 @@ function ListContent() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</label>
                     <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '4px', border: '1px solid var(--border)' }}>
+                        <button
+                            onClick={() => setSelectedCategory('ALL')}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: selectedCategory === 'ALL' ? 'var(--accent)' : 'transparent',
+                                color: selectedCategory === 'ALL' ? '#000' : 'rgba(255,255,255,0.6)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >All</button>
                         <button
                             onClick={() => setSelectedCategory('TOP_10')}
                             style={{
@@ -337,7 +353,7 @@ function ListContent() {
                                 <div style={{ fontSize: '0.9rem', opacity: 0.4 }}>
                                     {!selectedProjectId
                                         ? 'Select a project from the dropdown above to view records'
-                                        : `No ${selectedCategory?.replace('_', ' ').toLowerCase()} ${selectedType.toLowerCase()}s found for this project`
+                                        : `No ${selectedCategory === 'ALL' ? '' : selectedCategory?.replace('_', ' ').toLowerCase() + ' '}${selectedType.toLowerCase()}s found for this project`
                                     }
                                 </div>
                             </div>
@@ -348,28 +364,63 @@ function ListContent() {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', padding: '12px' }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '16px',
+                        background: 'rgba(255,255,255,0.02)',
+                        borderTop: '1px solid var(--border)'
+                    }}>
                         <button
                             className="btn-outline"
                             disabled={page === 1}
                             onClick={() => setPage(p => p - 1)}
-                            style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                            style={{
+                                padding: '10px 20px',
+                                fontSize: '0.95rem',
+                                fontWeight: 600,
+                                background: page === 1 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                color: '#ffffff',
+                                opacity: page === 1 ? 0.4 : 1
+                            }}
                         >Previous</button>
 
-                        <div style={{ display: 'flex', gap: '8px', margin: '0 16px' }}>
+                        <div style={{ display: 'flex', gap: '8px', margin: '0 8px' }}>
                             {Array.from({ length: totalPages }, (_, i) => i + 1)
                                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                                 .map((pageNum, i, arr) => {
                                     const elements = [];
                                     if (i > 0 && arr[i - 1] !== pageNum - 1) {
-                                        elements.push(<span key={`sep-${pageNum}`} style={{ opacity: 0.3 }}>...</span>);
+                                        elements.push(
+                                            <span
+                                                key={`sep-${pageNum}`}
+                                                style={{
+                                                    opacity: 0.6,
+                                                    fontSize: '1rem',
+                                                    padding: '0 4px',
+                                                    color: 'rgba(255,255,255,0.5)'
+                                                }}
+                                            >...</span>
+                                        );
                                     }
                                     elements.push(
                                         <button
                                             key={pageNum}
                                             onClick={() => setPage(pageNum)}
                                             className={page === pageNum ? 'btn-primary' : 'btn-outline'}
-                                            style={{ width: '40px', height: '40px', padding: 0 }}
+                                            style={{
+                                                width: '44px',
+                                                height: '44px',
+                                                padding: 0,
+                                                fontSize: '0.95rem',
+                                                fontWeight: 600,
+                                                background: page === pageNum ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
+                                                border: page === pageNum ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                                                color: page === pageNum ? '#000' : 'rgba(255,255,255,0.9)'
+                                            }}
                                         >
                                             {pageNum}
                                         </button>
@@ -382,7 +433,15 @@ function ListContent() {
                             className="btn-outline"
                             disabled={totalPages === 0 || page >= totalPages}
                             onClick={() => setPage(p => p + 1)}
-                            style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                            style={{
+                                padding: '10px 20px',
+                                fontSize: '0.95rem',
+                                fontWeight: 600,
+                                background: (totalPages === 0 || page >= totalPages) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                color: '#ffffff',
+                                opacity: (totalPages === 0 || page >= totalPages) ? 0.4 : 1
+                            }}
                         >Next</button>
                     </div>
                 </div>

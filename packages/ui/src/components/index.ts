@@ -1,3 +1,3 @@
 // Re-export all shared components
-// Components will be migrated from the main app as needed
-export {};
+export { AppSwitcher } from './AppSwitcher';
+export type { AppSwitcherProps } from './AppSwitcher';

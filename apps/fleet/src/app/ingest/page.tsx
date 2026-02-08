@@ -13,7 +13,7 @@ export default async function IngestPage() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-        redirect('/auth/login');
+        redirect('/login');
     }
 
     // Check user role
@@ -22,8 +22,8 @@ export default async function IngestPage() {
         select: { role: true }
     });
 
-    // Only allow ADMIN and MANAGER roles
-    if (!profile || (profile.role !== 'ADMIN' && profile.role !== 'MANAGER')) {
+    // Only allow ADMIN and FLEET roles
+    if (!profile || (profile.role !== 'ADMIN' && profile.role !== 'FLEET')) {
         redirect('/');
     }
 

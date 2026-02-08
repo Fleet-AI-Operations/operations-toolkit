@@ -4,29 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
-    Database,
-    FileText,
-    Sparkles,
-    FileCheck,
-    Star,
-    ShieldAlert,
-    Settings,
     Link as LinkIcon,
-    ShieldCheck,
-    Activity,
     ChevronLeft,
     ChevronRight,
-    MessageSquare,
     LucideIcon,
-    Bot,
-    Users,
-    ClipboardList,
-    Target,
-    BarChart3,
-    TrendingUp,
-    Bug
+    Clock
 } from 'lucide-react';
 import { useState } from 'react';
+import { AppSwitcher } from '@repo/ui/components';
 
 interface NavItem {
     label: string;
@@ -54,44 +39,9 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             ]
         },
         {
-            title: 'Analysis',
+            title: 'Time Tracking',
             items: [
-                { label: 'Records', href: '/records', icon: FileText },
-                { label: 'Similarity', href: '/similarity', icon: Sparkles },
-                { label: 'Top/Bottom 10', href: '/topbottom10', icon: FileCheck },
-                { label: 'Likert Scoring', href: '/likert-scoring', icon: Star },
-                { label: 'Top Prompts', href: '/top-prompts', icon: ShieldAlert },
-            ]
-        },
-        {
-            title: 'Operations Tools',
-            items: [
-                { label: 'Ingest', href: '/ingest', icon: Database, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Bonus Windows', href: '/bonus-windows', icon: Target, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Time Analytics', href: '/time-analytics', icon: TrendingUp, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Project Management', href: '/manage', icon: Settings, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Candidate Review', href: '/candidate-review', icon: MessageSquare, role: ['ADMIN', 'MANAGER'] },
-            ]
-        },
-        {
-            title: 'Rater Management',
-            role: ['ADMIN', 'MANAGER'],
-            items: [
-                { label: 'My Assignments', href: '/my-assignments', icon: ClipboardList },
-                { label: 'Rater Groups', href: '/admin/rater-groups', icon: Users, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Assignments', href: '/admin/assignments', icon: ClipboardList, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Analytics', href: '/analytics', icon: BarChart3 },
-            ]
-        },
-        {
-            title: 'System',
-            role: ['ADMIN'],
-            items: [
-                { label: 'Bug Reports', href: '/bug-reports', icon: Bug },
-                { label: 'Admin', href: '/admin', icon: ShieldCheck },
-                { label: 'LLM Models', href: '/admin/llm-models', icon: Bot },
-                { label: 'Status', href: '/status', icon: Activity },
+                { label: 'Time Tracking', href: '/time-tracking', icon: Clock },
             ]
         }
     ];
@@ -140,6 +90,8 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                     {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                 </button>
             </div>
+
+            {!collapsed && <AppSwitcher currentApp="user" userRole={userRole} />}
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
                 {sections.map((section, idx) => {

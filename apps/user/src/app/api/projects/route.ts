@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
 
         const role = profile?.role || 'USER';
 
-        // Only MANAGER and ADMIN can create projects
-        if (role !== 'MANAGER' && role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Forbidden: Only managers and admins can create projects' }, { status: 403 });
+        // Only FLEET and ADMIN can create projects
+        if (role !== 'FLEET' && role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Forbidden: Only fleet users and admins can create projects' }, { status: 403 });
         }
 
         const { name } = await req.json();
@@ -92,9 +92,9 @@ export async function DELETE(req: NextRequest) {
 
         const role = profile?.role || 'USER';
 
-        // Only MANAGER and ADMIN can delete projects
-        if (role !== 'MANAGER' && role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Forbidden: Only managers and admins can delete projects' }, { status: 403 });
+        // Only FLEET and ADMIN can delete projects
+        if (role !== 'FLEET' && role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Forbidden: Only fleet users and admins can delete projects' }, { status: 403 });
         }
 
         const project = await prisma.project.findUnique({
@@ -152,9 +152,9 @@ export async function PATCH(req: NextRequest) {
 
         const role = profile?.role || 'USER';
 
-        // Only MANAGER and ADMIN can update projects
-        if (role !== 'MANAGER' && role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Forbidden: Only managers and admins can update projects' }, { status: 403 });
+        // Only FLEET and ADMIN can update projects
+        if (role !== 'FLEET' && role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Forbidden: Only fleet users and admins can update projects' }, { status: 403 });
         }
 
         const existingProject = await prisma.project.findUnique({

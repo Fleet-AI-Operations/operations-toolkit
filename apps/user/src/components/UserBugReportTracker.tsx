@@ -54,8 +54,13 @@ export default function UserBugReportTracker() {
           return
         }
 
-        // Sort by status priority (PENDING > IN_PROGRESS > RESOLVED), then by date (newest first)
-        const sortedReports = data.bugReports.sort((a: BugReport, b: BugReport) => {
+        // Filter out resolved bugs - only show PENDING and IN_PROGRESS
+        const activeReports = data.bugReports.filter((r: BugReport) =>
+          r.status === 'PENDING' || r.status === 'IN_PROGRESS'
+        )
+
+        // Sort by status priority (PENDING > IN_PROGRESS), then by date (newest first)
+        const sortedReports = activeReports.sort((a: BugReport, b: BugReport) => {
           const statusDiff = getStatusPriority(a.status) - getStatusPriority(b.status)
           if (statusDiff !== 0) return statusDiff
 
@@ -63,12 +68,7 @@ export default function UserBugReportTracker() {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         })
 
-        // If more than 5 reports, only show PENDING and IN_PROGRESS
-        const filteredReports = sortedReports.length > 5
-          ? sortedReports.filter((r: BugReport) => r.status === 'PENDING' || r.status === 'IN_PROGRESS')
-          : sortedReports
-
-        setReports(filteredReports)
+        setReports(sortedReports)
       } else {
         console.error('Failed to fetch bug reports:', response.status)
         setReports([])

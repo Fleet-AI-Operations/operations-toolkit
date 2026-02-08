@@ -30,6 +30,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             setError(null);
             const res = await fetch('/api/projects');
 
+
+            // Silently handle 401 (user not authenticated)
+            if (res.status === 401) {
+                setProjects([]);
+                setLoading(false);
+                return;
+            }
+
             if (!res.ok) {
                 throw new Error(`Failed to fetch projects: ${res.status}`);
             }
