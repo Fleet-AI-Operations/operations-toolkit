@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -233,23 +233,10 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
         }
 
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Verify user role (MANAGER or ADMIN only)
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-
-        if (!profile || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        // Require FLEET role or higher (FLEET, ADMIN)
+        const authResult = await requireRole('FLEET');
+        if ('error' in authResult) return authResult.error;
+        const { user } = authResult;
 
         const project = await prisma.project.findUnique({
             where: { id: projectId },
@@ -319,23 +306,10 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     try {
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Verify user role (MANAGER or ADMIN only)
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-
-        if (!profile || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        // Require FLEET role or higher (FLEET, ADMIN)
+        const authResult = await requireRole('FLEET');
+        if ('error' in authResult) return authResult.error;
+        const { user } = authResult;
 
         const body = await req.json();
         const { userId, projectId, status, email } = body;

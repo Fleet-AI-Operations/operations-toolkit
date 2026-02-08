@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function createTestUser(
   email: string = 'test@example.com',
-  role: 'ADMIN' | 'MANAGER' | 'USER' | 'PENDING' = 'USER'
+  role: 'ADMIN' | 'FLEET' | 'MANAGER' | 'CORE' | 'QA' | 'USER' | 'PENDING' = 'USER'
 ) {
   // First, check if user exists in auth.users
   const authUser = await prisma.$queryRaw`

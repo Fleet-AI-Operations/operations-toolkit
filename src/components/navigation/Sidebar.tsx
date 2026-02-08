@@ -24,69 +24,82 @@ import {
     Target,
     BarChart3,
     TrendingUp,
-    Bug
+    Bug,
+    Clock,
+    FolderKanban
 } from 'lucide-react';
 import { useState } from 'react';
+import type { UserRole } from '@prisma/client';
+import { hasPermission } from '@/lib/permissions';
 
 interface NavItem {
     label: string;
     href: string;
     icon: LucideIcon;
-    role?: string[];
+    requiredRole?: UserRole; // Minimum role required (uses hierarchical permissions)
+    badge?: string; // Optional badge (e.g., "New", "Beta")
 }
 
 interface NavSection {
     title: string;
     items: NavItem[];
-    role?: string[];
+    requiredRole?: UserRole; // Minimum role required for entire section
 }
 
-export default function Sidebar({ userRole }: { userRole?: string }) {
+export default function Sidebar({ userRole }: { userRole?: UserRole }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
 
     const sections: NavSection[] = [
         {
-            title: 'Overview',
+            title: 'User Tools',
+            requiredRole: 'USER', // Minimum USER role (excludes PENDING)
             items: [
-                { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+                { label: 'Time Recording', href: '/time-recording', icon: Clock, badge: 'New' },
                 { label: 'Links', href: '/links', icon: LinkIcon },
             ]
         },
         {
-            title: 'Analysis',
+            title: 'QA Tools',
+            requiredRole: 'QA',
             items: [
+                { label: 'Dashboard', href: '/', icon: LayoutDashboard },
                 { label: 'Records', href: '/records', icon: FileText },
                 { label: 'Similarity', href: '/similarity', icon: Sparkles },
                 { label: 'Top/Bottom 10', href: '/topbottom10', icon: FileCheck },
-                { label: 'Likert Scoring', href: '/likert-scoring', icon: Star },
                 { label: 'Top Prompts', href: '/top-prompts', icon: ShieldAlert },
-            ]
-        },
-        {
-            title: 'Operations Tools',
-            items: [
-                { label: 'Ingest', href: '/ingest', icon: Database, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Bonus Windows', href: '/bonus-windows', icon: Target, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Time Analytics', href: '/time-analytics', icon: TrendingUp, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Project Management', href: '/manage', icon: Settings, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Candidate Review', href: '/candidate-review', icon: MessageSquare, role: ['ADMIN', 'MANAGER'] },
-            ]
-        },
-        {
-            title: 'Rater Management',
-            role: ['ADMIN', 'MANAGER'],
-            items: [
                 { label: 'My Assignments', href: '/my-assignments', icon: ClipboardList },
-                { label: 'Rater Groups', href: '/admin/rater-groups', icon: Users, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Assignments', href: '/admin/assignments', icon: ClipboardList, role: ['ADMIN', 'MANAGER'] },
-                { label: 'Analytics', href: '/analytics', icon: BarChart3 },
             ]
         },
         {
-            title: 'System',
-            role: ['ADMIN'],
+            title: 'Core Tools',
+            requiredRole: 'CORE',
+            items: [
+                { label: 'Likert Scoring', href: '/likert-scoring', icon: Star },
+                { label: 'Review Decisions', href: '/topbottom10/review', icon: FileCheck, badge: 'New' },
+            ]
+        },
+        {
+            title: 'Fleet Tools',
+            requiredRole: 'FLEET',
+            items: [
+                // Data section
+                { label: 'Ingest', href: '/ingest', icon: Database },
+                // Performance section
+                { label: 'Bonus Windows', href: '/bonus-windows', icon: Target },
+                { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3 },
+                { label: 'Time Analytics', href: '/time-analytics', icon: TrendingUp },
+                { label: 'Analytics', href: '/analytics', icon: BarChart3 },
+                // Management section
+                { label: 'Project Management', href: '/manage', icon: FolderKanban },
+                { label: 'Candidate Review', href: '/candidate-review', icon: MessageSquare },
+                { label: 'Rater Groups', href: '/admin/rater-groups', icon: Users },
+                { label: 'Assignments', href: '/admin/assignments', icon: ClipboardList },
+            ]
+        },
+        {
+            title: 'Admin Tools',
+            requiredRole: 'ADMIN',
             items: [
                 { label: 'Bug Reports', href: '/bug-reports', icon: Bug },
                 { label: 'Admin', href: '/admin', icon: ShieldCheck },
@@ -97,15 +110,13 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
     ];
 
     const isSectionVisible = (section: NavSection) => {
-        if (!section.role || section.role.length === 0) return true;
-        if (!userRole) return false;
-        return section.role.includes(userRole);
+        if (!section.requiredRole) return true; // No role requirement
+        return hasPermission(userRole, section.requiredRole);
     };
 
     const isItemVisible = (item: NavItem) => {
-        if (!item.role || item.role.length === 0) return true;
-        if (!userRole) return false;
-        return item.role.includes(userRole);
+        if (!item.requiredRole) return true; // No role requirement
+        return hasPermission(userRole, item.requiredRole);
     };
 
     return (
@@ -128,14 +139,15 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                         OPERATIONS
                     </span>
                 )}
-                <button 
+                <button
                     onClick={() => setCollapsed(!collapsed)}
-                    style={{ 
-                        color: 'rgba(255, 255, 255, 0.4)', 
+                    style={{
+                        color: 'rgba(255, 255, 255, 0.4)',
                         padding: '4px',
                         borderRadius: '6px',
                         background: 'rgba(255, 255, 255, 0.05)'
                     }}
+                    aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
                     {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                 </button>
@@ -153,14 +165,30 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                             {visibleItems.map((item, i) => {
                                 const active = pathname === item.href;
                                 return (
-                                    <Link 
-                                        key={i} 
-                                        href={item.href} 
+                                    <Link
+                                        key={i}
+                                        href={item.href}
                                         className={`sidebar-link ${active ? 'active' : ''}`}
                                         title={collapsed ? item.label : ''}
                                     >
                                         <item.icon size={20} />
-                                        {!collapsed && <span>{item.label}</span>}
+                                        {!collapsed && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                                                {item.label}
+                                                {item.badge && (
+                                                    <span style={{
+                                                        fontSize: '0.65rem',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px',
+                                                        background: 'rgba(0, 112, 243, 0.2)',
+                                                        color: 'var(--accent)',
+                                                        fontWeight: 600
+                                                    }}>
+                                                        {item.badge}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        )}
                                     </Link>
                                 );
                             })}

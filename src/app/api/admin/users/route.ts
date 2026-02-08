@@ -1,29 +1,13 @@
-
-import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { logAudit, checkAuditResult } from '@/lib/audit'
+import { requireRole } from '@/lib/auth-helpers'
 
 export async function GET() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if the requesting user is an ADMIN
-    const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    const role = (adminProfile as any)?.role;
-    // Allow ADMIN and MANAGER to view users list (needed for assignments)
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    // Allow FLEET and ADMIN to view users list (needed for assignments)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
 
     try {
         const users = await prisma.profile.findMany({
@@ -36,22 +20,10 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if ((adminProfile as any)?.role !== 'ADMIN') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    // Only ADMIN can change user roles
+    const authResult = await requireRole('ADMIN');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const { userId, role } = await req.json()
@@ -60,14 +32,10 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ error: 'Missing userId or role' }, { status: 400 })
         }
 
-        const { data: updatedProfile, error: updateError } = await supabase
-            .from('profiles')
-            .update({ role })
-            .eq('id', userId)
-            .select()
-            .single()
-
-        if (updateError) throw updateError
+        const updatedProfile = await prisma.profile.update({
+            where: { id: userId },
+            data: { role }
+        })
 
         // Log audit event (critical operation)
         const auditResult = await logAudit({
@@ -75,7 +43,7 @@ export async function PATCH(req: Request) {
             entityType: 'USER',
             entityId: userId,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { newRole: role }
         })
 
@@ -91,22 +59,10 @@ export async function PATCH(req: Request) {
 }
 
 export async function POST(req: Request) {
-    const supabase = await createClient()
-    const { data: { user: adminUser } } = await supabase.auth.getUser()
-
-    if (!adminUser) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', adminUser.id)
-        .single()
-
-    if ((adminProfile as any)?.role !== 'ADMIN') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    // Only ADMIN can create new users
+    const authResult = await requireRole('ADMIN');
+    if ('error' in authResult) return authResult.error;
+    const { user: adminUser } = authResult;
 
     try {
         const { email, password, role } = await req.json()
@@ -146,7 +102,7 @@ export async function POST(req: Request) {
             entityType: 'USER',
             entityId: authData.user.id,
             userId: adminUser.id,
-            userEmail: adminUser.email!,
+            userEmail: adminUser.email,
             metadata: { email, role }
         })
 

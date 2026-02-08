@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth, requireRole } from '@/lib/auth-helpers';
 import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -14,23 +14,11 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const role = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const model = await prisma.lLMModelConfig.findUnique({
@@ -77,23 +65,11 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const patchRole = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(patchRole)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const existing = await prisma.lLMModelConfig.findUnique({
@@ -156,7 +132,7 @@ export async function PATCH(
             entityType: 'LLM_MODEL_CONFIG',
             entityId: model.id,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { updatedFields: Object.keys(updateData) }
         });
 
@@ -176,23 +152,11 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const deleteRole = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(deleteRole)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const existing = await prisma.lLMModelConfig.findUnique({
@@ -231,7 +195,7 @@ export async function DELETE(
             entityType: 'LLM_MODEL_CONFIG',
             entityId: id,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { name: existing.name, modelId: existing.modelId }
         });
 

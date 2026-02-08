@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/auth-helpers';
 import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -15,22 +15,11 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (!profile || !['ADMIN', 'MANAGER'].includes((profile as any)?.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         // Verify group exists
@@ -93,7 +82,7 @@ export async function POST(
             entityId: id,
             projectId: group.projectId,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { addedUserIds: newUserIds, groupName: group.name }
         });
 

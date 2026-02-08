@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
+import { requireAuth, requireRole } from '@/lib/auth-helpers';
 import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -14,22 +14,11 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (!profile || !['ADMIN', 'MANAGER'].includes((profile as any)?.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const group = await prisma.raterGroup.findUnique({
@@ -84,22 +73,11 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (!profile || !['ADMIN', 'MANAGER'].includes((profile as any)?.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const existing = await prisma.raterGroup.findUnique({
@@ -152,7 +130,7 @@ export async function PATCH(
             entityId: group.id,
             projectId: group.projectId,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { updatedFields: Object.keys(updateData) }
         });
 
@@ -172,22 +150,11 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (!profile || !['ADMIN', 'MANAGER'].includes((profile as any)?.role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const existing = await prisma.raterGroup.findUnique({
@@ -227,7 +194,7 @@ export async function DELETE(
             entityId: id,
             projectId: existing.projectId,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email,
             metadata: { name: existing.name }
         });
 

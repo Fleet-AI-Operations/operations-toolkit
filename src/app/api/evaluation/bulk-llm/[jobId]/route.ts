@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/auth-helpers';
 import { getEvaluationJobStatus } from '@/lib/evaluation';
 
 export const dynamic = 'force-dynamic';
@@ -13,23 +13,10 @@ export async function GET(
     { params }: { params: Promise<{ jobId: string }> }
 ) {
     const { jobId } = await params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    const role = (profile as any)?.role;
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) return authResult.error;
 
     try {
         const job = await getEvaluationJobStatus(jobId);

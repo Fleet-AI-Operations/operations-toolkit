@@ -1,8 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { ERROR_IDS } from '@/constants/errorIds'
+import { requireRole } from '@/lib/auth-helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,52 +15,16 @@ interface DailyActivity {
 
 // GET activity data for a configurable date range (defaults to past 30 days)
 export async function GET(req: Request) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        console.warn('[Activity Over Time API] Unauthorized access attempt:', {
+    // Require FLEET role or higher (FLEET, ADMIN)
+    const authResult = await requireRole('FLEET');
+    if ('error' in authResult) {
+        console.warn('[Activity Over Time API] Unauthorized/Forbidden access attempt:', {
             errorId: ERROR_IDS.AUTH_UNAUTHORIZED,
             timestamp: new Date().toISOString()
         })
-        return NextResponse.json({
-            error: 'Unauthorized',
-            errorId: ERROR_IDS.AUTH_UNAUTHORIZED
-        }, { status: 401 })
+        return authResult.error;
     }
-
-    // Check if user is MANAGER or ADMIN
-    const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (profileError) {
-        console.error('[Activity Over Time API] Profile query error:', {
-            errorId: ERROR_IDS.DB_QUERY_FAILED,
-            userId: user.id,
-            error: profileError.message,
-            code: profileError.code,
-            details: profileError.details
-        })
-        return NextResponse.json({
-            error: 'Failed to verify permissions. Please try again.',
-            errorId: ERROR_IDS.DB_QUERY_FAILED
-        }, { status: 500 })
-    }
-
-    if (!profile || !profile.role || !['MANAGER', 'ADMIN'].includes(profile.role)) {
-        console.warn('[Activity Over Time API] Forbidden access attempt:', {
-            errorId: ERROR_IDS.AUTH_FORBIDDEN,
-            userId: user.id,
-            userRole: profile?.role || 'NONE'
-        })
-        return NextResponse.json({
-            error: 'Forbidden',
-            errorId: ERROR_IDS.AUTH_FORBIDDEN
-        }, { status: 403 })
-    }
+    const { user } = authResult;
 
     try {
         // Parse query parameters for custom date range
