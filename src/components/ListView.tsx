@@ -185,6 +185,20 @@ function ListContent() {
                                 transition: 'all 0.2s'
                             }}
                         >Bottom 10%</button>
+                        <button
+                            onClick={() => setSelectedCategory('STANDARD')}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: selectedCategory === 'STANDARD' ? 'var(--accent)' : 'transparent',
+                                color: selectedCategory === 'STANDARD' ? '#000' : 'rgba(255,255,255,0.6)',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Standard</button>
                     </div>
                 </div>
             </div>

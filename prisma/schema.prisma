@@ -80,7 +80,7 @@ model AnalyticsJob {
 ///  * DATA RECORD: The core data unit.
 ///  * Contains the raw text content, original JSON metadata, and vector embeddings.
 ///  *
-///  * IMPORTANT: The embedding column is vector(1024) in the database.
+///  * IMPORTANT: The embedding column is vector(1536) in the database.
 ///  * If you change embedding models, update the dimension in the migration:
 ///  * ALTER TABLE public.data_records ALTER COLUMN embedding TYPE vector(NEW_DIMENSION);
 model DataRecord {
@@ -91,7 +91,7 @@ model DataRecord {
   source            String
   content           String
   metadata          Json?
-  embedding         Unsupported("vector")? // Actual type: vector(1024) - adjust for your embedding model
+  embedding         Unsupported("vector")? // Actual type: vector(1536) - adjust for your embedding model
   hasBeenReviewed   Boolean                @default(false)
   isCategoryCorrect Boolean?
   reviewedBy        String?
@@ -715,6 +715,7 @@ enum RecordType {
 enum RecordCategory {
   TOP_10
   BOTTOM_10
+  STANDARD
 
   @@schema("public")
 }

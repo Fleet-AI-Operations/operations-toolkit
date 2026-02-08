@@ -54,6 +54,7 @@ export type RecordTypeValue = typeof RecordType[keyof typeof RecordType];
 export const RecordCategory = {
   TOP_10: 'TOP_10',
   BOTTOM_10: 'BOTTOM_10',
+  STANDARD: 'STANDARD',
 } as const;
 
 export type RecordCategoryType = typeof RecordCategory[keyof typeof RecordCategory];

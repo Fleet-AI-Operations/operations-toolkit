@@ -164,7 +164,7 @@ Query and filter data records with pagination.
 |-----------|------|---------|-------------|
 | `projectId` | string | Required | Filter by project ID |
 | `type` | enum | - | Filter by type: `TASK`, `FEEDBACK` |
-| `category` | enum | - | Filter by category: `TOP_10`, `BOTTOM_10`, `UNRATED` |
+| `category` | enum | - | Filter by category: `TOP_10`, `BOTTOM_10`, `STANDARD` |
 | `search` | string | - | Full-text search in content |
 | `hasAlignment` | boolean | - | Filter by alignment analysis status |
 | `environment` | string | - | Filter by metadata environment field |

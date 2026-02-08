@@ -197,11 +197,11 @@ Core data unit containing task/feedback content and vector embeddings.
 | `id` | CUID | PK | Record identifier |
 | `projectId` | CUID | FK → Project, NOT NULL | Parent project |
 | `type` | RecordType | NOT NULL | TASK or FEEDBACK |
-| `category` | RecordCategory | NULLABLE | TOP_10 or BOTTOM_10 |
+| `category` | RecordCategory | NULLABLE | TOP_10, BOTTOM_10, or STANDARD |
 | `source` | VARCHAR | NOT NULL | Origin (e.g., "csv:data.csv") |
 | `content` | TEXT | NOT NULL | Main text content |
 | `metadata` | JSONB | NULLABLE | Original CSV fields |
-| `embedding` | FLOAT[] | NOT NULL, DEFAULT [] | Vector for similarity |
+| `embedding` | VECTOR(1536) | NULLABLE | Vector embeddings for similarity search (1536 dimensions for OpenRouter) |
 | `alignmentAnalysis` | TEXT | NULLABLE | AI-generated analysis |
 | `hasBeenReviewed` | BOOLEAN | DEFAULT false | Human review status |
 | `isCategoryCorrect` | BOOLEAN | NULLABLE | Reviewer agreement |
@@ -225,9 +225,11 @@ Core data unit containing task/feedback content and vector embeddings.
 - Composite index on `(projectId, type, category)` for common queries
 
 **Notes**:
-- `embedding` is used for cosine similarity searches
+- `embedding` is a 1536-dimension vector used for cosine similarity searches
+- Uses pgvector extension for efficient similarity operations
+- NULL embeddings indicate vectorization pending or disabled
 - `metadata` stores all original CSV columns as JSON
-- Empty embeddings `[]` indicate vectorization pending
+- `category` defaults to STANDARD for records without explicit ratings
 
 ---
 
@@ -409,6 +411,7 @@ Quality classification.
 enum RecordCategory {
   TOP_10     // High quality, well-aligned
   BOTTOM_10  // Low quality, poorly-aligned
+  STANDARD   // Standard/unrated records
 }
 ```
 

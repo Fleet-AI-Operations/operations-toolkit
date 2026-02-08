@@ -46,11 +46,19 @@ export default function ManagementPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: newName }),
             });
+
+            if (!res.ok) {
+                const error = await res.json();
+                alert(`Failed to create project: ${error.error || 'Unknown error'}`);
+                return;
+            }
+
             await fetchProjects();
             await refreshGlobalProjects(); // Update the global project selector
             setNewName('');
             setShowNewProject(false);
         } catch (err) {
+            console.error('Create project error:', err);
             alert('Failed to create project');
         }
     };
