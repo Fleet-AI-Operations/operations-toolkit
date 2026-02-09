@@ -6,9 +6,15 @@ Complete guide to the Operations Tools documentation.
 
 New to the project? Start here:
 
-1. **[README](../README.md)** - Project overview and quick start
-2. **[Local Development Quick Start](../LOCALDEV_QUICKSTART.md)** - Get running in 5 minutes
-3. **[User Guide](./USER_GUIDE.md)** - How to use the application
+1. **[README](../README.md)** - Project overview and turborepo architecture
+2. **[App Navigation Guide](../APP_NAVIGATION_GUIDE.md)** - Feature mapping across 5 apps
+3. **[Role-Specific User Guides](./UserGuides/INDEX.md)** - Comprehensive guides by role ⭐
+   - [USER Guide](./UserGuides/USER_GUIDE.md) - Basic features ([PDF](./UserGuides/PDFs/USER_GUIDE.pdf))
+   - [QA Guide](./UserGuides/QA_GUIDE.md) - Quality assurance tools ([PDF](./UserGuides/PDFs/QA_GUIDE.pdf))
+   - [CORE Guide](./UserGuides/CORE_GUIDE.md) - Scoring and review ([PDF](./UserGuides/PDFs/CORE_GUIDE.pdf))
+   - [FLEET Guide](./UserGuides/FLEET_GUIDE.md) - Fleet management ([PDF](./UserGuides/PDFs/FLEET_GUIDE.pdf))
+   - [📄 All guides available as PDFs](./UserGuides/PDFs/) for offline access and distribution
+4. **[Local Development Guide](./LOCAL_DEVELOPMENT.md)** - Turborepo development workflow
 
 ## 📚 Documentation Structure
 

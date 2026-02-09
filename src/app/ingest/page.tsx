@@ -2,6 +2,7 @@ import Ingestion from '@/components/Ingestion';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
+import { hasPermission } from '@/lib/permissions';
 
 export const metadata = {
     title: 'Ingest | Task Data',
@@ -22,8 +23,8 @@ export default async function IngestPage() {
         select: { role: true }
     });
 
-    // Only allow ADMIN and MANAGER roles
-    if (!profile || (profile.role !== 'ADMIN' && profile.role !== 'MANAGER')) {
+    // Only allow FLEET role and above
+    if (!profile || !hasPermission(profile.role, 'FLEET')) {
         redirect('/');
     }
 

@@ -1,0 +1,1 @@
+{"version":3,"file":"AppSwitcher.d.ts","sourceRoot":"","sources":["../../src/components/AppSwitcher.tsx"],"names":[],"mappings":"AAIA,MAAM,WAAW,gBAAgB;IAC7B,UAAU,EAAE,MAAM,GAAG,IAAI,GAAG,MAAM,GAAG,OAAO,GAAG,OAAO,CAAC;IACvD,QAAQ,CAAC,EAAE,MAAM,CAAC;CACrB;AAgDD,wBAAgB,WAAW,CAAC,EAAE,UAAU,EAAE,QAAQ,EAAE,EAAE,gBAAgB,kDAqKrE"}

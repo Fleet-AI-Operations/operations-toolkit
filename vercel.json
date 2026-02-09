@@ -1,7 +1,8 @@
 {
-  "buildCommand": "npm run build",
-  "devCommand": "next dev",
-  "installCommand": "npm install",
+  "buildCommand": "pnpm turbo run build --filter=@repo/fleet-app",
+  "devCommand": "pnpm turbo run dev --filter=@repo/fleet-app",
+  "installCommand": "pnpm install",
+  "outputDirectory": "apps/fleet/.next",
   "github": {
     "silent": true
   }

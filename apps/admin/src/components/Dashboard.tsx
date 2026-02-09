@@ -1,0 +1,298 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Folder, Sparkles, FileCheck } from 'lucide-react';
+import Link from 'next/link';
+import { useProjects } from '@/hooks/useProjects';
+
+interface Project {
+    id: string;
+    name: string;
+}
+
+interface Record {
+    id: string;
+    source: string;
+    content: string;
+    type: 'TASK' | 'FEEDBACK';
+    category: 'TOP_10' | 'BOTTOM_10';
+    metadata: any;
+    alignmentAnalysis?: string | null;
+    createdAt: string;
+}
+
+const extractAlignmentScore = (analysis: string | null | undefined): string | null => {
+    if (!analysis) return null;
+    // Look for patterns like "Alignment Score (0-100): 85" or "Score (0-100)\n85"
+    const regex = /(?:Alignment Score \(0-100\)|Score)[:\s\n]*(\d+)/i;
+    const match = analysis.match(regex);
+    return match ? match[1] : null;
+};
+
+export default function Dashboard() {
+    const { projects, selectedProjectId, loading: projectsLoading } = useProjects();
+    const [records, setRecords] = useState<Record[]>([]);
+    const [promptsDropdownOpen, setPromptsDropdownOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const selectedProject = projects.find(p => p.id === selectedProjectId) || null;
+
+    useEffect(() => {
+        if (selectedProjectId) {
+            fetchRecords(selectedProjectId);
+        } else {
+            setRecords([]);
+        }
+    }, [selectedProjectId]);
+
+    const fetchRecords = async (projectId: string) => {
+        setLoading(true);
+        try {
+            // Fetch Top 10% and Bottom 10% specifically to avoid loading "Standard" records
+            const [topRes, bottomRes] = await Promise.all([
+                fetch(`/api/records?projectId=${projectId}&take=500&category=TOP_10`),
+                fetch(`/api/records?projectId=${projectId}&take=500&category=BOTTOM_10`)
+            ]);
+
+            const topData = await topRes.json();
+            const bottomData = await bottomRes.json();
+
+            setRecords([...(topData.records || []), ...(bottomData.records || [])]);
+        } catch (err) {
+            console.error(err);
+            setRecords([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const filteredRecords = (type: string, category: string) =>
+        records.filter(r => r.type === type && r.category === category);
+
+
+    return (
+        <div style={{ width: '100%' }}>
+            <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h1 className="premium-gradient" style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Dashboard</h1>
+                    <p style={{ color: 'rgba(255,255,255,0.6)' }}>Data Overview & Analysis</p>
+                </div>
+            </header>
+
+            <main style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+
+                {projectsLoading ? (
+                    <div className="glass-card" style={{ textAlign: 'center', padding: '100px', opacity: 0.5 }}>
+                        <h2>Loading projects...</h2>
+                    </div>
+                ) : !selectedProject ? (
+                    <div className="glass-card" style={{ textAlign: 'center', padding: '100px', opacity: 0.5 }}>
+                        <h2>No project selected</h2>
+                        <p>Create a project in <b>Project Management</b> to start.</p>
+                        <Link href="/manage" className="btn-primary" style={{ display: 'inline-flex', marginTop: '20px', padding: '10px 24px' }}>Go to Project Management</Link>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                        {/* Tasks Section */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '4px', height: '24px', background: 'var(--accent)' }}></div>
+                                <h2 style={{ fontSize: '1.5rem' }}>Tasks</h2>
+                            </div>
+                            <DataSection
+                                title="Top 10% Tasks"
+                                records={filteredRecords('TASK', 'TOP_10')}
+                                type="TASK"
+                                category="TOP_10"
+                                projectId={selectedProject.id}
+                            />
+                            <DataSection
+                                title="Bottom 10% Tasks"
+                                records={filteredRecords('TASK', 'BOTTOM_10')}
+                                type="TASK"
+                                category="BOTTOM_10"
+                                projectId={selectedProject.id}
+                            />
+                        </div>
+
+                        {/* Feedback Section */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '4px', height: '24px', background: '#00ff88' }}></div>
+                                <h2 style={{ fontSize: '1.5rem' }}>Feedback</h2>
+                            </div>
+                            <DataSection
+                                title="Top 10% Feedback"
+                                records={filteredRecords('FEEDBACK', 'TOP_10')}
+                                type="FEEDBACK"
+                                category="TOP_10"
+                                projectId={selectedProject.id}
+                            />
+                            <DataSection
+                                title="Bottom 10% Feedback"
+                                records={filteredRecords('FEEDBACK', 'BOTTOM_10')}
+                                type="FEEDBACK"
+                                category="BOTTOM_10"
+                                projectId={selectedProject.id}
+                            />
+                        </div>
+                    </div>
+                )}
+            </main>
+        </div>
+    );
+}
+
+function DataSection({ title, records, type, category, projectId }: {
+    title: string,
+    records: Record[],
+    type: string,
+    category: string,
+    projectId: string
+}) {
+    // Only show top 5 on dashboard
+    const displayRecords = records.slice(0, 5);
+
+    return (
+        <section className="glass-card" style={{ minHeight: '300px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '1.1rem', opacity: 0.8 }}>{title}</h3>
+                {records.length > 5 && (
+                    <Link
+                        href={`/records?projectId=${projectId}&type=${type}&category=${category}`}
+                        style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}
+                    >View All →</Link>
+                )}
+            </div>
+            {displayRecords.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px', opacity: 0.3, fontSize: '1rem' }}>No data</div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {displayRecords.map(record => (
+                        <div key={record.id} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
+                            <ExpandableText content={record.content} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {(record.metadata?.environment_name || record.metadata?.env_key) && (
+                                        <div style={{
+                                            fontSize: '0.7rem',
+                                            background: 'rgba(147, 51, 234, 0.1)',
+                                            color: '#a78bfa',
+                                            fontWeight: 700,
+                                            padding: '4px 10px',
+                                            borderRadius: '20px',
+                                            border: '1px solid rgba(147, 51, 234, 0.2)',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}>
+                                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#a78bfa' }}></div>
+                                            {record.metadata.environment_name || record.metadata.env_key}
+                                        </div>
+                                    )}
+                                    {type === 'TASK' && (
+                                        <div style={{
+                                            fontSize: '0.7rem',
+                                            background: record.metadata?.avg_score !== undefined ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                                            color: record.metadata?.avg_score !== undefined ? '#00ff88' : 'rgba(255, 255, 255, 0.4)',
+                                            fontWeight: 700,
+                                            padding: '4px 10px',
+                                            borderRadius: '20px',
+                                            border: `1px solid ${record.metadata?.avg_score !== undefined ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 255, 255, 0.1)'}`,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}>
+                                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: record.metadata?.avg_score !== undefined ? '#00ff88' : 'rgba(255, 255, 255, 0.3)' }}></div>
+                                            Quality: {record.metadata?.avg_score !== undefined
+                                                ? `${(parseFloat(record.metadata.avg_score) * 1).toFixed(0)}%`
+                                                : 'N/A'}
+                                        </div>
+                                    )}
+
+                                    {record.alignmentAnalysis ? (
+                                        <Link
+                                            href={`/compare?id=${record.id}`}
+                                            style={{
+                                                fontSize: '0.7rem',
+                                                background: 'rgba(0, 112, 243, 0.1)',
+                                                color: 'var(--accent)',
+                                                fontWeight: 700,
+                                                padding: '4px 10px',
+                                                borderRadius: '20px',
+                                                border: '1px solid rgba(0, 112, 243, 0.2)',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                textDecoration: 'none',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            className="hover-bright"
+                                        >
+                                            <Sparkles size={10} />
+                                            Alignment: {extractAlignmentScore(record.alignmentAnalysis)}%
+                                        </Link>
+                                    ) : (
+                                        <Link
+                                            href={`/compare?id=${record.id}`}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                fontSize: '0.75rem',
+                                                color: 'var(--accent)',
+                                                fontWeight: 600,
+                                                padding: '4px 8px',
+                                                borderRadius: '6px',
+                                                background: 'rgba(0, 112, 243, 0.05)',
+                                                transition: 'all 0.2s',
+                                                textDecoration: 'none'
+                                            }}
+                                            className="hover-bright"
+                                        >
+                                            <FileCheck size={14} /> Generate Alignment Score
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
+
+function ExpandableText({ content }: { content: string }) {
+    const [expanded, setExpanded] = useState(false);
+
+    // Only make it interactive if it looks long enough to probably be truncated
+    // This is a rough heuristic since line-clamp depends on width, but avoids
+    // clicks on very short items.
+    const isLikelyLong = content.length > 150;
+
+    return (
+        <div
+            onClick={() => isLikelyLong && setExpanded(!expanded)}
+            style={{
+                fontSize: '0.9rem',
+                color: 'rgba(255,255,255,0.9)',
+                marginBottom: '12px',
+                overflow: 'hidden',
+                display: expanded ? 'block' : '-webkit-box',
+                WebkitLineClamp: expanded ? 'unset' : 3,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: '1.5',
+                cursor: isLikelyLong ? 'pointer' : 'default',
+                transition: 'all 0.2s'
+            }}
+            title={isLikelyLong && !expanded ? "Click to expand" : ""}
+        >
+            {content}
+            {isLikelyLong && !expanded && (
+                <span style={{ fontSize: '0.7rem', color: 'var(--accent)', marginLeft: '4px', opacity: 0.8 }}>(more)</span>
+            )}
+        </div>
+    );
+}

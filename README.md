@@ -1,6 +1,27 @@
 # Operations Tools
 
-A local-first AI alignment and data ingestion tool for evaluating task and feedback data.
+A turborepo monorepo with 5 specialized Next.js applications for AI alignment, data ingestion, and operations management.
+
+## 🏗️ Architecture
+
+This project uses **Turborepo** with a multi-app architecture:
+
+### Applications (5)
+- **🏠 User App** (port 3001) - Time tracking and links for all users
+- **📊 QA App** (port 3002) - Analysis tools, records management, similarity search
+- **⭐ Core App** (port 3003) - Likert scoring and review decisions
+- **🚀 Fleet App** (port 3004) - Data ingestion, analytics, project management
+- **🔧 Admin App** (port 3005) - User management, system configuration, audit logs
+
+### Shared Packages (6)
+- **@repo/ui** - Shared React components (AppSwitcher, etc.)
+- **@repo/database** - Prisma client and schema
+- **@repo/auth** - Supabase authentication utilities
+- **@repo/core** - Business logic (AI, ingestion, evaluation, analytics)
+- **@repo/api-utils** - API route helpers
+- **@repo/types** - Shared TypeScript types
+
+See [APP_NAVIGATION_GUIDE.md](./APP_NAVIGATION_GUIDE.md) for feature mapping across apps.
 
 ## 📚 Documentation
 
@@ -9,23 +30,23 @@ A local-first AI alignment and data ingestion tool for evaluating task and feedb
 ### Quick Links
 
 #### Getting Started
-- [**Local Development Quick Start**](./LOCALDEV_QUICKSTART.md) - Get up and running in 5 minutes
-- [**Deployment Options**](./DEPLOYMENT_OPTIONS.md) - Compare Local, Docker, and Production deployments
-- [**User Guide**](./Documentation/USER_GUIDE.md) - How to use the application
+- [**Local Development Guide**](./Documentation/LOCAL_DEVELOPMENT.md) - Turborepo development workflow
+- [**User Guide**](./Documentation/USER_GUIDE.md) - How to use the applications
+- [**User Management**](./Documentation/USER_MANAGEMENT.md) - Roles and permissions
 
 #### Development
-- [**Local Development Guide**](./Documentation/LOCAL_DEVELOPMENT.md) - Detailed guide for local development with Supabase
-- [**Testing Guide**](./Documentation/TESTING.md) - How to run and write tests
+- [**Testing Guide**](./Documentation/TESTING.md) - How to run and write tests in the monorepo
 - [**API Reference**](./Documentation/Reference/API_REFERENCE.md) - Complete REST API documentation
 - [**Database Schema**](./Documentation/Reference/DATABASE_SCHEMA.md) - Database schema with ERD
 
 #### Architecture
-- [**System Overview**](./Documentation/Architecture/OVERVIEW.md) - Tech stack and system diagrams
+- [**System Overview**](./Documentation/Architecture/OVERVIEW.md) - Tech stack and turborepo structure
 - [**Ingestion Flow**](./Documentation/Architecture/INGESTION_FLOW.md) - Background processes and queuing
 - [**AI Strategy**](./Documentation/Architecture/AI_STRATEGY.md) - RAG-based alignment and embeddings
 
 #### Operations
 - [**Production Setup**](./Documentation/SETUP.md) - Environment configuration and deployment
+- [**Vercel Deployment**](./Documentation/VERCEL.md) - Multi-app Vercel deployment guide
 - [**Troubleshooting**](./Documentation/TROUBLESHOOTING.md) - Common issues and solutions
 - [**Security**](./Documentation/SECURITY.md) - Security best practices
 
@@ -34,7 +55,7 @@ A local-first AI alignment and data ingestion tool for evaluating task and feedb
 - **🚀 Parallel Ingestion Pipeline**: Decouples high-speed data loading from AI vectorization. Ingest thousands of records instantly while embeddings generate in the background.
 - **🧠 AI-Powered Alignment Analysis**: Automatically evaluate Tasks and Feedback against project-specific guidelines using local LLM models (Llama 3.1, Qwen, etc.).
 - **📊 Bulk Analytics Engine**: Process entire datasets sequentially in the background. Includes real-time progress tracking and job cancellation support.
-- **🛡️ Authentication & RBAC**: Secure login with Supabase Auth, role-based access control (Admin, Manager, User), and admin-controlled user creation.
+- **🛡️ Hierarchical RBAC**: Role-based access control with 6 roles (PENDING, USER, QA, CORE, FLEET, ADMIN) and hierarchical permissions.
 - **🛡️ Flexible AI Providers**: Supports both local AI (LM Studio) for maximum privacy and cloud AI (OpenRouter) for convenience. Switch providers with a single environment variable.
 - **💰 Cost Tracking**: Real-time OpenRouter API cost tracking with per-query costs and account balance display on the dashboard.
 - **🎯 Semantic Search**: Find similar prompts and feedback across projects using vector embeddings (Cosine Similarity).
@@ -45,55 +66,100 @@ A local-first AI alignment and data ingestion tool for evaluating task and feedb
 
 ## 🚀 Quick Start
 
-### Local Development (New!)
+### Prerequisites
 
-**See [LOCALDEV_QUICKSTART.md](./LOCALDEV_QUICKSTART.md) for local development with Supabase.**
+- Node.js 18+
+- pnpm 9+ (recommended for monorepos)
+- PostgreSQL (via Supabase)
 
-Quick commands:
+### Local Development
+
+1. **Install dependencies**:
+   ```bash
+   pnpm install
+   ```
+
+2. **Start Supabase (PostgreSQL + Auth)**:
+   ```bash
+   npm run dev:supabase  # Starts local Supabase stack
+   ```
+
+3. **Generate Prisma Client**:
+   ```bash
+   npm run postinstall
+   ```
+
+4. **Start all apps** (development mode):
+   ```bash
+   pnpm turbo run dev
+   ```
+
+   Or start individual apps:
+   ```bash
+   pnpm turbo run dev --filter=@repo/user-app
+   pnpm turbo run dev --filter=@repo/qa-app
+   pnpm turbo run dev --filter=@repo/core-app
+   pnpm turbo run dev --filter=@repo/fleet-app
+   pnpm turbo run dev --filter=@repo/admin-app
+   ```
+
+5. **Access applications**:
+   - User App: http://localhost:3001
+   - QA App: http://localhost:3002
+   - Core App: http://localhost:3003
+   - Fleet App: http://localhost:3004
+   - Admin App: http://localhost:3005
+   - Supabase Studio: http://localhost:54323
+
+### Build All Apps
+
 ```bash
-npm install
-npm run dev:supabase  # Start local Supabase
-npm run dev           # Start app
+pnpm turbo run build
 ```
 
-Open http://localhost:3000
+Turborepo will intelligently cache builds and only rebuild changed packages.
 
-### Production Setup
+### Run Tests
 
-1. **Install Dependencies**:
+```bash
+# Unit tests (all packages)
+pnpm turbo run test
 
-   ```bash
-   npm install
-   ```
+# E2E tests (requires Supabase running)
+npm run test:e2e
+```
 
-2. **Configure Environment**:
+## 🛠 Tech Stack
 
-   Copy `.env.example` to `.env` and update your `DATABASE_URL`. Choose your AI provider:
+- **Monorepo**: Turborepo with pnpm workspaces
+- **Framework**: Next.js 16 (App Router) × 5 apps
+- **Database**: PostgreSQL (Prisma ORM) + Supabase Auth
+- **Observability**: Vercel Analytics & Speed Insights
+- **AI**: LM Studio (local) or OpenRouter (cloud) - configurable via environment
+- **Styling**: Premium Glassmorphism UI (Tailwind CSS)
+- **Build Tool**: Turbopack (Next.js 16)
+- **Testing**: Vitest (unit) + Playwright (E2E)
 
-   - **LM Studio** (local): Configure `AI_HOST`, `LLM_MODEL`, `EMBEDDING_MODEL`
-   - **OpenRouter** (cloud): Set `OPENROUTER_API_KEY` (get one at [openrouter.ai/keys](https://openrouter.ai/keys))
+## 🌐 Deployment
 
-3. **Initialize Database**:
+Each app deploys independently to Vercel with its own vercel.json configuration:
 
-   ```bash
-   npx prisma generate
-   # Note: For local development, use Supabase migrations instead
-   ```
+```bash
+# Deploy Fleet app (example)
+cd apps/fleet
+vercel deploy --prod
+```
 
-4. **Run Tests**:
+**Domain structure**:
+- `user-app.vercel.app` (or custom domain)
+- `qa-app.vercel.app`
+- `core-app.vercel.app`
+- `fleet-app.vercel.app`
+- `admin-app.vercel.app`
 
-   - Unit Tests: `npm test`
-   - E2E Tests: `npm run test:e2e`
+All apps share a single Supabase database. See [VERCEL.md](./Documentation/VERCEL.md) for detailed deployment instructions.
 
-5. **Launch**:
-
-   ```bash
-   npm run dev:next  # Or npm run dev for Vercel Dev
-   ```
-
-Open [http://localhost:3000](http://localhost:3000) to view the application.
-
-### 💰 Cost Tracking (OpenRouter)
+## 💰 Cost Tracking (OpenRouter)
 
 When using OpenRouter as your AI provider, the tool automatically tracks API costs:
 
@@ -104,44 +170,23 @@ Cost information appears after each AI operation. Balance refreshes when the das
 
 *Note: Cost tracking is only available with OpenRouter. LM Studio operations are free (local compute).*
 
-### 🐳 Running with Docker (Portable Mode)
+## 🔐 Authentication & Roles
 
-The easiest way to run the entire stack (App + Database) without manual setup:
+- **Authentication**: Supabase Auth (SSO across all apps)
+- **User Creation**: Admin-only via User Management page (no self-service signup)
+- **Role Hierarchy**: PENDING → USER → QA → CORE → FLEET → ADMIN
+- **Permissions**: Higher roles inherit lower role permissions
 
-```bash
-cd docker
-docker-compose up -d
-```
-
-This will:
-- Start PostgreSQL with auth schema
-- Run database migrations automatically
-- Start the Next.js app on port 3000
-
-**Documentation**: See [docker/README.md](./docker/README.md) for detailed Docker instructions.
-
-**Stop Services**:
-```bash
-docker-compose down
-```
-
-## 🛠 Tech Stack
-
-- **Framework**: Next.js 15 (App Router)
-- **Database**: PostgreSQL (Prisma ORM) / Supabase
-- **Observability**: Vercel Analytics & Speed Insights
-- **AI**: LM Studio (local) or OpenRouter (cloud) - configurable via environment
-- **Styling**: Premium Glassmorphism UI (Tailwind CSS)
-- **Ingestion**: Decoupled parallel pipeline (Fast Data Load + Async Vectorization)
+See [USER_MANAGEMENT.md](./Documentation/USER_MANAGEMENT.md) for role descriptions and access control.
 
 ---
 
 *This tool processes all data locally to ensure maximum privacy and compliance.*
 
-## ✅ ToDo / Roadmap
+## ✅ Roadmap
 
 - [ ] **API Ingestion**: Complete the refactor of the live endpoint sync engine (currently under construction).
-- [ ] **Similarity Clustering**: Implement a view to group similar records by their vector embeddings for bulk analysis. More details and constraints are needed here.
-- [ ] **Advanced Filtering**: Is this something we want? Should we be able to filter by different metadata fields?
+- [ ] **Similarity Clustering**: Implement a view to group similar records by their vector embeddings for bulk analysis.
+- [ ] **Advanced Filtering**: Filter by different metadata fields across analysis tools.
 - [ ] **Multi-Model Testing**: Enable a "comparison mode" to run the same alignment check across different LLM models.
-- [ ] **Duplicate Strategy**: Recent ingestion files have contained duplicate task_ids, because those are unique, we need to identify a strategy to handle these. Today duplicates are just skipped on ingestion.
+- [ ] **Duplicate Strategy**: Handle duplicate task_ids with configurable merge/update strategies.

@@ -23,15 +23,18 @@ export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
 
 // ============================================================================
 // USER ROLES
+// NOTE: Prefer importing UserRole enum from @prisma/client over this constant
+// This is kept for backward compatibility but may be deprecated in the future
 // ============================================================================
 
 export const UserRole = {
   PENDING: 'PENDING',
   USER: 'USER',
-  MANAGER: 'MANAGER',
+  QA: 'QA',
+  CORE: 'CORE',
+  FLEET: 'FLEET',
+  MANAGER: 'MANAGER', // Legacy role, same permissions as FLEET
   ADMIN: 'ADMIN',
-  VIEWER: 'VIEWER',
-  RATER: 'RATER',
 } as const;
 
 export type UserRoleType = typeof UserRole[keyof typeof UserRole];
