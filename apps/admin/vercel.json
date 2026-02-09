@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@repo/admin-app",
+  "installCommand": "cd ../.. && pnpm install",
+  "outputDirectory": ".next",
+  "github": {
+    "silent": true
+  }
+}

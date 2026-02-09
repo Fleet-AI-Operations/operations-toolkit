@@ -149,7 +149,8 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                                     return `http://localhost:${port}`;
                                 }
 
-                                // Production: use environment variables or construct from current domain
+                                // Production: MUST use environment variables for correct routing
+                                // These should be set in Vercel environment variables for each app
                                 const envVarName = `NEXT_PUBLIC_${appName.toUpperCase()}_APP_URL`;
                                 const envUrl = process.env[envVarName];
 
@@ -157,25 +158,15 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                                     return envUrl;
                                 }
 
-                                // Fallback: construct URL based on current domain pattern
-                                const currentHost = window.location.host;
-                                const currentProtocol = window.location.protocol;
+                                // WARNING: No environment variable set!
+                                // Fallback to current URL (will not work for cross-app navigation)
+                                console.warn(
+                                    `AppSwitcher: ${envVarName} not set. Cross-app navigation will not work correctly. ` +
+                                    `Set this environment variable in Vercel with the production URL for the ${appName} app.`
+                                );
 
-                                // Handle Vercel deployment pattern (e.g., fleet-app.vercel.app)
-                                if (currentHost.includes('.vercel.app')) {
-                                    return `${currentProtocol}//${appName}-app.vercel.app`;
-                                }
-
-                                // Handle custom subdomain pattern (e.g., fleet.example.com -> user.example.com)
-                                if (currentHost.includes('.')) {
-                                    const parts = currentHost.split('.');
-                                    // Replace the subdomain with the target app name
-                                    parts[0] = appName;
-                                    return `${currentProtocol}//${parts.join('.')}`;
-                                }
-
-                                // Fallback to current host (single domain, no pattern detected)
-                                return `${currentProtocol}//${currentHost}`;
+                                // Return current URL as fallback (will just reload current app)
+                                return window.location.origin;
                             }
 
                             // Server-side fallback
