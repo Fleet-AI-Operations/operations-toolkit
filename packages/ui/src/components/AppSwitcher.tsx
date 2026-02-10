@@ -53,6 +53,15 @@ const APPS: Record<string, AppConfig> = {
     }
 };
 
+// Production URLs - MUST be accessed by exact name for Next.js to inline them at build time
+const APP_URLS = {
+    user: process.env.NEXT_PUBLIC_USER_APP_URL,
+    qa: process.env.NEXT_PUBLIC_QA_APP_URL,
+    core: process.env.NEXT_PUBLIC_CORE_APP_URL,
+    fleet: process.env.NEXT_PUBLIC_FLEET_APP_URL,
+    admin: process.env.NEXT_PUBLIC_ADMIN_APP_URL
+};
+
 export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -139,7 +148,7 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                         const isCurrent = app.name === currentApp;
 
                         // Generate environment-appropriate URL
-                        const getAppUrl = (appName: string, port: number): string => {
+                        const getAppUrl = (appName: keyof typeof APP_URLS, port: number): string => {
                             // In browser, check if we're on localhost
                             if (typeof window !== 'undefined') {
                                 const isDevelopment = window.location.hostname === 'localhost' ||
@@ -149,31 +158,29 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                                     return `http://localhost:${port}`;
                                 }
 
-                                // Production: MUST use environment variables for correct routing
-                                // These should be set in Vercel environment variables for each app
-                                const envVarName = `NEXT_PUBLIC_${appName.toUpperCase()}_APP_URL`;
-                                const envUrl = process.env[envVarName];
+                                // Production: Use environment variables from APP_URLS
+                                const envUrl = APP_URLS[appName];
 
                                 if (envUrl) {
                                     return envUrl;
                                 }
 
                                 // WARNING: No environment variable set!
-                                // Fallback to current URL (will not work for cross-app navigation)
-                                console.warn(
-                                    `AppSwitcher: ${envVarName} not set. Cross-app navigation will not work correctly. ` +
+                                console.error(
+                                    `AppSwitcher: NEXT_PUBLIC_${appName.toUpperCase()}_APP_URL not set. ` +
+                                    `Cross-app navigation will not work correctly. ` +
                                     `Set this environment variable in Vercel with the production URL for the ${appName} app.`
                                 );
 
-                                // Return current URL as fallback (will just reload current app)
-                                return window.location.origin;
+                                // Return empty string to make the link obvious broken
+                                return '#missing-env-var';
                             }
 
                             // Server-side fallback
                             return `http://localhost:${port}`;
                         };
 
-                        const url = getAppUrl(app.name, app.port);
+                        const url = getAppUrl(app.name as keyof typeof APP_URLS, app.port);
 
                         return (
                             <a
