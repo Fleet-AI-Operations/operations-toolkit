@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
 import { createClient } from '@repo/auth/server';
 
+// Valid time entry categories
+const VALID_CATEGORIES = [
+  'Writing New Tasks',
+  'Updating Tasks Based on Feedback',
+  'Time Spent on Instructions or Slack',
+  'Platform Downtime',
+  'Time Spent on QA',
+];
+
 // GET /api/time-entries - List time entries for current user
 export async function GET(request: NextRequest) {
   try {
@@ -25,8 +34,14 @@ export async function GET(request: NextRequest) {
 
     if (startDate || endDate) {
       where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) where.date.lte = new Date(endDate);
+      if (startDate) {
+        const [year, month, day] = startDate.split('-').map(Number);
+        where.date.gte = new Date(year, month - 1, day);
+      }
+      if (endDate) {
+        const [year, month, day] = endDate.split('-').map(Number);
+        where.date.lte = new Date(year, month - 1, day);
+      }
     }
 
     if (category) {
@@ -72,42 +87,79 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (hours < 0 || hours > 23) {
+    // Parse and validate numeric types
+    const parsedHours = Number(hours);
+    const parsedMinutes = Number(minutes);
+
+    if (!Number.isInteger(parsedHours) || parsedHours < 0 || parsedHours > 23) {
       return NextResponse.json(
-        { error: 'Hours must be between 0 and 23' },
+        { error: 'Hours must be an integer between 0 and 23' },
         { status: 400 }
       );
     }
 
-    if (minutes < 0 || minutes > 59) {
+    if (!Number.isInteger(parsedMinutes) || parsedMinutes < 0 || parsedMinutes > 59) {
       return NextResponse.json(
-        { error: 'Minutes must be between 0 and 59' },
+        { error: 'Minutes must be an integer between 0 and 59' },
         { status: 400 }
       );
     }
 
-    if (hours === 0 && minutes === 0) {
+    if (parsedHours === 0 && parsedMinutes === 0) {
       return NextResponse.json(
         { error: 'Time cannot be 0h 0m. Please enter at least 1 minute.' },
         { status: 400 }
       );
     }
 
-    if (count !== undefined && count !== null && count < 0) {
+    // Validate category
+    if (!VALID_CATEGORIES.includes(category)) {
       return NextResponse.json(
-        { error: 'Count must be a positive number' },
+        { error: 'Invalid category' },
         { status: 400 }
       );
     }
 
+    // Validate count
+    if (count !== undefined && count !== null) {
+      const parsedCount = Number(count);
+      if (!Number.isInteger(parsedCount) || parsedCount < 0) {
+        return NextResponse.json(
+          { error: 'Count must be a positive integer' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate notes length
+    if (notes && notes.length > 2000) {
+      return NextResponse.json(
+        { error: 'Notes must be 2000 characters or less' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date format
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid date format' },
+        { status: 400 }
+      );
+    }
+
+    // Parse date without timezone ambiguity
+    const [year, month, day] = date.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+
     const entry = await prisma.timeEntry.create({
       data: {
         userId: user.id,
-        date: new Date(date),
-        hours: parseInt(hours),
-        minutes: parseInt(minutes),
+        date: dateObj,
+        hours: parsedHours,
+        minutes: parsedMinutes,
         category,
-        count: count !== undefined && count !== null ? parseInt(count) : null,
+        count: count !== undefined && count !== null ? Number(count) : null,
         notes: notes || null,
       },
     });

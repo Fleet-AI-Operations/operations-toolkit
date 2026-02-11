@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
 import { createClient } from '@repo/auth/server';
 
+// Valid time entry categories
+const VALID_CATEGORIES = [
+  'Writing New Tasks',
+  'Updating Tasks Based on Feedback',
+  'Time Spent on Instructions or Slack',
+  'Platform Downtime',
+  'Time Spent on QA',
+];
+
 // PATCH /api/time-entries/[id] - Update a time entry
 export async function PATCH(
   request: NextRequest,
@@ -32,54 +41,84 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Build update data
+    // Build update data with validation
     const updateData: any = {};
+    let finalHours = existingEntry.hours;
+    let finalMinutes = existingEntry.minutes;
 
     if (date !== undefined) {
-      updateData.date = new Date(date);
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        return NextResponse.json(
+          { error: 'Invalid date format' },
+          { status: 400 }
+        );
+      }
+      // Parse date without timezone ambiguity
+      const [year, month, day] = date.split('-').map(Number);
+      updateData.date = new Date(year, month - 1, day);
     }
 
     if (hours !== undefined) {
-      if (hours < 0 || hours > 23) {
+      const parsedHours = Number(hours);
+      if (!Number.isInteger(parsedHours) || parsedHours < 0 || parsedHours > 23) {
         return NextResponse.json(
-          { error: 'Hours must be between 0 and 23' },
+          { error: 'Hours must be an integer between 0 and 23' },
           { status: 400 }
         );
       }
-      updateData.hours = parseInt(hours);
+      updateData.hours = parsedHours;
+      finalHours = parsedHours;
     }
 
     if (minutes !== undefined) {
-      if (minutes < 0 || minutes > 59) {
+      const parsedMinutes = Number(minutes);
+      if (!Number.isInteger(parsedMinutes) || parsedMinutes < 0 || parsedMinutes > 59) {
         return NextResponse.json(
-          { error: 'Minutes must be between 0 and 59' },
+          { error: 'Minutes must be an integer between 0 and 59' },
           { status: 400 }
         );
       }
-      updateData.minutes = parseInt(minutes);
+      updateData.minutes = parsedMinutes;
+      finalMinutes = parsedMinutes;
     }
 
     if (category !== undefined) {
+      if (!VALID_CATEGORIES.includes(category)) {
+        return NextResponse.json(
+          { error: 'Invalid category' },
+          { status: 400 }
+        );
+      }
       updateData.category = category;
     }
 
     if (count !== undefined) {
-      if (count !== null && count < 0) {
-        return NextResponse.json(
-          { error: 'Count must be a positive number' },
-          { status: 400 }
-        );
+      if (count !== null) {
+        const parsedCount = Number(count);
+        if (!Number.isInteger(parsedCount) || parsedCount < 0) {
+          return NextResponse.json(
+            { error: 'Count must be a positive integer' },
+            { status: 400 }
+          );
+        }
+        updateData.count = parsedCount;
+      } else {
+        updateData.count = null;
       }
-      updateData.count = count !== null ? parseInt(count) : null;
     }
 
     if (notes !== undefined) {
+      if (notes && notes.length > 2000) {
+        return NextResponse.json(
+          { error: 'Notes must be 2000 characters or less' },
+          { status: 400 }
+        );
+      }
       updateData.notes = notes || null;
     }
 
     // Validate that final time is not 0h 0m
-    const finalHours = hours !== undefined ? parseInt(hours) : existingEntry.hours;
-    const finalMinutes = minutes !== undefined ? parseInt(minutes) : existingEntry.minutes;
     if (finalHours === 0 && finalMinutes === 0) {
       return NextResponse.json(
         { error: 'Time cannot be 0h 0m. Please enter at least 1 minute.' },

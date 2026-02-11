@@ -305,8 +305,11 @@ export default function TimeTrackingPage() {
   const getPayCycleTotal = (startDate: Date, endDate: Date) => {
     const totalMinutes = entries
       .filter(e => {
-        const entryDate = new Date(e.date);
-        return entryDate >= startDate && entryDate <= endDate;
+        // Compare date strings directly to avoid timezone issues
+        const entryDateStr = e.date.split('T')[0]; // Extract YYYY-MM-DD
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        return entryDateStr >= startDateStr && entryDateStr <= endDateStr;
       })
       .reduce((total, entry) => total + (entry.hours * 60) + entry.minutes, 0);
     const hours = Math.floor(totalMinutes / 60);
