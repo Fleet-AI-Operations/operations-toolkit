@@ -25,7 +25,8 @@ import {
     BarChart3,
     TrendingUp,
     Bug,
-    Clock
+    Clock,
+    ScanSearch
 } from 'lucide-react';
 import { useState } from 'react';
 import { AppSwitcher } from '@repo/ui/components';
@@ -61,6 +62,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                 { label: 'Analytics', href: '/analytics', icon: BarChart3 },
                 { label: 'Ingest Data', href: '/ingest', icon: Database },
                 { label: 'Project Management', href: '/manage', icon: Settings },
+                { label: 'Full Similarity Check', href: '/full-similarity-check', icon: ScanSearch },
             ]
         },
         {

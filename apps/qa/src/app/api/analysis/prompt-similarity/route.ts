@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
         }
 
         // 2. Get similar prompts from the same user using pgvector's cosine distance
+        // Also exclude prompts with identical content (handles duplicate records)
         const similarPrompts: SimilarPrompt[] = await prisma.$queryRaw`
             SELECT
                 id,
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest) {
             AND "createdById" = ${targetPrompt.createdById}
             AND id != ${recordId}
             AND embedding IS NOT NULL
+            AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
             ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
             LIMIT 50
         `;
