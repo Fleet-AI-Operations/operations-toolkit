@@ -53,6 +53,19 @@ export default function AuditLogsPage() {
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
 
+  // Expanded rows state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (logId: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(logId)) {
+      newExpanded.delete(logId);
+    } else {
+      newExpanded.add(logId);
+    }
+    setExpandedRows(newExpanded);
+  };
+
   // Fetch logs
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -92,32 +105,33 @@ export default function AuditLogsPage() {
 
   // Action icon mapping
   const getActionIcon = (action: string) => {
+    const iconClass = "w-5 h-5";
     switch (action) {
       case 'USER_CREATED':
-        return <UserPlus className="w-4 h-4" />;
+        return <UserPlus className={iconClass} />;
       case 'USER_ROLE_CHANGED':
-        return <UserCog className="w-4 h-4" />;
+        return <UserCog className={iconClass} />;
       case 'USER_PASSWORD_RESET':
-        return <KeyRound className="w-4 h-4" />;
+        return <KeyRound className={iconClass} />;
       case 'PROJECT_CREATED':
-        return <FolderPlus className="w-4 h-4" />;
+        return <FolderPlus className={iconClass} />;
       case 'PROJECT_UPDATED':
-        return <FolderEdit className="w-4 h-4" />;
+        return <FolderEdit className={iconClass} />;
       case 'PROJECT_DELETED':
-        return <FolderMinus className="w-4 h-4" />;
+        return <FolderMinus className={iconClass} />;
       case 'DATA_CLEARED':
       case 'ANALYTICS_CLEARED':
-        return <Trash2 className="w-4 h-4" />;
+        return <Trash2 className={iconClass} />;
       case 'BULK_ALIGNMENT_STARTED':
-        return <Sparkles className="w-4 h-4" />;
+        return <Sparkles className={iconClass} />;
       case 'SYSTEM_SETTINGS_UPDATED':
-        return <Settings className="w-4 h-4" />;
+        return <Settings className={iconClass} />;
       case 'BONUS_WINDOW_CREATED':
       case 'BONUS_WINDOW_UPDATED':
       case 'BONUS_WINDOW_DELETED':
-        return <Calendar className="w-4 h-4" />;
+        return <Calendar className={iconClass} />;
       default:
-        return <AlertCircle className="w-4 h-4" />;
+        return <AlertCircle className={iconClass} />;
     }
   };
 
@@ -185,16 +199,19 @@ export default function AuditLogsPage() {
       </div>
 
       {/* Filters Section */}
-      <div className="glass-card">
+      <div className="glass-card bg-black/30">
         <button
           onClick={() => setShowFilters(!showFilters)}
           className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors rounded-lg"
         >
-          <span className="font-semibold">Filters</span>
+          <span className="font-semibold text-white text-base flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Filters
+          </span>
           {showFilters ? (
-            <ChevronUp className="w-5 h-5" />
+            <ChevronUp className="w-5 h-5 text-gray-400" />
           ) : (
-            <ChevronDown className="w-5 h-5" />
+            <ChevronDown className="w-5 h-5 text-gray-400" />
           )}
         </button>
 
@@ -300,45 +317,119 @@ export default function AuditLogsPage() {
             No audit logs found matching your filters.
           </div>
         ) : (
-          <div className="space-y-3">
-            {logs.map((log) => (
-              <div
-                key={log.id}
-                data-testid="audit-log-entry"
-                className={`p-4 bg-black/20 rounded-lg border-l-4 ${getActionColor(
-                  log.action
-                )}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-1">{getActionIcon(log.action)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{formatAction(log.action)}</span>
-                      <span className="text-xs text-gray-500">
-                        {log.entityType}
-                        {log.entityId && ` #${log.entityId.slice(0, 8)}`}
+          <div className="divide-y divide-white/5">
+            {logs.map((log) => {
+              const isExpanded = expandedRows.has(log.id);
+              return (
+                <div key={log.id} data-testid="audit-log-entry" className="group">
+                  {/* Main Row - Clickable */}
+                  <div
+                    onClick={() => toggleRow(log.id)}
+                    className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors border-l-4 ${getActionColor(
+                      log.action
+                    )}`}
+                  >
+                    {/* Icon */}
+                    <div className="flex-shrink-0 p-2 bg-white/5 rounded-lg">
+                      {getActionIcon(log.action)}
+                    </div>
+
+                    {/* Action & Entity */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-white">
+                          {formatAction(log.action)}
+                        </h3>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-300">
+                          {log.entityType.replace('_', ' ')}
+                        </span>
+                        {log.entityId && (
+                          <code className="px-1.5 py-0.5 text-xs bg-black/40 rounded font-mono text-blue-400">
+                            #{log.entityId.slice(0, 8)}
+                          </code>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* User */}
+                    <div className="hidden md:flex items-center text-sm text-gray-400 min-w-[200px]">
+                      <span className="text-gray-300 font-medium truncate">
+                        {log.userEmail}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-400 mb-1">
-                      by {log.userEmail}
-                    </div>
-                    <div className="text-xs text-gray-500">
+
+                    {/* Timestamp */}
+                    <div className="hidden lg:block text-sm text-gray-500 min-w-[180px]">
                       {formatDate(log.createdAt)}
                     </div>
-                    {log.metadata && Object.keys(log.metadata).length > 0 && (
-                      <details className="mt-2">
-                        <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">
-                          View metadata
-                        </summary>
-                        <pre className="mt-2 text-xs bg-black/30 p-2 rounded overflow-auto">
-                          {JSON.stringify(log.metadata, null, 2)}
-                        </pre>
-                      </details>
-                    )}
+
+                    {/* Expand Indicator */}
+                    <div className="flex-shrink-0">
+                      <ChevronDown
+                        className={`w-5 h-5 text-gray-400 transition-transform ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </div>
                   </div>
+
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div className="bg-black/20 border-l-4 border-transparent px-4 py-4 space-y-3">
+                      {/* Mobile-only: Show user and timestamp */}
+                      <div className="md:hidden space-y-2 pb-3 border-b border-white/5">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-500">User:</span>
+                          <span className="text-gray-300 font-medium">{log.userEmail}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-500">Time:</span>
+                          <span className="text-gray-400">{formatDate(log.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Metadata */}
+                      {log.metadata && Object.keys(log.metadata).length > 0 && (
+                        <div>
+                          <div className="text-sm font-medium text-gray-400 mb-2">
+                            Metadata
+                          </div>
+                          <pre className="text-xs bg-black/50 p-3 rounded-lg overflow-auto border border-white/5 text-gray-300 leading-relaxed">
+                            {JSON.stringify(log.metadata, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* Additional Details */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <div className="text-gray-500 text-xs mb-1">Log ID</div>
+                          <code className="text-xs text-gray-400 font-mono break-all">
+                            {log.id}
+                          </code>
+                        </div>
+                        {log.projectId && (
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Project ID</div>
+                            <code className="text-xs text-gray-400 font-mono break-all">
+                              {log.projectId}
+                            </code>
+                          </div>
+                        )}
+                        {log.entityId && (
+                          <div>
+                            <div className="text-gray-500 text-xs mb-1">Entity ID</div>
+                            <code className="text-xs text-gray-400 font-mono break-all">
+                              {log.entityId}
+                            </code>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

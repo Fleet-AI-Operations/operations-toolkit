@@ -1,5 +1,48 @@
 # GitHub Actions Workflows
 
+## Test Suite
+
+The `test.yml` workflow runs the complete test suite on every push and pull request.
+
+### What It Tests
+
+1. **Linting** - Code style and quality checks
+2. **Build** - Builds all 5 apps (user, qa, core, fleet, admin) in parallel
+3. **Unit Tests** - Vitest tests across all packages
+4. **E2E Tests** - Playwright end-to-end tests
+
+### How It Works
+
+1. **Triggers** on push to main, fix/*, feat/* branches and all pull requests
+2. **Sets up environment**:
+   - Node.js 20
+   - pnpm 9 with caching for faster builds
+   - Supabase CLI and local instance
+   - Playwright browsers
+3. **Runs tests** in CI environment with local Supabase
+4. **Uploads artifacts**:
+   - Playwright HTML report (available for 7 days)
+   - Test results and coverage (available for 7 days)
+
+### Environment
+
+The workflow uses a local Supabase instance with standard demo credentials:
+- Database: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
+- Supabase URL: `http://127.0.0.1:54321`
+- Uses default Supabase demo JWT keys
+
+No secrets required - all tests run against local Supabase.
+
+### Viewing Test Results
+
+When tests fail:
+1. Go to Actions tab in GitHub
+2. Click on the failed workflow run
+3. Download the "playwright-report" or "test-results" artifacts
+4. Unzip and open `index.html` for detailed test results
+
+---
+
 ## Preview Database Seeding
 
 The `seed-preview.yml` workflow automatically seeds test users into Supabase preview branch databases.

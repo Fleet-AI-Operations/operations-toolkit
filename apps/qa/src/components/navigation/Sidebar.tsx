@@ -58,11 +58,11 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             title: 'Analysis',
             role: ['QA', 'CORE', 'FLEET', 'ADMIN'],
             items: [
+                { label: 'Compare', href: '/compare', icon: GitCompare },
                 { label: 'Records', href: '/records', icon: FileText },
                 { label: 'Similarity Search', href: '/similarity', icon: Sparkles },
-                { label: 'Top/Bottom 10', href: '/topbottom10', icon: FileCheck },
                 { label: 'Top Prompts', href: '/top-prompts', icon: ShieldAlert },
-                { label: 'Compare', href: '/compare', icon: GitCompare },
+                { label: 'Top/Bottom 10', href: '/topbottom10', icon: FileCheck },
             ]
         }
     ];

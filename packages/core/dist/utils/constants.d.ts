@@ -11,12 +11,12 @@ export declare const JobStatus: {
 };
 export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
 export declare const UserRole: {
-    readonly PENDING: "PENDING";
     readonly USER: "USER";
+    readonly QA: "QA";
+    readonly CORE: "CORE";
+    readonly FLEET: "FLEET";
     readonly MANAGER: "MANAGER";
     readonly ADMIN: "ADMIN";
-    readonly VIEWER: "VIEWER";
-    readonly RATER: "RATER";
 };
 export type UserRoleType = typeof UserRole[keyof typeof UserRole];
 export declare const RecordType: {

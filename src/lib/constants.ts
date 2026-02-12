@@ -28,7 +28,6 @@ export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
 // ============================================================================
 
 export const UserRole = {
-  PENDING: 'PENDING',
   USER: 'USER',
   QA: 'QA',
   CORE: 'CORE',

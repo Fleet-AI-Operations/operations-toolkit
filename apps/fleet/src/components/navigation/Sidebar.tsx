@@ -59,9 +59,9 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             title: 'Fleet Management',
             role: ['FLEET', 'ADMIN'],
             items: [
+                { label: 'Analytics', href: '/analytics', icon: BarChart3 },
                 { label: 'Ingest Data', href: '/ingest', icon: Database },
                 { label: 'Project Management', href: '/manage', icon: Settings },
-                { label: 'Analytics', href: '/analytics', icon: BarChart3 },
                 { label: 'Full Similarity Check', href: '/full-similarity-check', icon: ScanSearch },
             ]
         },
@@ -69,10 +69,17 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             title: 'Operations',
             role: ['FLEET', 'ADMIN'],
             items: [
-                { label: 'Bonus Windows', href: '/bonus-windows', icon: Target },
                 { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3 },
+                { label: 'Bonus Windows', href: '/bonus-windows', icon: Target },
                 { label: 'Time Analytics', href: '/time-analytics', icon: TrendingUp },
-                { label: 'Waiting Approval', href: '/waiting-approval', icon: Clock },
+            ]
+        },
+        {
+            title: 'Management',
+            role: ['FLEET', 'ADMIN'],
+            items: [
+                { label: 'Assignments', href: '/assignments', icon: ClipboardList },
+                { label: 'Rater Groups', href: '/rater-groups', icon: Users },
             ]
         }
     ];

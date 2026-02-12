@@ -48,20 +48,13 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
 
     const sections: NavSection[] = [
         {
-            title: 'Overview',
-            items: [
-                { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-            ]
-        },
-        {
             title: 'Administration',
             role: ['ADMIN'],
             items: [
-                { label: 'Admin Dashboard', href: '/admin', icon: ShieldCheck },
-                { label: 'Users', href: '/admin/users', icon: Users },
-                { label: 'Bug Reports', href: '/bug-reports', icon: Bug },
                 { label: 'Audit Logs', href: '/admin/audit-logs', icon: FileText },
+                { label: 'Bug Reports', href: '/bug-reports', icon: Bug },
                 { label: 'Configuration', href: '/admin/configuration', icon: Settings },
+                { label: 'Users', href: '/admin/users', icon: Users },
             ]
         },
         {
@@ -69,16 +62,8 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             role: ['ADMIN'],
             items: [
                 { label: 'AI Settings', href: '/admin/ai-settings', icon: Bot },
-                { label: 'LLM Models', href: '/admin/llm-models', icon: Sparkles },
                 { label: 'API Status', href: '/admin/api-status', icon: Activity },
-            ]
-        },
-        {
-            title: 'Management',
-            role: ['ADMIN'],
-            items: [
-                { label: 'Rater Groups', href: '/admin/rater-groups', icon: Users },
-                { label: 'Assignments', href: '/admin/assignments', icon: ClipboardList },
+                { label: 'LLM Models', href: '/admin/llm-models', icon: Sparkles },
             ]
         }
     ];

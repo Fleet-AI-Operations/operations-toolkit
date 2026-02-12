@@ -7,7 +7,7 @@ import { Shield, User as UserIcon, Loader2, UserPlus, KeyRound } from 'lucide-re
 interface Profile {
     id: string;
     email: string;
-    role: 'PENDING' | 'USER' | 'MANAGER' | 'ADMIN';
+    role: 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
     mustResetPassword?: boolean;
     createdAt: string;
 }
@@ -170,23 +170,50 @@ export default function UserManagementPage() {
             {/* Role Descriptions */}
             <div className="glass-card" style={{ padding: '24px', marginBottom: '32px', background: 'rgba(0,112,243,0.03)' }}>
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '16px', color: 'var(--accent)' }}>
-                    Role Permissions
+                    Role Permissions (Hierarchical)
                 </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '16px' }}>
+                    Higher roles inherit all permissions from lower roles: USER → QA → CORE → FLEET → MANAGER → ADMIN
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
                     <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00ff88' }}>
                             USER
                         </div>
                         <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
-                            Standard access to view and interact with projects. Can access main features but cannot manage users.
+                            Basic time tracking and links access. View personal dashboard and external resources.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#4dffb8' }}>
+                            QA
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Quality analysis tools. Access records management, similarity search, and top/bottom review.
                         </div>
                     </div>
                     <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#00d2ff' }}>
+                            CORE
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Scoring and review decisions. Perform Likert scoring and review alignments.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#7d9eff' }}>
+                            FLEET
+                        </div>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
+                            Data operations and analytics. Ingest data, manage projects, run analytics, perform full similarity checks.
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#ffab00' }}>
                             MANAGER
                         </div>
                         <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
-                            Enhanced permissions for managing projects and data. Can perform administrative tasks but cannot manage users.
+                            Operations management. Configure bonus windows, view activity analytics, and time tracking reports.
                         </div>
                     </div>
                     <div>
@@ -194,7 +221,7 @@ export default function UserManagementPage() {
                             ADMIN
                         </div>
                         <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
-                            Full system access including user management, role assignment, and system configuration.
+                            Full system access. Manage users, configure AI settings, view audit logs, and system configuration.
                         </div>
                     </div>
                 </div>
@@ -237,6 +264,9 @@ export default function UserManagementPage() {
                                     style={{ padding: '10px' }}
                                 >
                                     <option value="USER">User</option>
+                                    <option value="QA">QA</option>
+                                    <option value="CORE">Core</option>
+                                    <option value="FLEET">Fleet</option>
                                     <option value="MANAGER">Manager</option>
                                     <option value="ADMIN">Admin</option>
                                 </select>
@@ -469,6 +499,9 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
                     }}
                 >
                     <option value="USER">User</option>
+                    <option value="QA">QA</option>
+                    <option value="CORE">Core</option>
+                    <option value="FLEET">Fleet</option>
                     <option value="MANAGER">Manager</option>
                     <option value="ADMIN">Admin</option>
                 </select>

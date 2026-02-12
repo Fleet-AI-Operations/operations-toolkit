@@ -19,12 +19,12 @@ export const JobStatus = {
 // USER ROLES
 // ============================================================================
 export const UserRole = {
-    PENDING: 'PENDING',
     USER: 'USER',
+    QA: 'QA',
+    CORE: 'CORE',
+    FLEET: 'FLEET',
     MANAGER: 'MANAGER',
     ADMIN: 'ADMIN',
-    VIEWER: 'VIEWER',
-    RATER: 'RATER',
 };
 // ============================================================================
 // RECORD TYPES

@@ -113,8 +113,7 @@ export async function requireAnyRole(
 }
 
 /**
- * Require authentication but no specific role (any authenticated user with assigned role)
- * Note: PENDING users are rejected as they are awaiting role assignment
+ * Require authentication but no specific role (any authenticated user)
  *
  * @returns Object with either user data or error response
  */
@@ -126,16 +125,6 @@ export async function requireAuth(): Promise<
   if (!user) {
     return {
       error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
-    };
-  }
-
-  // Block PENDING users (awaiting role assignment)
-  if (user.role === 'PENDING') {
-    return {
-      error: NextResponse.json(
-        { error: 'Account pending approval - please contact an administrator' },
-        { status: 403 }
-      ),
     };
   }
 

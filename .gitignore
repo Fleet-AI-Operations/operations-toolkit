@@ -66,3 +66,6 @@ CLAUDE.md
 # App-specific build artifacts and dependencies
 apps/*/.next/
 apps/*/node_modules/
+
+# Package build artifacts (TypeScript compilation)
+packages/*/dist/

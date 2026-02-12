@@ -26,12 +26,12 @@ export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
 // ============================================================================
 
 export const UserRole = {
-  PENDING: 'PENDING',
   USER: 'USER',
+  QA: 'QA',
+  CORE: 'CORE',
+  FLEET: 'FLEET',
   MANAGER: 'MANAGER',
   ADMIN: 'ADMIN',
-  VIEWER: 'VIEWER',
-  RATER: 'RATER',
 } as const;
 
 export type UserRoleType = typeof UserRole[keyof typeof UserRole];

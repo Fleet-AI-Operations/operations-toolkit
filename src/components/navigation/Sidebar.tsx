@@ -53,7 +53,7 @@ export default function Sidebar({ userRole }: { userRole?: UserRole }) {
     const sections: NavSection[] = [
         {
             title: 'User Tools',
-            requiredRole: 'USER', // Minimum USER role (excludes PENDING)
+            requiredRole: 'USER', // Minimum role required
             items: [
                 { label: 'Time Recording', href: '/time-recording', icon: Clock, badge: 'New' },
                 { label: 'Links', href: '/links', icon: LinkIcon },
@@ -101,10 +101,14 @@ export default function Sidebar({ userRole }: { userRole?: UserRole }) {
             title: 'Admin Tools',
             requiredRole: 'ADMIN',
             items: [
+                { label: 'User Management', href: '/admin/users', icon: Users },
                 { label: 'Bug Reports', href: '/bug-reports', icon: Bug },
-                { label: 'Admin', href: '/admin', icon: ShieldCheck },
-                { label: 'LLM Models', href: '/admin/llm-models', icon: Bot },
-                { label: 'Status', href: '/status', icon: Activity },
+                { label: 'Audit Logs', href: '/admin/audit-logs', icon: FileText },
+                { label: 'Configuration', href: '/admin/configuration', icon: Settings },
+                { label: 'AI Settings', href: '/admin/ai-settings', icon: Bot },
+                { label: 'LLM Models', href: '/admin/llm-models', icon: Sparkles },
+                { label: 'API Status', href: '/admin/api-status', icon: Activity },
+                { label: 'System Status', href: '/status', icon: ShieldCheck },
             ]
         }
     ];

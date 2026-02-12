@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function createTestUser(
   email: string = 'test@example.com',
-  role: 'ADMIN' | 'FLEET' | 'MANAGER' | 'CORE' | 'QA' | 'USER' | 'PENDING' = 'USER'
+  role: 'ADMIN' | 'FLEET' | 'MANAGER' | 'CORE' | 'QA' | 'USER' = 'USER'
 ) {
   // First, check if user exists in auth.users
   const authUser = await prisma.$queryRaw`
@@ -57,6 +57,18 @@ export async function deleteTestUser(email: string) {
   // Delete from profiles (this will cascade to auth.users via ON DELETE CASCADE)
   await prisma.profile.deleteMany({
     where: { email },
+  });
+}
+
+/**
+ * Clean up a specific test user by ID
+ */
+export async function cleanupTestUser(userId: string) {
+  // Delete from profiles (this will cascade to auth.users via ON DELETE CASCADE)
+  await prisma.profile.delete({
+    where: { id: userId },
+  }).catch(() => {
+    // Ignore errors if user doesn't exist
   });
 }
 
@@ -139,7 +151,7 @@ export async function login(
   await page.click('button[type="submit"]');
 
   // Wait for navigation to complete (home page is /)
-  await page.waitForURL(url => url.pathname === '/' || url.pathname === '/waiting-approval');
+  await page.waitForURL(url => url.pathname === '/');
 }
 
 /**

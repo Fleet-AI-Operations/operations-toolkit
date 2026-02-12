@@ -6,7 +6,6 @@ import { NextResponse, type NextRequest } from 'next/server'
  *
  * Handles authentication and authorization for all routes:
  * - Redirects unauthenticated users to /login
- * - Redirects PENDING users to /waiting-approval
  * - Forces password reset when mustResetPassword is true
  * - Refreshes Supabase session on each request
  *
@@ -85,7 +84,7 @@ export async function proxy(request: NextRequest) {
     }
 
     if (user) {
-        // Check for PENDING role
+        // Check for password reset requirement
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('role, mustResetPassword')
@@ -94,14 +93,6 @@ export async function proxy(request: NextRequest) {
 
         if (profileError) {
             console.error(`[Proxy] Profile fetch error for ${user.id}:`, profileError.message)
-        }
-
-        if (profile?.role === 'PENDING' && !request.nextUrl.pathname.startsWith('/waiting-approval') && !request.nextUrl.pathname.startsWith('/auth')) {
-            const url = request.nextUrl.clone()
-            url.pathname = '/waiting-approval'
-            const response = NextResponse.redirect(url)
-            response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
-            return response
         }
 
         if (profile?.mustResetPassword && !request.nextUrl.pathname.startsWith('/auth/reset-password') && !request.nextUrl.pathname.startsWith('/auth/callback')) {

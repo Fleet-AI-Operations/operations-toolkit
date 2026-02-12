@@ -4,7 +4,6 @@
  * Role Hierarchy (each role inherits permissions from roles below it):
  * ADMIN → FLEET → CORE → QA → USER
  *
- * PENDING: No access (awaiting role assignment)
  * USER: User Tools only
  * QA: User Tools + QA Tools
  * CORE: User Tools + QA Tools + Core Tools
@@ -19,7 +18,6 @@ import type { UserRole } from '@prisma/client';
  * Role hierarchy levels (higher number = more permissions)
  */
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  PENDING: 0,
   USER: 1,
   QA: 2,
   CORE: 3,
@@ -139,7 +137,6 @@ export function canAccessSection(
  * Role display names for UI
  */
 export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
-  PENDING: 'Pending',
   USER: 'User',
   QA: 'QA',
   CORE: 'Core',
@@ -152,7 +149,6 @@ export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
  * Role descriptions for UI
  */
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  PENDING: 'Awaiting role assignment',
   USER: 'Basic user access - Time Recording and Links',
   QA: 'Quality Assurance - User Tools + QA Dashboard',
   CORE: 'Core Operations - User + QA + Scoring and Review',

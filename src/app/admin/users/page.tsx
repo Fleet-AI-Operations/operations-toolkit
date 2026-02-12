@@ -7,7 +7,7 @@ import { Shield, User as UserIcon, Loader2, UserPlus, KeyRound } from 'lucide-re
 interface Profile {
     id: string;
     email: string;
-    role: 'PENDING' | 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
+    role: 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
     mustResetPassword?: boolean;
     createdAt: string;
 }
