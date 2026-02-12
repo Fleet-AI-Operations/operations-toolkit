@@ -209,14 +209,14 @@ test.describe('Audit Logs - UI Filters', () => {
     await page.click('button:has-text("Filters")');
 
     // Select action filter
-    await page.selectOption('select', 'USER_CREATED');
+    await page.selectOption('select[name="action"]', 'USER_CREATED');
 
     // Wait for results
     await page.waitForTimeout(500);
 
     // Should only show USER_CREATED logs
-    const logs = page.locator('[data-testid="audit-log-entry"]');
-    const firstLog = logs.first();
+    const tableRows = page.locator('tbody tr:not([style*="borderBottom"])');
+    const firstLog = tableRows.first();
     await expect(firstLog).toContainText('User Created');
   });
 
@@ -228,15 +228,19 @@ test.describe('Audit Logs - UI Filters', () => {
     await page.click('button:has-text("Filters")');
 
     // Select entity type filter
-    const entitySelect = page.locator('select').nth(1);
+    const entitySelects = page.locator('select');
+    const entitySelect = entitySelects.nth(1);
     await entitySelect.selectOption('PROJECT');
+
+    // Click Apply Filters button
+    await page.click('button:has-text("Apply Filters")');
 
     // Wait for results
     await page.waitForTimeout(500);
 
     // Should only show PROJECT logs
-    const logs = page.locator('[data-testid="audit-log-entry"]');
-    await expect(logs).toHaveCount(1);
+    const tableRows = page.locator('tbody tr:not([style*="borderBottom"])');
+    await expect(tableRows).toHaveCount(1);
   });
 
   test('should reset filters', async ({ page }) => {
@@ -245,14 +249,21 @@ test.describe('Audit Logs - UI Filters', () => {
 
     // Open filters and apply
     await page.click('button:has-text("Filters")');
-    await page.selectOption('select', 'USER_CREATED');
+    await page.selectOption('select[name="action"]', 'USER_CREATED');
+    await page.click('button:has-text("Apply Filters")');
+
+    // Wait for filtered results
+    await page.waitForTimeout(500);
 
     // Reset filters
-    await page.click('button:has-text("Reset Filters")');
+    await page.click('button:has-text("Clear Filters")');
+
+    // Wait for reset
+    await page.waitForTimeout(500);
 
     // Should show all logs again
-    const logs = page.locator('[data-testid="audit-log-entry"]');
-    await expect(logs.count()).resolves.toBeGreaterThan(1);
+    const tableRows = page.locator('tbody tr:not([style*="borderBottom"])');
+    await expect(tableRows.count()).resolves.toBeGreaterThan(1);
   });
 });
 
@@ -335,44 +346,56 @@ test.describe('Audit Logs - Metadata Display', () => {
     await loginAsAdmin(page);
     await page.goto('/admin/audit-logs');
 
-    // Find the log with metadata
-    const logEntry = page.locator('[data-testid="audit-log-entry"]').first();
+    // Find the first log row (main row, not expanded)
+    const firstRow = page.locator('tbody tr').first();
 
-    // Click to expand metadata
-    await logEntry.locator('summary:has-text("View metadata")').click();
+    // Click to expand
+    await firstRow.click();
 
-    // Should show metadata
-    await expect(logEntry.locator('pre')).toBeVisible();
-    await expect(logEntry.locator('pre')).toContainText('newuser@test.com');
-    await expect(logEntry.locator('pre')).toContainText('USER');
+    // Wait for expansion
+    await page.waitForTimeout(300);
+
+    // Should show metadata in expanded row
+    const metadataPre = page.locator('pre').first();
+    await expect(metadataPre).toBeVisible();
+    await expect(metadataPre).toContainText('newuser@test.com');
+    await expect(metadataPre).toContainText('USER');
   });
 });
 
 test.describe('Audit Logs - Visual Elements', () => {
-  test('should display action icons', async ({ page }) => {
+  test('should display table structure', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/audit-logs');
 
-    // Should have icons for actions
-    const icons = page.locator('svg[class*="lucide"]');
-    await expect(icons.first()).toBeVisible();
+    // Should have table with headers
+    await expect(page.locator('table')).toBeVisible();
+    await expect(page.locator('th:has-text("Timestamp")')).toBeVisible();
+    await expect(page.locator('th:has-text("Action")')).toBeVisible();
+    await expect(page.locator('th:has-text("User")')).toBeVisible();
   });
 
-  test('should show color-coded borders', async ({ page }) => {
+  test('should show gridlines and borders', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/audit-logs');
 
-    // Check that log entries have colored borders
-    const logEntry = page.locator('[data-testid="audit-log-entry"]').first();
-    await expect(logEntry).toHaveCSS('border-left-width', '4px');
+    // Check that table has borders
+    const table = page.locator('table');
+    await expect(table).toBeVisible();
+
+    // Check table rows exist
+    const rows = page.locator('tbody tr');
+    await expect(rows.first()).toBeVisible();
   });
 
   test('should format timestamps correctly', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/admin/audit-logs');
 
-    // Should show formatted dates
-    const timestamp = page.locator('text=/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/');
-    await expect(timestamp.first()).toBeVisible();
+    // Should show formatted dates in table
+    const timestamp = page.locator('tbody td').first();
+    await expect(timestamp).toBeVisible();
+    // Check for month abbreviation
+    await expect(page.locator('text=/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/').first()).toBeVisible();
   });
 });

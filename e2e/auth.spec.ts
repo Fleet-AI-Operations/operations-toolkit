@@ -16,13 +16,6 @@ test.describe('Authentication Flow', () => {
 });
 
 test.describe('Authorization & Role Redirects', () => {
-    test('should show waiting approval page', async ({ page }) => {
-        // This validates the page exists and is accessible
-        await page.goto('/waiting-approval');
-        await expect(page.locator('h1')).toContainText(/Approval Pending/);
-        await expect(page.locator('text=Your account is currently under review')).toBeVisible();
-    });
-
     test('should show reset password page', async ({ page }) => {
         // This validates the page exists and is accessible
         await page.goto('/auth/reset-password');

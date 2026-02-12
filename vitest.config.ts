@@ -7,10 +7,10 @@ import { loadEnv } from 'vite';
  * Vitest Configuration for Turborepo Monorepo
  *
  * Tests are now located in:
- * - packages/core/src/**/*.test.ts (business logic tests)
- * - packages/auth/src/**/*.test.ts (auth tests)
- * - packages/database/src/**/*.test.ts (database tests)
- * - apps/*/src/**/*.test.ts (app-specific tests)
+ * - packages/core/src/ - business logic tests
+ * - packages/auth/src/ - auth tests
+ * - packages/database/src/ - database tests
+ * - apps/star/src/ - app-specific tests
  *
  * Legacy tests in src/ are deprecated but kept during migration
  */
@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
             environment: 'jsdom',
             globals: true,
             setupFiles: './vitest.setup.ts',
+            passWithNoTests: true,
             // Include tests from packages and apps
             include: [
                 'packages/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',

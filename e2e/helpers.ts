@@ -61,6 +61,18 @@ export async function deleteTestUser(email: string) {
 }
 
 /**
+ * Clean up a specific test user by ID
+ */
+export async function cleanupTestUser(userId: string) {
+  // Delete from profiles (this will cascade to auth.users via ON DELETE CASCADE)
+  await prisma.profile.delete({
+    where: { id: userId },
+  }).catch(() => {
+    // Ignore errors if user doesn't exist
+  });
+}
+
+/**
  * Create a test project
  */
 export async function createTestProject(
@@ -139,7 +151,7 @@ export async function login(
   await page.click('button[type="submit"]');
 
   // Wait for navigation to complete (home page is /)
-  await page.waitForURL(url => url.pathname === '/' || url.pathname === '/waiting-approval');
+  await page.waitForURL(url => url.pathname === '/');
 }
 
 /**
