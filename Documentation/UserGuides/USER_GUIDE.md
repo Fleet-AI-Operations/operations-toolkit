@@ -38,53 +38,78 @@ The User App sidebar shows:
 
 ## Time Tracking
 
-Record and manage your work hours for accurate time tracking and reporting.
+Record and manage your work hours by category for accurate time tracking and reporting.
+
+### Pay Cycles
+
+The system tracks time in two pay cycles per month:
+- **Cycle 1**: 1st to 15th of each month
+- **Cycle 2**: 16th to end of month
+
+The time tracking page displays totals for both the current and previous pay cycles.
 
 ### Recording Time
 
 1. Navigate to **Time Tracking** from the sidebar
-2. Click **"Record Time"** or **"+ New Entry"**
-3. Fill in the form:
+2. Fill in the **"Add Time Entry"** form:
    - **Date**: When you worked (defaults to today)
-   - **Hours**: Number of hours worked (e.g., 2.5)
-   - **Project**: Select the project you worked on
-   - **Description**: Brief description of work done (optional)
-4. Click **"Save"** to record the entry
+   - **Hours**: Hours worked (0-23)
+   - **Minutes**: Minutes worked (0-59)
+   - **Category**: Select from available categories
+   - **Count** (optional): Number of tasks/items (appears for certain categories)
+   - **Additional Notes** (optional): Any relevant context (max 2000 characters)
+3. Click **"Add Entry"** to save
+
+**Available Categories:**
+- **Writing New Tasks** (with optional count)
+- **Updating Tasks Based on Feedback** (with optional count)
+- **Time Spent on Instructions or Slack**
+- **Platform Downtime**
+- **Time Spent on QA** (QA role and above only, with optional count)
+
+⚠️ **Note**: You cannot submit 0h 0m. At least 1 minute is required.
 
 ### Viewing Your Time Records
 
-**Dashboard View**:
-- See your recent time entries
-- Quick summary of hours this week/month
-- Visual charts of time distribution
+**Pay Cycle Summary** (top of page):
+- Current pay cycle total and date range
+- Previous pay cycle total and date range
 
-**Time Tracking Page**:
-- Full history of all time entries
-- Filter by date range, project, or description
-- Sort by date, hours, or project
-- Export to CSV for external reporting
+**Category Totals**:
+- Total time across all categories
+- Individual totals for each category
+
+**Your Time Entries Table**:
+- Shows entries from the past 14 days
+- Displays date, time, category, count (if applicable), and notes
+- Sorted by most recent first
 
 ### Editing Time Entries
 
 1. Find the entry in your time tracking list
-2. Click the **"Edit"** icon
-3. Update the fields
-4. Click **"Save"** to apply changes
+2. Click the **Edit** icon (blue button)
+3. The form will populate with the entry's data
+4. Update any fields
+5. Click **"Update Entry"** to save changes
+6. Click **"Cancel"** to discard changes
 
 ### Deleting Time Entries
 
 1. Find the entry to delete
-2. Click the **"Delete"** icon
-3. Confirm deletion when prompted
+2. Click the **Delete** icon (red button)
+3. A confirmation modal will appear
+4. Click **"Delete"** to confirm or **"Cancel"** to abort
 
 ⚠️ **Note**: Deleted entries cannot be recovered.
 
 ### Best Practices
 
 - **Record daily**: Log your time at the end of each day while it's fresh
-- **Be specific**: Use clear project names and descriptions
-- **Round appropriately**: Most systems use quarter-hour (0.25) increments
-- **Review weekly**: Check your entries every Friday to ensure accuracy
+- **Be specific**: Use the most appropriate category for your work
+- **Use count field**: Track the number of tasks completed when applicable
+- **Add notes**: Include helpful context like specific task IDs or project names
+- **Review weekly**: Check your entries regularly to ensure accuracy
+- **Track pay cycles**: Monitor your totals for each pay cycle for reporting
 
 ---
 

@@ -673,6 +673,7 @@ model users {
   bug_reports_bug_reports_assigned_toTousers BugReport[]            @relation("bug_reports_assigned_toTousers")
   bug_reports_bug_reports_user_idTousers     BugReport[]            @relation("bug_reports_user_idTousers")
   profiles                                   Profile?
+  time_entries                               TimeEntry[]
 
   @@index([instance_id])
   @@index([is_anonymous])
@@ -693,6 +694,32 @@ model CandidateStatus {
   @@unique([userId, projectId])
   @@index([projectId], map: "idx_candidate_status_project")
   @@map("candidate_status")
+  @@schema("public")
+}
+
+/// *
+///  * TIME ENTRY: User time tracking records.
+///  * Allows users to log hours and minutes worked in predefined categories.
+model TimeEntry {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid // Nullable: NULL for entries created before user exists
+  email     String?  // Email address for browser extension entries (used to link to user later)
+  date      DateTime @db.Date
+  hours     Int
+  minutes   Int
+  category  String
+  count     Int?     // Optional count for categories like Writing New Tasks, Updating Tasks Based on Feedback, Time Spent on QA
+  notes     String?  @db.Text // Optional additional notes or context
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user      users?   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_time_entries_user_id")
+  @@index([email], map: "idx_time_entries_email")
+  @@index([date], map: "idx_time_entries_date")
+  @@index([userId, date(sort: Desc)], map: "idx_time_entries_user_date")
+  @@map("time_entries")
   @@schema("public")
 }
 
