@@ -6,7 +6,6 @@ import { NextResponse, type NextRequest } from 'next/server'
  *
  * Handles authentication and authorization for all routes:
  * - Redirects unauthenticated users to /login
- * - Redirects PENDING users to /waiting-approval
  * - Forces password reset when mustResetPassword is true
  * - Refreshes Supabase session on each request
  *

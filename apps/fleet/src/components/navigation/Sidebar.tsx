@@ -70,7 +70,6 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                 { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3 },
                 { label: 'Bonus Windows', href: '/bonus-windows', icon: Target },
                 { label: 'Time Analytics', href: '/time-analytics', icon: TrendingUp },
-                { label: 'Waiting Approval', href: '/waiting-approval', icon: Clock },
             ]
         },
         {

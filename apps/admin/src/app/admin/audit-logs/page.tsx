@@ -16,6 +16,9 @@ interface AuditLog {
 
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [total, setTotal] = useState(0);
+  const [skip, setSkip] = useState(0);
+  const [take] = useState(50);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -29,11 +32,11 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [skip, actionFilter, entityTypeFilter, userFilter, startDate, endDate]);
 
   const fetchLogs = async () => {
     try {
-      const params = new URLSearchParams({ skip: '0', take: '50' });
+      const params = new URLSearchParams({ skip: skip.toString(), take: take.toString() });
       if (actionFilter) params.append('action', actionFilter);
       if (entityTypeFilter) params.append('entityType', entityTypeFilter);
       if (userFilter) params.append('userId', userFilter);
@@ -43,6 +46,7 @@ export default function AuditLogsPage() {
       const response = await fetch(`/api/audit-logs?${params}`);
       const data = await response.json();
       setLogs(data.logs || []);
+      setTotal(data.total || 0);
     } catch (error) {
       console.error('Failed to fetch logs:', error);
     } finally {
@@ -51,8 +55,7 @@ export default function AuditLogsPage() {
   };
 
   const applyFilters = () => {
-    setLoading(true);
-    fetchLogs();
+    setSkip(0); // Reset to first page when applying filters - useEffect will trigger fetchLogs
   };
 
   const clearFilters = () => {
@@ -61,8 +64,17 @@ export default function AuditLogsPage() {
     setUserFilter('');
     setStartDate('');
     setEndDate('');
-    setLoading(true);
-    fetchLogs();
+    setSkip(0); // Reset to first page when clearing filters - useEffect will trigger fetchLogs
+  };
+
+  const handlePrevious = () => {
+    setSkip(Math.max(0, skip - take));
+  };
+
+  const handleNext = () => {
+    if (skip + take < total) {
+      setSkip(skip + take);
+    }
   };
 
   const formatAction = (action: string) => {
@@ -344,6 +356,39 @@ export default function AuditLogsPage() {
             )}
           </tbody>
         </table>
+
+        {/* Pagination Controls */}
+        {logs.length > 0 && (
+          <div style={{
+            padding: '1.5rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <div style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.9rem' }}>
+              Showing {skip + 1} to {Math.min(skip + take, total)} of {total} logs
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={handlePrevious}
+                disabled={skip === 0}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 rounded transition-colors"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Previous
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={skip + take >= total}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-600 rounded transition-colors"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

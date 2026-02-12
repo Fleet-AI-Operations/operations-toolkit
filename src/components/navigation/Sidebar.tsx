@@ -53,7 +53,7 @@ export default function Sidebar({ userRole }: { userRole?: UserRole }) {
     const sections: NavSection[] = [
         {
             title: 'User Tools',
-            requiredRole: 'USER', // Minimum USER role (excludes PENDING)
+            requiredRole: 'USER', // Minimum role required
             items: [
                 { label: 'Time Recording', href: '/time-recording', icon: Clock, badge: 'New' },
                 { label: 'Links', href: '/links', icon: LinkIcon },

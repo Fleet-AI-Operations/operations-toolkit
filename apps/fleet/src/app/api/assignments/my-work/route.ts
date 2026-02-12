@@ -43,8 +43,7 @@ export async function GET(request: NextRequest) {
                         some: { assignedToUserId: user.id }
                     }
                 }
-            ],
-            status: { not: 'CANCELLED' }
+            ]
         };
 
         if (projectId) {
@@ -53,6 +52,8 @@ export async function GET(request: NextRequest) {
 
         if (status) {
             batchWhere.status = status;
+        } else {
+            batchWhere.status = { not: 'CANCELLED' };
         }
 
         const batches = await prisma.assignmentBatch.findMany({
