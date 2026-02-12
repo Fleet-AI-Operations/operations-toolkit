@@ -459,6 +459,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@repo/types':
         specifier: workspace:*
         version: link:../types

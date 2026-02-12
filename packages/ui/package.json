@@ -14,7 +14,8 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@repo/types": "workspace:*"
+    "@repo/types": "workspace:*",
+    "@repo/auth": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0",
