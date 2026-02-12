@@ -72,6 +72,15 @@ This is a **temporary implementation** for MVP/development purposes only. You **
    - 🐛 Troubleshooting guide
    - 📊 Monitoring queries
 
+### 🧪 Testing
+
+8. **[TIME_TRACKING_TESTS.md](TIME_TRACKING_TESTS.md)**
+   - ✅ Complete test suite documentation (35 tests)
+   - 📋 Test coverage breakdown by endpoint
+   - 🔍 Edge cases and validation tests
+   - 🏃 Running tests (commands and examples)
+   - 🐛 Troubleshooting test issues
+
 ---
 
 ## 🚦 Quick Navigation by Role
