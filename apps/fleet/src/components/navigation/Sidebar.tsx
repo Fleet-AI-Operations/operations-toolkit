@@ -26,7 +26,10 @@ import {
     TrendingUp,
     Bug,
     Clock,
-    ScanSearch
+    ScanSearch,
+    Building2,
+    RefreshCw,
+    Upload
 } from 'lucide-react';
 import { useState } from 'react';
 import { AppSwitcher } from '@repo/ui/components';
@@ -63,6 +66,15 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                 { label: 'Ingest Data', href: '/ingest', icon: Database },
                 { label: 'Project Management', href: '/manage', icon: Settings },
                 { label: 'Full Similarity Check', href: '/full-similarity-check', icon: ScanSearch },
+            ]
+        },
+        {
+            title: 'Deel Configuration',
+            role: ['FLEET', 'ADMIN'],
+            items: [
+                { label: 'Settings', href: '/deel/settings', icon: Settings },
+                { label: 'Sync Contracts', href: '/deel/sync-contracts', icon: RefreshCw },
+                { label: 'Submit Timesheets', href: '/deel/submit-timesheets', icon: Upload },
             ]
         },
         {
