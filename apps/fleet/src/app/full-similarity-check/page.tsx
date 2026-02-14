@@ -122,7 +122,28 @@ export default function FullSimilarityCheckPage() {
 
   // Get unique environments and users for filter dropdowns
   const uniqueEnvironments = Array.from(new Set(tasks.map(t => t.environment))).sort();
-  const uniqueUsers = Array.from(new Set(tasks.map(t => t.createdBy))).sort();
+  const uniqueUsers = Array.from(new Set(tasks.map(t => t.createdBy))).sort((a, b) => {
+    // Helper to extract last name from display name
+    const getLastName = (name: string) => {
+      // If it's an email, return it as-is (will be sorted to end)
+      if (name.includes('@')) return `zzz${name}`;
+
+      // Split name into parts
+      const parts = name.trim().split(/\s+/);
+
+      // If only one part, return it
+      if (parts.length === 1) return parts[0];
+
+      // Return the last part (assumed to be last name)
+      return parts[parts.length - 1];
+    };
+
+    const lastNameA = getLastName(a);
+    const lastNameB = getLastName(b);
+
+    // Sort by last name (case-insensitive)
+    return lastNameA.localeCompare(lastNameB, undefined, { sensitivity: 'base' });
+  });
 
   // Filter tasks based on selected filters
   const filteredTasks = tasks.filter(task => {
