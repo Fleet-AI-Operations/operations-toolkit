@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
 import { NextResponse } from 'next/server'
 import { logAudit, checkAuditResult } from '@repo/core/audit'
+import { notifyUserCreated } from '@repo/core'
 
 export async function GET() {
     const supabase = await createClient()
@@ -27,7 +28,11 @@ export async function GET() {
 
     try {
         const users = await prisma.profile.findMany({
-            orderBy: { createdAt: 'desc' }
+            orderBy: [
+                { lastName: 'asc' },
+                { firstName: 'asc' },
+                { email: 'asc' }
+            ]
         })
         return NextResponse.json(users)
     } catch (error: any) {
@@ -54,15 +59,25 @@ export async function PATCH(req: Request) {
     }
 
     try {
-        const { userId, role } = await req.json()
+        const { userId, role, firstName, lastName } = await req.json()
 
-        if (!userId || !role) {
-            return NextResponse.json({ error: 'Missing userId or role' }, { status: 400 })
+        if (!userId) {
+            return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+        }
+
+        // Build update object dynamically
+        const updateData: any = {}
+        if (role !== undefined) updateData.role = role
+        if (firstName !== undefined) updateData.firstName = firstName
+        if (lastName !== undefined) updateData.lastName = lastName
+
+        if (Object.keys(updateData).length === 0) {
+            return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
         }
 
         const { data: updatedProfile, error: updateError } = await supabase
             .from('profiles')
-            .update({ role })
+            .update(updateData)
             .eq('id', userId)
             .select()
             .single()
@@ -71,15 +86,15 @@ export async function PATCH(req: Request) {
 
         // Log audit event (critical operation)
         const auditResult = await logAudit({
-            action: 'USER_ROLE_CHANGED',
+            action: role !== undefined ? 'USER_ROLE_CHANGED' : 'USER_UPDATED',
             entityType: 'USER',
             entityId: userId,
             userId: user.id,
             userEmail: user.email!,
-            metadata: { newRole: role }
+            metadata: updateData
         })
 
-        checkAuditResult(auditResult, 'USER_ROLE_CHANGED', {
+        checkAuditResult(auditResult, role !== undefined ? 'USER_ROLE_CHANGED' : 'USER_UPDATED', {
             entityId: userId,
             userId: user.id
         })
@@ -109,7 +124,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { email, password, role } = await req.json()
+        const { email, password, role, firstName, lastName } = await req.json()
 
         if (!email || !password || !role) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -127,13 +142,18 @@ export async function POST(req: Request) {
 
         if (authError) throw authError
 
-        // 2. Update the profile created by the trigger to set role and forced reset
+        // 2. Update the profile created by the trigger to set role, names, and forced reset
+        const updateData: any = {
+            role,
+            mustResetPassword: true
+        }
+
+        if (firstName) updateData.firstName = firstName
+        if (lastName) updateData.lastName = lastName
+
         const { data: updatedProfile, error: updateError } = await adminClient
             .from('profiles')
-            .update({
-                role,
-                mustResetPassword: true
-            })
+            .update(updateData)
             .eq('id', authData.user.id)
             .select()
             .single()
@@ -154,6 +174,17 @@ export async function POST(req: Request) {
             entityId: authData.user.id,
             userId: adminUser.id
         })
+
+        // Send email notification to configured admins (non-blocking)
+        notifyUserCreated({
+            email,
+            firstName: firstName || null,
+            lastName: lastName || null,
+            role
+        }).catch(error => {
+            console.error('Failed to send user creation notification:', error);
+            // Don't fail the request if notification fails
+        });
 
         return NextResponse.json(updatedProfile)
     } catch (error: any) {

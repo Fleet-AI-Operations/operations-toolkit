@@ -43,6 +43,8 @@ model Project {
 model Profile {
   id                String    @id @db.Uuid
   email             String    @unique
+  firstName         String?   @map("firstName")
+  lastName          String?   @map("lastName")
   role              UserRole  @default(USER)
   mustResetPassword Boolean   @default(false) @map("mustResetPassword")
   createdAt         DateTime  @default(now()) @map("createdAt") @db.Timestamptz(6)
@@ -55,6 +57,9 @@ model Profile {
   assignedBatches       AssignmentBatch[]  @relation("AssignedBatches")
   createdBatches        AssignmentBatch[]  @relation("CreatedBatches")
   assignedRecords       AssignmentRecord[] @relation("AssignedRecords")
+
+  // Notification settings
+  notificationSettings NotificationSetting[] @relation("NotificationSettings")
 
   @@map("profiles")
   @@schema("public")
@@ -169,6 +174,24 @@ model SystemSetting {
   updatedAt   DateTime @default(now()) @updatedAt @map("updatedAt") @db.Timestamptz(6)
 
   @@map("system_settings")
+  @@schema("public")
+}
+
+/// *
+///  * NOTIFICATION SETTINGS: User-specific email notification preferences.
+///  * Allows admins to configure which events trigger email notifications.
+model NotificationSetting {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  notificationType String   @map("notification_type")
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  profile          Profile  @relation("NotificationSettings", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationType])
+  @@index([userId], map: "idx_notification_settings_user_id")
+  @@map("notification_settings")
   @@schema("public")
 }
 

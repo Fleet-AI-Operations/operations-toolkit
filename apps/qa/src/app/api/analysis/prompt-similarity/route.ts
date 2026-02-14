@@ -14,6 +14,7 @@ interface SimilarPrompt {
     id: string;
     content: string;
     category: string | null;
+    metadata: any;
     createdAt: Date;
     similarity: number;
 }
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
                 id,
                 content,
                 category,
+                metadata,
                 "createdAt",
                 ROUND((1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId}))) * 100) as similarity
             FROM public.data_records
@@ -90,6 +92,7 @@ export async function GET(req: NextRequest) {
                 id: p.id,
                 content: p.content,
                 category: p.category,
+                metadata: p.metadata,
                 createdAt: p.createdAt.toISOString(),
                 similarity: Number(p.similarity)
             }))

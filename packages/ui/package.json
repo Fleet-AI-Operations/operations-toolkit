@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@repo/types": "workspace:*",
-    "@repo/auth": "workspace:*"
+    "@repo/auth": "workspace:*",
+    "@supabase/ssr": "^0.5.2"
   },
   "peerDependencies": {
     "react": "^19.0.0",

@@ -52,7 +52,21 @@ function CompareContent() {
     }, [recordId]);
 
     if (!recordId) {
-        return <div className="container" style={{ textAlign: 'center', padding: '100px' }}>Invalid Record ID</div>;
+        return (
+            <div className="container" style={{ maxWidth: '600px', textAlign: 'center', padding: '100px' }}>
+                <div className="glass-card" style={{ padding: '40px' }}>
+                    <FileCheck size={48} color="var(--accent)" style={{ margin: '0 auto 24px' }} />
+                    <h2 style={{ marginBottom: '16px' }}>No Record Selected</h2>
+                    <p style={{ opacity: 0.6, marginBottom: '32px' }}>
+                        The Compare page requires a record ID to analyze. Please select a record from the Records page.
+                    </p>
+                    <Link href="/records" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <ArrowLeft size={18} />
+                        Go to Records
+                    </Link>
+                </div>
+            </div>
+        );
     }
 
     return (

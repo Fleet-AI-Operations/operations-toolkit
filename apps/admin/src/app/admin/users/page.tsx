@@ -7,6 +7,8 @@ import { Shield, User as UserIcon, Loader2, UserPlus, KeyRound } from 'lucide-re
 interface Profile {
     id: string;
     email: string;
+    firstName?: string | null;
+    lastName?: string | null;
     role: 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
     mustResetPassword?: boolean;
     createdAt: string;
@@ -20,6 +22,8 @@ export default function UserManagementPage() {
     // Create User Form State
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [newEmail, setNewEmail] = useState('');
+    const [newFirstName, setNewFirstName] = useState('');
+    const [newLastName, setNewLastName] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState('USER');
     const [isCreating, setIsCreating] = useState(false);
@@ -57,7 +61,13 @@ export default function UserManagementPage() {
             const res = await fetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: newEmail, password: newPassword, role: newRole })
+                body: JSON.stringify({
+                    email: newEmail,
+                    password: newPassword,
+                    role: newRole,
+                    firstName: newFirstName || undefined,
+                    lastName: newLastName || undefined
+                })
             });
 
             if (res.ok) {
@@ -65,6 +75,8 @@ export default function UserManagementPage() {
                 setUsers([newUser, ...users]);
                 setShowCreateForm(false);
                 setNewEmail('');
+                setNewFirstName('');
+                setNewLastName('');
                 setNewPassword('');
             } else {
                 const data = await res.json();
@@ -90,6 +102,25 @@ export default function UserManagementPage() {
             }
         } catch (err) {
             console.error('Failed to update role', err);
+        } finally {
+            setActioningId(null);
+        }
+    };
+
+    const updateUserNames = async (userId: string, firstName: string | null, lastName: string | null) => {
+        setActioningId(userId);
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, firstName, lastName })
+            });
+            if (res.ok) {
+                const updatedUser = await res.json();
+                setUsers(users.map(u => u.id === userId ? updatedUser : u));
+            }
+        } catch (err) {
+            console.error('Failed to update user names', err);
         } finally {
             setActioningId(null);
         }
@@ -232,46 +263,70 @@ export default function UserManagementPage() {
                 {showCreateForm && (
                     <section className="glass-card" style={{ padding: '32px', border: '1px solid var(--accent)' }}>
                         <h2 style={{ fontSize: '1.25rem', marginBottom: '24px' }}>Create New User</h2>
-                        <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '20px', alignItems: 'flex-end' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Email Address</label>
-                                <input
-                                    type="email"
-                                    required
-                                    className="input-field"
-                                    value={newEmail}
-                                    onChange={(e) => setNewEmail(e.target.value)}
-                                    placeholder="user@example.com"
-                                />
+                        <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>First Name</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        value={newFirstName}
+                                        onChange={(e) => setNewFirstName(e.target.value)}
+                                        placeholder="John"
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Last Name</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        value={newLastName}
+                                        onChange={(e) => setNewLastName(e.target.value)}
+                                        placeholder="Doe"
+                                    />
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Initial Password</label>
-                                <input
-                                    type="password"
-                                    required
-                                    className="input-field"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Email Address *</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        className="input-field"
+                                        value={newEmail}
+                                        onChange={(e) => setNewEmail(e.target.value)}
+                                        placeholder="user@example.com"
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Initial Password *</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        className="input-field"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Role *</label>
+                                    <select
+                                        className="input-field"
+                                        value={newRole}
+                                        onChange={(e) => setNewRole(e.target.value)}
+                                        style={{ padding: '10px' }}
+                                    >
+                                        <option value="USER">User</option>
+                                        <option value="QA">QA</option>
+                                        <option value="CORE">Core</option>
+                                        <option value="FLEET">Fleet</option>
+                                        <option value="MANAGER">Manager</option>
+                                        <option value="ADMIN">Admin</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Role</label>
-                                <select
-                                    className="input-field"
-                                    value={newRole}
-                                    onChange={(e) => setNewRole(e.target.value)}
-                                    style={{ padding: '10px' }}
-                                >
-                                    <option value="USER">User</option>
-                                    <option value="QA">QA</option>
-                                    <option value="CORE">Core</option>
-                                    <option value="FLEET">Fleet</option>
-                                    <option value="MANAGER">Manager</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
-                            </div>
-                            <div style={{ gridColumn: 'span 3', display: 'flex', justifyContent: 'flex-end' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <button type="submit" className="btn-primary" disabled={isCreating} style={{ padding: '12px 32px' }}>
                                     {isCreating ? <Loader2 className="animate-spin" size={20} /> : 'Create User & Require Password Reset'}
                                 </button>
@@ -296,6 +351,7 @@ export default function UserManagementPage() {
                                 user={user}
                                 onRoleChange={(role) => updateRole(user.id, role)}
                                 onResetPassword={() => openResetModal(user)}
+                                onUpdateNames={(firstName, lastName) => updateUserNames(user.id, firstName, lastName)}
                                 isActioning={actioningId === user.id}
                             />
                         ))}
@@ -404,12 +460,33 @@ export default function UserManagementPage() {
     );
 }
 
-function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
+function UserRow({ user, onRoleChange, onResetPassword, onUpdateNames, isActioning }: {
     user: Profile,
     onRoleChange?: (role: string) => void,
     onResetPassword?: () => void,
+    onUpdateNames?: (firstName: string | null, lastName: string | null) => void,
     isActioning: boolean
 }) {
+    const [isEditingNames, setIsEditingNames] = useState(false);
+    const [editFirstName, setEditFirstName] = useState(user.firstName || '');
+    const [editLastName, setEditLastName] = useState(user.lastName || '');
+
+    const handleSaveNames = () => {
+        if (onUpdateNames) {
+            onUpdateNames(
+                editFirstName || null,
+                editLastName || null
+            );
+        }
+        setIsEditingNames(false);
+    };
+
+    const handleCancelEdit = () => {
+        setEditFirstName(user.firstName || '');
+        setEditLastName(user.lastName || '');
+        setIsEditingNames(false);
+    };
+
     return (
         <div className="glass-card" style={{
             display: 'flex',
@@ -418,7 +495,7 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
             padding: '16px 24px',
             opacity: isActioning ? 0.6 : 1
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
                 <div style={{
                     width: '40px',
                     height: '40px',
@@ -431,8 +508,80 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
                 }}>
                     <UserIcon size={20} color="rgba(255,255,255,0.6)" />
                 </div>
-                <div>
-                    <div style={{ fontWeight: 600, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ flex: 1 }}>
+                    {isEditingNames ? (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                            <input
+                                type="text"
+                                className="input-field"
+                                value={editFirstName}
+                                onChange={(e) => setEditFirstName(e.target.value)}
+                                placeholder="First Name"
+                                style={{ padding: '6px 10px', fontSize: '0.9rem', width: '150px' }}
+                            />
+                            <input
+                                type="text"
+                                className="input-field"
+                                value={editLastName}
+                                onChange={(e) => setEditLastName(e.target.value)}
+                                placeholder="Last Name"
+                                style={{ padding: '6px 10px', fontSize: '0.9rem', width: '150px' }}
+                            />
+                            <button
+                                onClick={handleSaveNames}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '0.8rem',
+                                    background: 'var(--accent)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Save
+                            </button>
+                            <button
+                                onClick={handleCancelEdit}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '0.8rem',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    color: 'white',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                {user.firstName || user.lastName ? (
+                                    <span>{user.firstName} {user.lastName}</span>
+                                ) : (
+                                    <span style={{ color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>No name set</span>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setIsEditingNames(true)}
+                                style={{
+                                    padding: '4px 8px',
+                                    fontSize: '0.75rem',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    color: 'rgba(255,255,255,0.6)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Edit
+                            </button>
+                        </div>
+                    )}
+                    <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {user.email}
                         {user.mustResetPassword && (
                             <span style={{
@@ -447,7 +596,7 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
                             </span>
                         )}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
                         Joined {new Date(user.createdAt).toLocaleDateString()}
                     </div>
                 </div>
@@ -466,36 +615,24 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
                         background: 'rgba(255,255,255,0.05)',
                         color: 'white',
                         border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px',
+                        borderRadius: '6px',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease'
+                        fontWeight: '500'
                     }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-                    }}
-                    title="Reset user password"
                 >
                     <KeyRound size={16} />
                     Reset Password
                 </button>
+
                 <select
                     value={user.role}
                     onChange={(e) => onRoleChange?.(e.target.value)}
                     disabled={isActioning}
+                    className="input-field"
                     style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.1)',
                         padding: '8px 12px',
-                        borderRadius: '8px',
-                        fontSize: '0.85rem',
-                        outline: 'none',
-                        cursor: 'pointer'
+                        minWidth: '120px',
+                        fontSize: '0.85rem'
                     }}
                 >
                     <option value="USER">User</option>
@@ -509,3 +646,4 @@ function UserRow({ user, onRoleChange, onResetPassword, isActioning }: {
         </div>
     );
 }
+

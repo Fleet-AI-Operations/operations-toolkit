@@ -5,71 +5,132 @@
 
 import { Page, expect } from '@playwright/test';
 import { prisma } from '@/lib/prisma';
+import { createClient } from '@supabase/supabase-js';
+
+// Create Supabase admin client for E2E tests
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '',
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
 
 /**
- * Create a test user in the database
- * Note: This creates a user in the local Supabase database
+ * Create a test user in the database with authentication
+ * Note: This creates a user in the local Supabase with a working password
  */
 export async function createTestUser(
   email: string = 'test@example.com',
   role: 'ADMIN' | 'FLEET' | 'MANAGER' | 'CORE' | 'QA' | 'USER' = 'USER'
 ) {
-  // First, check if user exists in auth.users
-  const authUser = await prisma.$queryRaw`
-    SELECT id FROM auth.users WHERE email = ${email}
-  `;
-
-  let userId: string;
-
-  if (!authUser || (authUser as any).length === 0) {
-    // Create in auth.users
-    const result = await prisma.$queryRaw`
-      INSERT INTO auth.users (id, email, email_confirmed_at, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${email}, NOW(), NOW(), NOW())
-      RETURNING id
-    `;
-    userId = (result as any)[0].id;
-  } else {
-    userId = (authUser as any)[0].id;
-  }
-
-  // Create or update in profiles
-  const profile = await prisma.profile.upsert({
-    where: { email },
-    create: {
-      id: userId,
+  try {
+    // Create user with Supabase Admin API (sets up authentication properly)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      role,
-      mustResetPassword: false,
-    },
-    update: {
-      role,
-    },
-  });
+      password: 'testpassword123',
+      email_confirm: true,
+      user_metadata: {
+        role
+      }
+    });
 
-  return profile;
+    if (authError) {
+      // User might already exist, try to get existing user
+      const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
+      const user = existingUser?.users.find(u => u.email === email);
+
+      if (user) {
+        // Update existing user's password
+        await supabaseAdmin.auth.admin.updateUserById(user.id, {
+          password: 'testpassword123',
+          email_confirm: true
+        });
+
+        // Update profile
+        const profile = await prisma.profile.upsert({
+          where: { email },
+          create: {
+            id: user.id,
+            email,
+            role,
+            mustResetPassword: false,
+          },
+          update: {
+            role,
+            mustResetPassword: false,
+          },
+        });
+
+        return profile;
+      }
+
+      throw authError;
+    }
+
+    const userId = authData.user.id;
+
+    // Create or update in profiles
+    const profile = await prisma.profile.upsert({
+      where: { email },
+      create: {
+        id: userId,
+        email,
+        role,
+        mustResetPassword: false,
+      },
+      update: {
+        role,
+        mustResetPassword: false,
+      },
+    });
+
+    return profile;
+  } catch (error) {
+    console.error('Error creating test user:', error);
+    throw error;
+  }
 }
 
 /**
  * Delete a test user from the database
  */
 export async function deleteTestUser(email: string) {
-  // Delete from profiles (this will cascade to auth.users via ON DELETE CASCADE)
-  await prisma.profile.deleteMany({
-    where: { email },
-  });
+  // Get user ID first
+  const profile = await prisma.profile.findUnique({ where: { email } });
+
+  if (profile) {
+    // Delete from Supabase Auth
+    await supabaseAdmin.auth.admin.deleteUser(profile.id);
+
+    // Delete from profiles
+    await prisma.profile.delete({ where: { id: profile.id } }).catch(() => {
+      // Ignore errors if already deleted
+    });
+  }
 }
 
 /**
  * Clean up a specific test user by ID
  */
 export async function cleanupTestUser(userId: string) {
-  // Delete from profiles (this will cascade to auth.users via ON DELETE CASCADE)
-  await prisma.profile.delete({
-    where: { id: userId },
-  }).catch(() => {
-    // Ignore errors if user doesn't exist
-  });
+  try {
+    // Delete from Supabase Auth first
+    await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    // Delete from profiles
+    await prisma.profile.delete({
+      where: { id: userId },
+    }).catch(() => {
+      // Ignore errors if user doesn't exist
+    });
+  } catch (error) {
+    // Ignore errors during cleanup
+    console.warn('Error cleaning up test user:', error);
+  }
 }
 
 /**

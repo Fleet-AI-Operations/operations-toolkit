@@ -10,6 +10,7 @@ interface Prompt {
   id: string;
   content: string;
   category: string | null;
+  metadata?: Record<string, any> | null;
   createdById: string | null;
   createdByEmail: string | null;
   createdByName: string | null;
@@ -20,6 +21,7 @@ interface SimilarPrompt {
   id: string;
   content: string;
   category: string | null;
+  metadata?: Record<string, any> | null;
   similarity: number;
   createdAt: string;
   crossEncoderScore?: number;
@@ -38,7 +40,9 @@ export default function PromptSimilarityPage() {
 
   const [allPrompts, setAllPrompts] = useState<Prompt[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [userSearch, setUserSearch] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedEnvironment, setSelectedEnvironment] = useState<string>("");
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [similarPrompts, setSimilarPrompts] = useState<SimilarPrompt[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,12 +78,44 @@ export default function PromptSimilarityPage() {
     fetchPrompts();
   }, [selectedProjectId]);
 
+  const filteredUsers = useMemo(() => {
+    if (!userSearch) return users;
+    const searchLower = userSearch.toLowerCase();
+    return users.filter(user =>
+      user.name.toLowerCase().includes(searchLower)
+    );
+  }, [users, userSearch]);
+
+  // Extract unique environments from all prompts
+  const environments = useMemo(() => {
+    const envSet = new Set<string>();
+    allPrompts.forEach(p => {
+      const env = p.metadata?.environment_name || p.metadata?.env_key;
+      if (env) {
+        envSet.add(env);
+      }
+    });
+    return Array.from(envSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [allPrompts]);
+
   const filteredPrompts = useMemo(() => {
+    let filtered = allPrompts;
+
+    // Filter by user if selected
     if (selectedUserId) {
-      return allPrompts.filter((p) => p.createdById === selectedUserId);
+      filtered = filtered.filter((p) => p.createdById === selectedUserId);
     }
-    return allPrompts;
-  }, [selectedUserId, allPrompts]);
+
+    // Filter by environment if selected
+    if (selectedEnvironment) {
+      filtered = filtered.filter((p) => {
+        const env = p.metadata?.environment_name || p.metadata?.env_key;
+        return env === selectedEnvironment;
+      });
+    }
+
+    return filtered;
+  }, [selectedUserId, selectedEnvironment, allPrompts]);
 
   useEffect(() => {
     if (!selectedPrompt || !selectedProjectId) {
@@ -143,14 +179,14 @@ export default function PromptSimilarityPage() {
   const promptsListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // When the selected user filter changes, reset the left prompts scroll to top
+    // When the selected user or environment filter changes, reset the left prompts scroll to top
     if (promptsListRef.current) {
       promptsListRef.current.scrollTo({ top: 0, behavior: 'auto' });
     }
-    // Also reset selected prompt and similar prompts when user filter changes
+    // Also reset selected prompt and similar prompts when filters change
     setSelectedPrompt(null);
     setSimilarPrompts([]);
-  }, [selectedUserId]);
+  }, [selectedUserId, selectedEnvironment]);
 
   const getSimilarityColor = (similarity: number): string => {
     if (similarity >= 70) {
@@ -356,10 +392,75 @@ export default function PromptSimilarityPage() {
             >
               Filter by User:
             </label>
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                fontSize: "14px",
+                background: "rgba(0, 0, 0, 0.3)",
+                color: "rgba(255,255,255,0.95)",
+                marginBottom: "8px",
+                fontWeight: 500,
+              }}
+            />
             <select
               value={selectedUserId}
               onChange={(e) => {
                 setSelectedUserId(e.target.value);
+                setSelectedPrompt(null);
+                setSimilarPrompts([]);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                fontSize: "14px",
+                background: "rgba(0, 0, 0, 0.3)",
+                color: "rgba(255,255,255,0.95)",
+                cursor: "pointer",
+                fontWeight: 500,
+                marginBottom: "16px",
+              }}
+            >
+              <option
+                value=""
+                style={{ background: "#1a1a1a", color: "white" }}
+              >
+                All Users ({filteredUsers.length}{userSearch ? ` of ${users.length}` : ''})
+              </option>
+              {filteredUsers.map((user) => (
+                <option
+                  key={user.id}
+                  value={user.id}
+                  style={{ background: "#1a1a1a", color: "white" }}
+                >
+                  {user.name}
+                </option>
+              ))}
+            </select>
+
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: 600,
+                fontSize: "14px",
+                color: "rgba(255,255,255,0.8)",
+              }}
+            >
+              Filter by Environment:
+            </label>
+            <select
+              value={selectedEnvironment}
+              onChange={(e) => {
+                setSelectedEnvironment(e.target.value);
                 setSelectedPrompt(null);
                 setSimilarPrompts([]);
               }}
@@ -379,15 +480,15 @@ export default function PromptSimilarityPage() {
                 value=""
                 style={{ background: "#1a1a1a", color: "white" }}
               >
-                All Users ({users.length})
+                All Environments ({environments.length})
               </option>
-              {users.map((user) => (
+              {environments.map((env) => (
                 <option
-                  key={user.id}
-                  value={user.id}
+                  key={env}
+                  value={env}
                   style={{ background: "#1a1a1a", color: "white" }}
                 >
-                  {user.name}
+                  {env}
                 </option>
               ))}
             </select>
@@ -466,8 +567,27 @@ export default function PromptSimilarityPage() {
                   >
                     {prompt.content}
                   </div>
-                  <div style={{ fontSize: "12px", opacity: 0.6 }}>
-                    {prompt.createdByName || prompt.createdByEmail || "Unknown"}
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    {(prompt.metadata?.environment_name || prompt.metadata?.env_key) && (
+                      <div style={{
+                        fontSize: "10px",
+                        background: selectedPrompt?.id === prompt.id ? "rgba(147, 51, 234, 0.2)" : "rgba(147, 51, 234, 0.1)",
+                        color: selectedPrompt?.id === prompt.id ? "#c4b5fd" : "#a78bfa",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "12px",
+                        border: selectedPrompt?.id === prompt.id ? "1px solid rgba(147, 51, 234, 0.4)" : "1px solid rgba(147, 51, 234, 0.2)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}>
+                        <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: selectedPrompt?.id === prompt.id ? "#c4b5fd" : "#a78bfa" }}></div>
+                        {prompt.metadata.environment_name || prompt.metadata.env_key}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "12px", opacity: 0.6 }}>
+                      {prompt.createdByName || prompt.createdByEmail || "Unknown"}
+                    </div>
                   </div>
                 </div>
               ))
@@ -529,12 +649,31 @@ export default function PromptSimilarityPage() {
                     Selected Prompt:
                   </h3>
                   <div
-                    style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}
+                    style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}
                   >
-                    By:{" "}
-                    {selectedPrompt.createdByName ||
-                      selectedPrompt.createdByEmail ||
-                      "Unknown"}
+                    {(selectedPrompt.metadata?.environment_name || selectedPrompt.metadata?.env_key) && (
+                      <div style={{
+                        fontSize: "10px",
+                        background: "rgba(147, 51, 234, 0.1)",
+                        color: "#a78bfa",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "12px",
+                        border: "1px solid rgba(147, 51, 234, 0.2)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}>
+                        <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#a78bfa" }}></div>
+                        {selectedPrompt.metadata.environment_name || selectedPrompt.metadata.env_key}
+                      </div>
+                    )}
+                    <div>
+                      By:{" "}
+                      {selectedPrompt.createdByName ||
+                        selectedPrompt.createdByEmail ||
+                        "Unknown"}
+                    </div>
                   </div>
                 </div>
                 <div
@@ -729,7 +868,26 @@ export default function PromptSimilarityPage() {
                               color: "rgba(255,255,255,0.85)",
                             }}
                           >
-                            {prompt.content}
+                            <div style={{ marginBottom: "12px" }}>
+                              {prompt.content}
+                            </div>
+                            {(prompt.metadata?.environment_name || prompt.metadata?.env_key) && (
+                              <div style={{
+                                fontSize: "11px",
+                                background: "rgba(147, 51, 234, 0.1)",
+                                color: "#a78bfa",
+                                fontWeight: 700,
+                                padding: "4px 10px",
+                                borderRadius: "14px",
+                                border: "1px solid rgba(147, 51, 234, 0.2)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px"
+                              }}>
+                                <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#a78bfa" }}></div>
+                                {prompt.metadata.environment_name || prompt.metadata.env_key}
+                              </div>
+                            )}
                           </div>
                         </details>
                       ))}

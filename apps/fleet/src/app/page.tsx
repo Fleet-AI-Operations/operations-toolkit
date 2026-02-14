@@ -9,15 +9,6 @@ export default async function FleetPage() {
     redirect('/login');
   }
 
-  return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Fleet App</h1>
-      <p>Welcome to the Fleet application.</p>
-      <ul>
-        <li>Port: 3004</li>
-        <li>Role Required: FLEET+</li>
-        <li>Features: Data Ingestion, Project Management, Analytics, Bonus Windows, Activity Tracking</li>
-      </ul>
-    </div>
-  );
+  // Redirect to Analytics page (Fleet app landing page)
+  redirect('/analytics');
 }

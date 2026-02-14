@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 
 export interface AppSwitcherProps {
     currentApp: 'user' | 'qa' | 'core' | 'fleet' | 'admin';
@@ -64,6 +65,36 @@ const APP_URLS = {
 
 export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [sessionTokens, setSessionTokens] = useState<{ access: string; refresh: string } | null>(null);
+
+    // Get current session tokens for SSO
+    useEffect(() => {
+        const getSession = async () => {
+            try {
+                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+                if (!supabaseUrl || !supabaseKey) {
+                    console.error('[AppSwitcher] Missing Supabase environment variables');
+                    return;
+                }
+
+                const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+                const { data: { session } } = await supabase.auth.getSession();
+
+                if (session?.access_token && session?.refresh_token) {
+                    setSessionTokens({
+                        access: session.access_token,
+                        refresh: session.refresh_token
+                    });
+                }
+            } catch (error) {
+                console.error('[AppSwitcher] Failed to get session:', error);
+            }
+        };
+
+        getSession();
+    }, []);
 
     const accessibleApps = Object.values(APPS).filter(app =>
         userRole && app.roles.includes(userRole)
@@ -147,37 +178,50 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                     {accessibleApps.map(app => {
                         const isCurrent = app.name === currentApp;
 
-                        // Generate environment-appropriate URL
+                        // Generate environment-appropriate URL with SSO token
                         const getAppUrl = (appName: keyof typeof APP_URLS, port: number): string => {
+                            let baseUrl = '';
+
                             // In browser, check if we're on localhost
                             if (typeof window !== 'undefined') {
                                 const isDevelopment = window.location.hostname === 'localhost' ||
                                                      window.location.hostname === '127.0.0.1';
 
                                 if (isDevelopment) {
-                                    return `http://localhost:${port}`;
+                                    baseUrl = `http://localhost:${port}`;
+                                } else {
+                                    // Production: Use environment variables from APP_URLS
+                                    const envUrl = APP_URLS[appName];
+
+                                    if (envUrl) {
+                                        baseUrl = envUrl;
+                                    } else {
+                                        // WARNING: No environment variable set!
+                                        console.error(
+                                            `AppSwitcher: NEXT_PUBLIC_${appName.toUpperCase()}_APP_URL not set. ` +
+                                            `Cross-app navigation will not work correctly. ` +
+                                            `Set this environment variable in Vercel with the production URL for the ${appName} app.`
+                                        );
+
+                                        // Return empty string to make the link obvious broken
+                                        return '#missing-env-var';
+                                    }
                                 }
-
-                                // Production: Use environment variables from APP_URLS
-                                const envUrl = APP_URLS[appName];
-
-                                if (envUrl) {
-                                    return envUrl;
-                                }
-
-                                // WARNING: No environment variable set!
-                                console.error(
-                                    `AppSwitcher: NEXT_PUBLIC_${appName.toUpperCase()}_APP_URL not set. ` +
-                                    `Cross-app navigation will not work correctly. ` +
-                                    `Set this environment variable in Vercel with the production URL for the ${appName} app.`
-                                );
-
-                                // Return empty string to make the link obvious broken
-                                return '#missing-env-var';
+                            } else {
+                                // Server-side fallback
+                                baseUrl = `http://localhost:${port}`;
                             }
 
-                            // Server-side fallback
-                            return `http://localhost:${port}`;
+                            // Append SSO tokens if available (for cross-app authentication)
+                            if (sessionTokens) {
+                                const params = new URLSearchParams({
+                                    sso_access_token: sessionTokens.access,
+                                    sso_refresh_token: sessionTokens.refresh
+                                });
+                                return `${baseUrl}?${params.toString()}`;
+                            }
+
+                            return baseUrl;
                         };
 
                         const url = getAppUrl(app.name as keyof typeof APP_URLS, app.port);

@@ -9,15 +9,6 @@ export default async function CorePage() {
     redirect('/login');
   }
 
-  return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Core App</h1>
-      <p>Welcome to the Core application.</p>
-      <ul>
-        <li>Port: 3003</li>
-        <li>Role Required: CORE+</li>
-        <li>Features: Likert Scoring, Candidate Review, My Assignments</li>
-      </ul>
-    </div>
-  );
+  // Redirect to Likert Scoring page (Core app landing page)
+  redirect('/likert-scoring');
 }

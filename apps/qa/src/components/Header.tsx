@@ -5,6 +5,7 @@ import UserProfileDropdown from './navigation/UserProfileDropdown'
 import ProjectSelector from './navigation/ProjectSelector'
 import BugReportNotification from './BugReportNotification'
 import UserBugReportTracker from './UserBugReportTracker'
+import TimeEntryButton from './TimeEntryButton'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -49,6 +50,7 @@ export default async function Header() {
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}
+                    <TimeEntryButton />
                     <UserBugReportTracker />
                     <BugReportNotification userRole={profile?.role || 'USER'} />
                     <UserProfileDropdown

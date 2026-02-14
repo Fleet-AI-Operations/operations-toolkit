@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
 import { Prisma } from '@prisma/client'
+import { notifyBugReportCreated } from '@repo/core'
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +64,18 @@ export async function POST(request: NextRequest) {
         description,
       },
     })
+
+    // Send email notification to configured admins (non-blocking)
+    notifyBugReportCreated({
+      number: bugReport.reportNumber,
+      title: `Bug Report from ${pageUrl}`,
+      description: bugReport.description,
+      createdByEmail: bugReport.userEmail,
+      createdByName: null
+    }).catch(error => {
+      console.error('Failed to send bug report notification:', error);
+      // Don't fail the request if notification fails
+    });
 
     return NextResponse.json({
       success: true,

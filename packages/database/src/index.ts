@@ -41,5 +41,38 @@ export const prisma = new Proxy({} as PrismaClient, {
   }
 });
 
-// Re-export all Prisma types
-export * from '@prisma/client';
+// Explicitly re-export commonly used Prisma types
+export {
+  Prisma,
+  PrismaClient,
+  UserRole,
+  RecordType,
+  RecordCategory,
+  JobStatus,
+  AssignmentStatus,
+  RecordAssignmentStatus,
+} from '@prisma/client';
+
+// Re-export types (not runtime values)
+export type {
+  Profile,
+  Project,
+  DataRecord,
+  IngestJob,
+  AnalyticsJob,
+  SystemSetting,
+  NotificationSetting,
+  BonusWindow,
+  AssignmentBatch,
+  AssignmentRecord,
+  BugReport,
+  TimeEntry,
+  AuditLog,
+  LikertScore,
+  CrossEncoderCache,
+  CandidateStatus,
+  RaterGroup,
+  RaterGroupMember,
+  LLMModelConfig,
+  LLMEvaluationJob,
+} from '@prisma/client';

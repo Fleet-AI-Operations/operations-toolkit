@@ -16,6 +16,7 @@ import {
     Activity,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     MessageSquare,
     LucideIcon,
     Bot,
@@ -45,6 +46,7 @@ interface NavSection {
 export default function Sidebar({ userRole }: { userRole?: string }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
     const sections: NavSection[] = [
         {
@@ -64,6 +66,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                 { label: 'AI Settings', href: '/admin/ai-settings', icon: Bot },
                 { label: 'API Status', href: '/admin/api-status', icon: Activity },
                 { label: 'LLM Models', href: '/admin/llm-models', icon: Sparkles },
+                { label: 'Notification Settings', href: '/admin/notification-settings', icon: MessageSquare },
             ]
         }
     ];
@@ -78,6 +81,18 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
         if (!item.role || item.role.length === 0) return true;
         if (!userRole) return false;
         return item.role.includes(userRole);
+    };
+
+    const toggleSection = (sectionTitle: string) => {
+        setCollapsedSections(prev => {
+            const next = new Set(prev);
+            if (next.has(sectionTitle)) {
+                next.delete(sectionTitle);
+            } else {
+                next.add(sectionTitle);
+            }
+            return next;
+        });
     };
 
     return (
@@ -121,15 +136,58 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
                     const visibleItems = section.items.filter(isItemVisible);
                     if (visibleItems.length === 0) return null;
 
+                    const isSectionCollapsed = collapsedSections.has(section.title);
+
                     return (
                         <div key={idx} style={{ marginBottom: '24px' }}>
-                            {!collapsed && <div className="sidebar-section-title">{section.title}</div>}
-                            {visibleItems.map((item, i) => {
+                            {!collapsed && (
+                                <button
+                                    onClick={() => toggleSection(section.title)}
+                                    className="sidebar-section-title"
+                                    style={{
+                                        all: 'unset',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        width: '100%',
+                                        cursor: 'pointer',
+                                        padding: '8px 12px',
+                                        marginBottom: '4px',
+                                        borderRadius: '6px',
+                                        transition: 'background 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'transparent';
+                                    }}
+                                >
+                                    <span style={{
+                                        fontSize: '0.7rem',
+                                        fontWeight: 800,
+                                        letterSpacing: '0.1em',
+                                        textTransform: 'uppercase',
+                                        color: 'rgba(255, 255, 255, 0.5)',
+                                    }}>
+                                        {section.title}
+                                    </span>
+                                    <ChevronDown
+                                        size={14}
+                                        style={{
+                                            color: 'rgba(255, 255, 255, 0.4)',
+                                            transform: isSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                                            transition: 'transform 0.2s',
+                                        }}
+                                    />
+                                </button>
+                            )}
+                            {!isSectionCollapsed && visibleItems.map((item, i) => {
                                 const active = pathname === item.href;
                                 return (
-                                    <Link 
-                                        key={i} 
-                                        href={item.href} 
+                                    <Link
+                                        key={i}
+                                        href={item.href}
                                         className={`sidebar-link ${active ? 'active' : ''}`}
                                         title={collapsed ? item.label : ''}
                                     >

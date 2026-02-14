@@ -426,34 +426,33 @@ export default function LikertScoring() {
                                 </span>
 
                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                                    <span
-                                        style={{
-                                            padding: "4px 10px",
-                                            background:
-                                                currentRecord.category === "TOP_10"
-                                                    ? "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.3))"
-                                                    : currentRecord.category === "BOTTOM_10"
-                                                    ? "linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.3))"
-                                                    : "transparent",
-                                            color: currentRecord.category === "TOP_10" ? "#22c55e" : currentRecord.category === "BOTTOM_10" ? "#ef4444" : "transparent",
-                                            borderRadius: "20px",
-                                            fontSize: "10px",
-                                            fontWeight: "700",
-                                            textTransform: "uppercase",
-                                            letterSpacing: "0.5px",
-                                            border: currentRecord.category ? `1px solid ${currentRecord.category === "TOP_10" ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)"}` : "1px solid transparent",
-                                            whiteSpace: "nowrap",
-                                            visibility: currentRecord.category ? "visible" : "hidden",
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: "4px",
-                                        }}
-                                    >
-                                        {currentRecord.category === "TOP_10" ? "Top 10%" : currentRecord.category === "BOTTOM_10" ? "Bottom 10%" : "Hidden"}
-                                        {currentRecord.category === "TOP_10" && currentRecord.isCategoryCorrect === true && (
-                                            <span style={{ fontSize: "10px" }}>✓</span>
-                                        )}
-                                    </span>
+                                    {(currentRecord.category === "TOP_10" || currentRecord.category === "BOTTOM_10") && (
+                                        <span
+                                            style={{
+                                                padding: "4px 10px",
+                                                background:
+                                                    currentRecord.category === "TOP_10"
+                                                        ? "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.3))"
+                                                        : "linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.3))",
+                                                color: currentRecord.category === "TOP_10" ? "#22c55e" : "#ef4444",
+                                                borderRadius: "20px",
+                                                fontSize: "10px",
+                                                fontWeight: "700",
+                                                textTransform: "uppercase",
+                                                letterSpacing: "0.5px",
+                                                border: `1px solid ${currentRecord.category === "TOP_10" ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)"}`,
+                                                whiteSpace: "nowrap",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "4px",
+                                            }}
+                                        >
+                                            {currentRecord.category === "TOP_10" ? "Top 10%" : "Bottom 10%"}
+                                            {currentRecord.category === "TOP_10" && currentRecord.isCategoryCorrect === true && (
+                                                <span style={{ fontSize: "10px" }}>✓</span>
+                                            )}
+                                        </span>
+                                    )}
                                     <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "10px", fontWeight: "400", minHeight: "14px" }}>
                                         {currentRecord.metadata?.environment_name || currentRecord.metadata?.env_key || ""}
                                     </span>

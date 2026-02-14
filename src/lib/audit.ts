@@ -24,6 +24,7 @@ import { ERROR_IDS } from '@/constants/errorIds';
 export type AuditAction =
   // User Management
   | 'USER_CREATED'
+  | 'USER_UPDATED'
   | 'USER_ROLE_CHANGED'
   | 'USER_PASSWORD_RESET'
   // Project Operations

@@ -22,11 +22,12 @@
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.3.0",
-    "@repo/types": "workspace:*",
-    "@repo/database": "workspace:*",
     "@repo/auth": "workspace:*",
+    "@repo/database": "workspace:*",
+    "@repo/types": "workspace:*",
     "csv-parse": "^6.1.0",
     "pdf-parse": "^1.1.1",
+    "resend": "^6.9.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {

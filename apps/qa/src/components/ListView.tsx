@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, LayoutDashboard, FileCheck, Sparkles, AlertCircle, Inbox } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, AlertCircle, Inbox } from 'lucide-react';
 import Link from 'next/link';
 import { useProjects } from '@/hooks/useProjects';
 
@@ -12,17 +12,8 @@ interface Record {
     type: string;
     category: string;
     metadata: any;
-    alignmentAnalysis?: string | null;
     createdAt: string;
 }
-
-const extractAlignmentScore = (analysis: string | null | undefined): string | null => {
-    if (!analysis) return null;
-    // Look for patterns like "Alignment Score (0-100): 85" or "Score (0-100)\n85"
-    const regex = /(?:Alignment Score \(0-100\)|Score)[:\s\n]*(\d+)/i;
-    const match = analysis.match(regex);
-    return match ? match[1] : null;
-};
 
 export default function ListView() {
     return (
@@ -274,71 +265,6 @@ function ListContent() {
                                                 {record.metadata.environment_name || record.metadata.env_key}
                                             </div>
                                         )}
-                                        {selectedType === 'TASK' && (
-                                            <div style={{
-                                                fontSize: '0.7rem',
-                                                background: record.metadata?.avg_score !== undefined ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                                                color: record.metadata?.avg_score !== undefined ? '#00ff88' : 'rgba(255, 255, 255, 0.4)',
-                                                fontWeight: 700,
-                                                padding: '4px 10px',
-                                                borderRadius: '20px',
-                                                border: `1px solid ${record.metadata?.avg_score !== undefined ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 255, 255, 0.1)'}`,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}>
-                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: record.metadata?.avg_score !== undefined ? '#00ff88' : 'rgba(255, 255, 255, 0.3)' }}></div>
-                                                Quality: {record.metadata?.avg_score !== undefined
-                                                    ? `${(parseFloat(record.metadata.avg_score) * 1).toFixed(0)}%`
-                                                    : 'N/A'}
-                                            </div>
-                                        )}
-
-                                        {record.alignmentAnalysis ? (
-                                            <Link
-                                                href={`/compare?id=${record.id}`}
-                                                style={{
-                                                    fontSize: '0.7rem',
-                                                    background: 'rgba(0, 112, 243, 0.1)',
-                                                    color: 'var(--accent)',
-                                                    fontWeight: 700,
-                                                    padding: '4px 10px',
-                                                    borderRadius: '20px',
-                                                    border: '1px solid rgba(0, 112, 243, 0.2)',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px',
-                                                    textDecoration: 'none',
-                                                    transition: 'all 0.2s'
-                                                }}
-                                                className="hover-bright"
-                                            >
-                                                <Sparkles size={10} />
-                                                Alignment: {extractAlignmentScore(record.alignmentAnalysis)}%
-                                            </Link>
-                                        ) : (
-                                            <Link
-                                                href={`/compare?id=${record.id}`}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px',
-                                                    fontSize: '0.7rem',
-                                                    color: 'var(--accent)',
-                                                    fontWeight: 600,
-                                                    padding: '4px 10px',
-                                                    borderRadius: '20px',
-                                                    background: 'rgba(0, 112, 243, 0.05)',
-                                                    border: '1px solid rgba(0, 112, 243, 0.1)',
-                                                    transition: 'all 0.2s',
-                                                    textDecoration: 'none'
-                                                }}
-                                                className="hover-bright"
-                                            >
-                                                <FileCheck size={12} /> Generate Alignment Score
-                                            </Link>
-                                        )}
-
                                         <span style={{ fontSize: '0.75rem', opacity: 0.4, marginLeft: '8px' }}>{new Date(record.createdAt).toLocaleDateString()}</span>
                                     </div>
                                 </div>

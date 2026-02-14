@@ -5,6 +5,7 @@ export * from './analytics';
 export * from './evaluation';
 export * from './ai';
 export * from './ingestion';
+export * from './notifications/email-service';
 export * as utils from './utils';
 export * as similarity from './similarity';
 export * as audit from './audit';
@@ -12,4 +13,5 @@ export * as analytics from './analytics';
 export * as evaluation from './evaluation';
 export * as ai from './ai';
 export * as ingestion from './ingestion';
+export * as notifications from './notifications/email-service';
 //# sourceMappingURL=index.d.ts.map

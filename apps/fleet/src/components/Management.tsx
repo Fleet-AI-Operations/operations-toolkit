@@ -29,7 +29,11 @@ export default function ManagementPage() {
             const res = await fetch('/api/projects');
             const data = await res.json();
             const projectList = Array.isArray(data) ? data : (data.projects || []);
-            setProjects(projectList);
+            // Sort projects alphabetically by name
+            const sortedProjects = projectList.sort((a: Project, b: Project) =>
+                a.name.localeCompare(b.name)
+            );
+            setProjects(sortedProjects);
         } catch (err) {
             console.error('Failed to fetch projects', err);
             setProjects([]);

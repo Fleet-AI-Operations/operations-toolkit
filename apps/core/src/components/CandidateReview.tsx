@@ -358,6 +358,7 @@ export default function CandidateReview() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "accepted" | "rejected"
   >("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [candidateStatuses, setCandidateStatuses] = useState<
     Map<string, string>
   >(new Map());
@@ -491,21 +492,49 @@ export default function CandidateReview() {
   }, [selectedProjectId, userStats]);
 
   const filteredCandidates = useMemo(() => {
+    // Helper function to extract last name from display name
+    const getLastName = (name: string | null, email: string): string => {
+      if (!name) return email; // Use email if no name
+
+      // If it's an email, return it
+      if (name.includes('@')) return name;
+
+      // Split name into parts
+      const parts = name.trim().split(/\s+/);
+
+      // If only one part, return it
+      if (parts.length === 1) return parts[0];
+
+      // Return the last part (assumed to be last name)
+      return parts[parts.length - 1];
+    };
+
     const filtered = userStats.filter((user) => {
-      if (statusFilter === "all") return true;
-      const status = candidateStatuses.get(user.userId);
-      if (statusFilter === "accepted") return status === "ACCEPTED";
-      if (statusFilter === "rejected") return status === "REJECTED";
+      // Filter by status
+      if (statusFilter !== "all") {
+        const status = candidateStatuses.get(user.userId);
+        if (statusFilter === "accepted" && status !== "ACCEPTED") return false;
+        if (statusFilter === "rejected" && status !== "REJECTED") return false;
+      }
+
+      // Filter by search term
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const nameMatch = user.userName?.toLowerCase().includes(searchLower);
+        const emailMatch = user.userEmail.toLowerCase().includes(searchLower);
+        return nameMatch || emailMatch;
+      }
+
       return true;
     });
 
-    // Sort: people with feedback history first (accepted or denied > 0), then people without
+    // Sort alphabetically by last name (case-insensitive)
     return filtered.sort((a, b) => {
-      const aHasFeedback = a.acceptedCount > 0 || a.deniedCount > 0;
-      const bHasFeedback = b.acceptedCount > 0 || b.deniedCount > 0;
-      return (bHasFeedback ? 1 : 0) - (aHasFeedback ? 1 : 0);
+      const lastNameA = getLastName(a.userName, a.userEmail);
+      const lastNameB = getLastName(b.userName, b.userEmail);
+      return lastNameA.localeCompare(lastNameB, undefined, { sensitivity: 'base' });
     });
-  }, [userStats, statusFilter, candidateStatuses]);
+  }, [userStats, statusFilter, searchTerm, candidateStatuses]);
 
   const togglePrompt = (promptId: string) => {
     setExpandedPrompts((prev) => {
@@ -634,15 +663,42 @@ export default function CandidateReview() {
               borderBottom: "1px solid rgba(255,255,255,0.1)",
               display: "flex",
               flexDirection: "column",
-              justifyContent: "center",
-              minHeight: "80px",
+              gap: "12px",
             }}>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.85rem",
+                  color: "rgba(255,255,255,0.7)",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                }}>
+                Search:
+              </label>
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(0,0,0,0.3)",
+                  color: "rgba(255,255,255,0.9)",
+                  fontSize: "0.9rem",
+                  outline: "none",
+                }}
+              />
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <label
                 style={{
-                  fontSize: "0.95rem",
+                  fontSize: "0.85rem",
                   color: "rgba(255,255,255,0.7)",
-                  fontWeight: 500,
+                  fontWeight: 600,
                   whiteSpace: "nowrap",
                 }}>
                 Status:

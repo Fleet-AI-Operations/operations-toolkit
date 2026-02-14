@@ -6,6 +6,7 @@
  *   - OpenRouter (cloud, requires API key)
  */
 import { prisma } from '@repo/database';
+import { notifyAICallUsed } from '../notifications/email-service';
 /**
  * Detects and returns the active AI provider configuration.
  * Priority: Database Settings > OpenRouter (if key provided in env) > LM Studio (default)
@@ -229,7 +230,7 @@ export async function generateCompletionWithUsage(prompt, systemPrompt) {
         }
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content || '';
-        return {
+        const result = {
             content,
             usage: data.usage ? {
                 promptTokens: data.usage.prompt_tokens || 0,
@@ -239,6 +240,18 @@ export async function generateCompletionWithUsage(prompt, systemPrompt) {
             } : undefined,
             provider: config.provider,
         };
+        // Send email notification to configured admins (non-blocking, fire-and-forget)
+        // WARNING: This fires on EVERY AI call. During bulk operations (alignment analysis,
+        // ingestion with embeddings), this can generate hundreds of emails. Consider disabling
+        // AI_CALL_USED notifications in admin settings unless specifically needed for monitoring.
+        notifyAICallUsed({
+            operation: 'LLM Completion',
+            model: config.llmModel,
+            cost: result.usage?.cost
+        }).catch(() => {
+            // Silently ignore notification failures to not impact AI operations
+        });
+        return result;
     }
     catch (error) {
         console.error(`Error in completion (${config.provider}):`, error);
