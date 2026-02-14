@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LayoutDashboard, FileCheck, ArrowLeft, RefreshCcw, Sparkles, Target, MessageSquare, Coins } from 'lucide-react';
+import { FileCheck, ArrowLeft, RefreshCcw, Sparkles, Target, MessageSquare, Coins } from 'lucide-react';
 import Link from 'next/link';
 
 function CompareContent() {
@@ -165,7 +165,7 @@ function CompareContent() {
                                 }}
                                 className="hover-bright"
                             >
-                                <RefreshCcw size={12} className={loading ? 'spinner' : ''} />
+                                <RefreshCcw size={12} className="" />
                                 Regenerate Analysis
                             </button>
                         </div>

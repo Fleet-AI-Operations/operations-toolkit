@@ -647,13 +647,3 @@ function UserRow({ user, onRoleChange, onResetPassword, onUpdateNames, isActioni
     );
 }
 
-function getRoleColor(role: string) {
-    switch (role) {
-        case 'ADMIN': return 'rgba(255, 77, 77, 0.1)';
-        case 'MANAGER': return 'rgba(255, 171, 0, 0.1)';
-        case 'FLEET': return 'rgba(125, 158, 255, 0.1)';
-        case 'CORE': return 'rgba(0, 210, 255, 0.1)';
-        case 'QA': return 'rgba(77, 255, 184, 0.1)';
-        default: return 'rgba(0, 255, 136, 0.1)';
-    }
-}

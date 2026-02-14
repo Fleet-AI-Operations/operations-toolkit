@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
 
   if (ssoAccessToken && ssoRefreshToken) {
     // Exchange tokens for session
-    const { data, error } = await supabase.auth.setSession({
+    const { error } = await supabase.auth.setSession({
       access_token: ssoAccessToken,
       refresh_token: ssoRefreshToken,
     });
