@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Loader2, Bot, ChevronDown, ChevronUp, AlertCircle, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Search, Loader2, Bot, ChevronDown, ChevronUp, AlertCircle, CheckCircle, ShieldAlert, Users } from 'lucide-react';
 
 interface TaskResult {
     id: string;
@@ -10,6 +10,8 @@ interface TaskResult {
     createdByName: string | null;
     createdByEmail: string | null;
     createdAt: string;
+    taskKey: string | null;
+    taskVersion: string | null;
 }
 
 type Verdict = 'AI_GENERATED' | 'TEMPLATED' | 'AUTHENTIC';
@@ -22,12 +24,29 @@ interface AICheckResult {
     indicators: string[];
 }
 
+interface SimilarityMatch {
+    id: string;
+    content: string;
+    environment: string;
+    createdByName: string | null;
+    createdByEmail: string | null;
+    createdAt: string;
+    taskKey: string | null;
+    taskVersion: string | null;
+    similarity: number;
+}
+
 interface TaskCardState {
     expanded: boolean;
     checking: boolean;
     aiResult: AICheckResult | null;
     aiError: string | null;
     aiExpanded: boolean;
+    simChecking: boolean;
+    simMatches: SimilarityMatch[] | null;
+    simError: string | null;
+    simExpanded: boolean;
+    expandedSimMatchIds: Set<string>;
 }
 
 const verdictConfig: Record<Verdict, { label: string; color: string; bg: string; icon: typeof CheckCircle }> = {
@@ -87,7 +106,21 @@ export default function TaskSearchPage() {
     };
 
     const getCardState = (id: string): TaskCardState =>
-        cardStates[id] ?? { expanded: false, checking: false, aiResult: null, aiError: null, aiExpanded: true };
+        cardStates[id] ?? {
+            expanded: false,
+            checking: false, aiResult: null, aiError: null, aiExpanded: true,
+            simChecking: false, simMatches: null, simError: null, simExpanded: true,
+            expandedSimMatchIds: new Set(),
+        };
+
+    const toggleSimMatch = (cardId: string, matchId: string) => {
+        setCardStates(prev => {
+            const current = getCardState(cardId);
+            const next = new Set(current.expandedSimMatchIds);
+            next.has(matchId) ? next.delete(matchId) : next.add(matchId);
+            return { ...prev, [cardId]: { ...current, expandedSimMatchIds: next } };
+        });
+    };
 
     const updateCard = (id: string, patch: Partial<TaskCardState>) => {
         setCardStates(prev => ({
@@ -112,6 +145,22 @@ export default function TaskSearchPage() {
         }
     };
 
+    const runSimilarityCheck = async (task: TaskResult) => {
+        updateCard(task.id, { simChecking: true, simError: null, simMatches: null });
+        try {
+            const res = await fetch('/api/task-search/user-similarity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recordId: task.id }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Similarity check failed');
+            updateCard(task.id, { simMatches: data.matches, simChecking: false, simExpanded: true });
+        } catch (e: any) {
+            updateCard(task.id, { simError: e.message, simChecking: false });
+        }
+    };
+
     const formatDate = (dateStr: string) => {
         const d = new Date(dateStr);
         return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -125,7 +174,7 @@ export default function TaskSearchPage() {
                     Task Search
                 </h1>
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
-                    Search tasks by creator name, email, or exact task ID. Run an AI check to detect AI-generated or templated content.
+                    Search tasks by creator name, email, task key (e.g. task_abc123_...), or exact record ID. Run an AI check to detect AI-generated or templated content.
                 </p>
             </div>
 
@@ -141,7 +190,7 @@ export default function TaskSearchPage() {
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Search by name, email, or task ID…"
+                        placeholder="Search by name, email, task key, or record ID…"
                         style={{
                             width: '100%',
                             paddingLeft: '42px',
@@ -228,17 +277,32 @@ export default function TaskSearchPage() {
                                     {/* Card header */}
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <span style={{
-                                                fontSize: '0.7rem',
-                                                fontFamily: 'monospace',
-                                                color: 'rgba(255,255,255,0.35)',
-                                                background: 'rgba(255,255,255,0.06)',
-                                                padding: '3px 8px',
-                                                borderRadius: '5px',
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                            }}>
-                                                {task.id}
-                                            </span>
+                                            {task.taskKey && (
+                                                <span style={{
+                                                    fontSize: '0.7rem',
+                                                    fontFamily: 'monospace',
+                                                    color: 'rgba(255,255,255,0.55)',
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '5px',
+                                                    border: '1px solid rgba(255,255,255,0.12)',
+                                                }}>
+                                                    {task.taskKey}
+                                                </span>
+                                            )}
+                                            {!task.taskKey && (
+                                                <span style={{
+                                                    fontSize: '0.7rem',
+                                                    fontFamily: 'monospace',
+                                                    color: 'rgba(255,255,255,0.35)',
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '5px',
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                }}>
+                                                    {task.id}
+                                                </span>
+                                            )}
                                             {task.environment && (
                                                 <span style={{
                                                     fontSize: '0.7rem',
@@ -251,31 +315,69 @@ export default function TaskSearchPage() {
                                                     {task.environment}
                                                 </span>
                                             )}
+                                            {task.taskVersion && (
+                                                <span style={{
+                                                    fontSize: '0.7rem',
+                                                    color: 'rgba(255,255,255,0.4)',
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '5px',
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                }}>
+                                                    v{task.taskVersion}
+                                                </span>
+                                            )}
                                         </div>
-                                        <button
-                                            onClick={() => runAICheck(task)}
-                                            disabled={state.checking}
-                                            style={{
-                                                flexShrink: 0,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                padding: '7px 14px',
-                                                borderRadius: '8px',
-                                                background: state.checking ? 'rgba(255,255,255,0.05)' : 'rgba(139,92,246,0.15)',
-                                                border: '1px solid rgba(139,92,246,0.3)',
-                                                color: state.checking ? 'rgba(255,255,255,0.3)' : 'rgba(167,139,250,1)',
-                                                fontSize: '0.8rem',
-                                                fontWeight: 600,
-                                                cursor: state.checking ? 'not-allowed' : 'pointer',
-                                            }}
-                                        >
-                                            {state.checking
-                                                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                                : <Bot size={14} />
-                                            }
-                                            {state.checking ? 'Checking…' : 'AI Check'}
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                            <button
+                                                onClick={() => runSimilarityCheck(task)}
+                                                disabled={state.simChecking}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    padding: '7px 14px',
+                                                    borderRadius: '8px',
+                                                    background: state.simChecking ? 'rgba(255,255,255,0.05)' : 'rgba(20,184,166,0.12)',
+                                                    border: '1px solid rgba(20,184,166,0.3)',
+                                                    color: state.simChecking ? 'rgba(255,255,255,0.3)' : 'rgba(94,234,212,1)',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 600,
+                                                    cursor: state.simChecking ? 'not-allowed' : 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {state.simChecking
+                                                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                                    : <Users size={14} />
+                                                }
+                                                {state.simChecking ? 'Checking…' : 'User Similarity'}
+                                            </button>
+                                            <button
+                                                onClick={() => runAICheck(task)}
+                                                disabled={state.checking}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    padding: '7px 14px',
+                                                    borderRadius: '8px',
+                                                    background: state.checking ? 'rgba(255,255,255,0.05)' : 'rgba(139,92,246,0.15)',
+                                                    border: '1px solid rgba(139,92,246,0.3)',
+                                                    color: state.checking ? 'rgba(255,255,255,0.3)' : 'rgba(167,139,250,1)',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 600,
+                                                    cursor: state.checking ? 'not-allowed' : 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {state.checking
+                                                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                                    : <Bot size={14} />
+                                                }
+                                                {state.checking ? 'Checking…' : 'AI Check'}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Creator info */}
@@ -417,6 +519,156 @@ export default function TaskSearchPage() {
                                             </div>
                                         );
                                     })()}
+                                    {/* Similarity error */}
+                                    {state.simError && (
+                                        <div style={{
+                                            marginTop: '14px',
+                                            padding: '10px 14px',
+                                            background: 'rgba(239,68,68,0.08)',
+                                            border: '1px solid rgba(239,68,68,0.25)',
+                                            borderRadius: '8px',
+                                            color: '#fca5a5',
+                                            fontSize: '0.82rem',
+                                        }}>
+                                            Similarity check failed: {state.simError}
+                                        </div>
+                                    )}
+
+                                    {/* Similarity results */}
+                                    {state.simMatches !== null && (
+                                        <div style={{
+                                            marginTop: '14px',
+                                            padding: '14px 16px',
+                                            background: 'rgba(20,184,166,0.06)',
+                                            border: '1px solid rgba(20,184,166,0.25)',
+                                            borderRadius: '10px',
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: state.simExpanded ? '12px' : 0 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Users size={15} color="rgba(94,234,212,0.9)" />
+                                                    <span style={{ color: 'rgba(94,234,212,0.9)', fontWeight: 700, fontSize: '0.88rem' }}>
+                                                        User Similarity
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '0.72rem',
+                                                        color: 'rgba(255,255,255,0.4)',
+                                                        background: 'rgba(255,255,255,0.06)',
+                                                        padding: '2px 7px',
+                                                        borderRadius: '4px',
+                                                        fontWeight: 600,
+                                                    }}>
+                                                        {state.simMatches.length} match{state.simMatches.length !== 1 ? 'es' : ''} found
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => updateCard(task.id, { simExpanded: !state.simExpanded })}
+                                                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: '2px' }}
+                                                >
+                                                    {state.simExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                                </button>
+                                            </div>
+
+                                            {state.simExpanded && (
+                                                state.simMatches.length === 0 ? (
+                                                    <p style={{ fontSize: '0.83rem', color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+                                                        No similar tasks found from this user.
+                                                    </p>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                        {state.simMatches.map(match => {
+                                                            const matchExpanded = state.expandedSimMatchIds.has(match.id);
+                                                            return (
+                                                            <div
+                                                                key={match.id}
+                                                                onClick={() => toggleSimMatch(task.id, match.id)}
+                                                                style={{
+                                                                    padding: '12px 14px',
+                                                                    background: 'rgba(0,0,0,0.2)',
+                                                                    borderRadius: '8px',
+                                                                    border: `1px solid ${matchExpanded ? 'rgba(20,184,166,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                                                                    cursor: 'pointer',
+                                                                    transition: 'border-color 0.15s',
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px' }}>
+                                                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                                        {match.taskKey && (
+                                                                            <span style={{
+                                                                                fontSize: '0.68rem',
+                                                                                fontFamily: 'monospace',
+                                                                                color: 'rgba(255,255,255,0.4)',
+                                                                                background: 'rgba(255,255,255,0.05)',
+                                                                                padding: '2px 6px',
+                                                                                borderRadius: '4px',
+                                                                            }}>
+                                                                                {match.taskKey}
+                                                                            </span>
+                                                                        )}
+                                                                        <span style={{
+                                                                            fontSize: '0.68rem',
+                                                                            color: 'rgba(99,102,241,0.8)',
+                                                                            background: 'rgba(99,102,241,0.1)',
+                                                                            padding: '2px 6px',
+                                                                            borderRadius: '4px',
+                                                                        }}>
+                                                                            {match.environment}
+                                                                        </span>
+                                                                        {match.taskVersion && (
+                                                                            <span style={{
+                                                                                fontSize: '0.68rem',
+                                                                                color: 'rgba(255,255,255,0.4)',
+                                                                                background: 'rgba(255,255,255,0.06)',
+                                                                                padding: '2px 6px',
+                                                                                borderRadius: '4px',
+                                                                            }}>
+                                                                                v{match.taskVersion}
+                                                                            </span>
+                                                                        )}
+                                                                        <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)' }}>
+                                                                            {formatDate(match.createdAt)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                                                        <span style={{
+                                                                            fontSize: '0.78rem',
+                                                                            fontWeight: 700,
+                                                                            color: match.similarity >= 80
+                                                                                ? '#f87171'
+                                                                                : match.similarity >= 60
+                                                                                    ? '#facc15'
+                                                                                    : 'rgba(94,234,212,0.8)',
+                                                                        }}>
+                                                                            {match.similarity}% similar
+                                                                        </span>
+                                                                        {matchExpanded
+                                                                            ? <ChevronUp size={13} color="rgba(255,255,255,0.3)" />
+                                                                            : <ChevronDown size={13} color="rgba(255,255,255,0.3)" />
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                                <p style={{
+                                                                    fontSize: '0.82rem',
+                                                                    color: 'rgba(255,255,255,0.65)',
+                                                                    lineHeight: 1.5,
+                                                                    margin: 0,
+                                                                    whiteSpace: 'pre-wrap',
+                                                                    ...(matchExpanded ? {} : {
+                                                                        display: '-webkit-box',
+                                                                        WebkitLineClamp: 3,
+                                                                        WebkitBoxOrient: 'vertical',
+                                                                        overflow: 'hidden',
+                                                                    }),
+                                                                }}>
+                                                                    {match.content}
+                                                                </p>
+                                                            </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

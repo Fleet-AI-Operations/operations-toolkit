@@ -66,10 +66,10 @@ export default function LikertScoring() {
     }, [supabase]);
 
     useEffect(() => {
-        if (userId) {
+        if (userId && environment) {
             fetchRecords();
         } else {
-            // No user yet: clear data
+            // No user or no environment selected yet: clear data
             setRecords([]);
             setCurrentIndex(0);
             setError(null);
@@ -349,8 +349,8 @@ export default function LikertScoring() {
                     value={environment}
                     onChange={setEnvironment}
                     apiUrl="/api/environments"
-                    label="Filter by Environment (optional)"
-                    includeAll={true}
+                    label="Select an Environment"
+                    includeAll={false}
                 />
             </div>
 
@@ -375,6 +375,16 @@ export default function LikertScoring() {
                 <div style={{ textAlign: "center", color: "#60a5fa", padding: "60px 20px" }}>
                     <p style={{ fontSize: "16px" }}>Loading prompts...</p>
                 </div>
+            ) : !environment ? (
+                <div className="glass-card" style={{ textAlign: "center", padding: "80px 20px" }}>
+                    <div style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.3 }}>☝️</div>
+                    <p style={{ fontSize: "18px", marginBottom: "8px", color: "rgba(255,255,255,0.8)" }}>
+                        Select an environment to begin
+                    </p>
+                    <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)" }}>
+                        Choose an environment from the dropdown above to load prompts for scoring
+                    </p>
+                </div>
             ) : error ? (
                 <div className="glass-card" style={{ textAlign: "center", padding: "60px 20px" }}>
                     <p style={{ color: "#f87171", fontSize: "16px", marginBottom: "16px" }}>
@@ -395,7 +405,7 @@ export default function LikertScoring() {
                         All prompts rated!
                     </p>
                     <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)" }}>
-                        You've scored all available prompts for this project
+                        You've scored all available prompts for this environment
                     </p>
                 </div>
             ) : (

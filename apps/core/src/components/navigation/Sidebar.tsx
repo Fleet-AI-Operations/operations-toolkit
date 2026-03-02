@@ -54,9 +54,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
             role: ['CORE', 'FLEET', 'MANAGER', 'ADMIN'],
             items: [
                 { label: 'Alignment Scoring', href: '/alignment-scoring', icon: Sparkles },
-                { label: 'Candidate Review', href: '/candidate-review', icon: MessageSquare },
                 { label: 'Likert Scoring', href: '/likert-scoring', icon: Star },
-                { label: 'My Assignments', href: '/my-assignments', icon: ClipboardList },
                 { label: 'Task Search', href: '/task-search', icon: Search },
             ]
         }

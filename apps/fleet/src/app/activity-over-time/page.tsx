@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart3, Loader2, ShieldAlert, RefreshCw, Calendar } from 'lucide-react';
 
@@ -38,21 +38,39 @@ export default function ActivityOverTimePage() {
 
     const [startDate, setStartDate] = useState(getDefaultStartDate());
     const [endDate, setEndDate] = useState(getDefaultEndDate());
+    const [environment, setEnvironment] = useState('');
+    const [environments, setEnvironments] = useState<string[]>([]);
     const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; date: string; tasks: number; feedback: number } | null>(null);
     const [showTasks, setShowTasks] = useState(true);
     const [showFeedback, setShowFeedback] = useState(true);
 
+    const isInitialMount = useRef(true);
+
     useEffect(() => {
         fetchData();
+        fetch('/api/environments')
+            .then(r => r.ok ? r.json() : { environments: [] })
+            .then(d => setEnvironments(d.environments ?? []));
     }, []);
 
-    const fetchData = async (customStart?: string, customEnd?: string) => {
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        fetchData(startDate, endDate, environment);
+    }, [environment]);
+
+    const fetchData = async (customStart?: string, customEnd?: string, customEnvironment?: string) => {
         setRefreshing(true);
         setError(null);
         try {
             const start = customStart || startDate;
             const end = customEnd || endDate;
-            const res = await fetch(`/api/admin/activity-over-time?start=${start}&end=${end}`);
+            const env = customEnvironment !== undefined ? customEnvironment : environment;
+            const params = new URLSearchParams({ start, end });
+            if (env) params.set('environment', env);
+            const res = await fetch(`/api/admin/activity-over-time?${params.toString()}`);
 
             if (res.status === 403) {
                 setAuthorized(false);
@@ -183,7 +201,7 @@ export default function ActivityOverTimePage() {
             return;
         }
 
-        fetchData(startDate, endDate);
+        fetchData(startDate, endDate, environment);
     };
 
     const setQuickRange = (days: number) => {
@@ -196,7 +214,7 @@ export default function ActivityOverTimePage() {
 
         setStartDate(startStr);
         setEndDate(endStr);
-        fetchData(startStr, endStr);
+        fetchData(startStr, endStr, environment);
     };
 
     return (
@@ -209,7 +227,7 @@ export default function ActivityOverTimePage() {
                             Activity Over Time
                         </h1>
                         <p style={{ color: 'rgba(255,255,255,0.6)' }}>
-                            Daily task and feedback creation trends
+                            Daily task and feedback creation trends{environment ? ` — ${environment}` : ''}
                         </p>
                     </div>
                 </div>
@@ -247,6 +265,22 @@ export default function ActivityOverTimePage() {
                             >
                                 Apply Range
                             </button>
+                        </div>
+
+                        {/* Environment Filter */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>Environment</label>
+                            <select
+                                className="input-field"
+                                value={environment}
+                                onChange={e => setEnvironment(e.target.value)}
+                                style={{ width: '180px' }}
+                            >
+                                <option value="">All Environments</option>
+                                {environments.map(env => (
+                                    <option key={env} value={env}>{env}</option>
+                                ))}
+                            </select>
                         </div>
 
                         {/* Quick Select Buttons */}
@@ -339,7 +373,7 @@ export default function ActivityOverTimePage() {
                                 90 Days
                             </button>
                             <button
-                                onClick={() => fetchData()}
+                                onClick={() => fetchData(startDate, endDate, environment)}
                                 disabled={refreshing}
                                 style={{
                                     padding: '8px 12px',

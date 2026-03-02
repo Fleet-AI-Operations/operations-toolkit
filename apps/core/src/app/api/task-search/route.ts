@@ -46,12 +46,17 @@ export async function GET(request: NextRequest) {
             createdByName: string | null;
             createdByEmail: string | null;
             createdAt: Date;
+            taskKey: string | null;
+            taskVersion: string | null;
         }>>`
-            SELECT id, content, environment, "createdByName", "createdByEmail", "createdAt"
+            SELECT id, content, environment, "createdByName", "createdByEmail", "createdAt",
+                   metadata->>'task_key' AS "taskKey",
+                   metadata->>'task_version' AS "taskVersion"
             FROM data_records
             WHERE type = 'TASK'
             AND (
                 id = ${q}
+                OR metadata->>'task_key' = ${q}
                 OR "createdByName" ILIKE ${'%' + q + '%'}
                 OR "createdByEmail" ILIKE ${'%' + q + '%'}
             )
