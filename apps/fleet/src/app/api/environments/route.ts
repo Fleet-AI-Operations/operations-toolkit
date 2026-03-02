@@ -20,7 +20,12 @@ export async function GET() {
 
         // Query distinct environments from all relevant tables
         // Using Prisma for better error handling
-        const envSet = new Set<string>();
+        // Deduplicate case-insensitively, preserving the first-seen casing
+        const envMap = new Map<string, string>();
+        const add = (val: string | null | undefined) => {
+            const v = val?.trim();
+            if (v && !envMap.has(v.toLowerCase())) envMap.set(v.toLowerCase(), v);
+        };
 
         // Get environments from each table, catching errors if table doesn't exist
         try {
@@ -28,9 +33,7 @@ export async function GET() {
                 select: { environment: true },
                 distinct: ['environment']
             });
-            dataRecords.forEach(r => {
-                if (r.environment) envSet.add(r.environment);
-            });
+            dataRecords.forEach(r => add(r.environment));
         } catch (e) { /* Table might not exist */ }
 
         try {
@@ -38,7 +41,7 @@ export async function GET() {
                 select: { environment: true },
                 distinct: ['environment']
             });
-            ingestJobs.forEach(j => envSet.add(j.environment));
+            ingestJobs.forEach(j => add(j.environment));
         } catch (e) { /* Table might not exist */ }
 
         try {
@@ -46,10 +49,10 @@ export async function GET() {
                 select: { environment: true },
                 distinct: ['environment']
             });
-            exemplarTasks.forEach(e => { if (e.environment) envSet.add(e.environment); });
+            exemplarTasks.forEach(e => add(e.environment));
         } catch (e) { /* Table might not exist */ }
 
-        const environments = Array.from(envSet).sort();
+        const environments = Array.from(envMap.values()).sort();
 
         return NextResponse.json({ environments });
     } catch (error: any) {

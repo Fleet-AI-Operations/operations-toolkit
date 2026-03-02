@@ -67,6 +67,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
         const startParam = searchParams.get('start')
         const endParam = searchParams.get('end')
+        const environmentParam = searchParams.get('environment') || null
 
         let startDate: Date
         let endDate: Date
@@ -110,7 +111,8 @@ export async function GET(req: Request) {
                 createdAt: {
                     gte: startDate,
                     lte: endDate
-                }
+                },
+                ...(environmentParam ? { environment: environmentParam } : {})
             },
             select: {
                 type: true,
