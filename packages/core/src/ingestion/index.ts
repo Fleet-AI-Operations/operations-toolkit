@@ -526,6 +526,9 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                 } else if (csvType === 'prompt' || csvType === 'task') {
                     rowType = 'TASK';
                 }
+            } else if (record.feedback_id || (record.feedback_content && record.task_prompt)) {
+                // QA feedback analysis format: no type column, but feedback-specific fields present
+                rowType = 'FEEDBACK';
             }
 
             // --- Environment Detection (Per Row) ---
@@ -546,11 +549,17 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
             if (typeof record === 'string') {
                 content = record;
             } else {
-                // New CSV format: 'prompt' column for tasks, 'feedback_content' for feedback
-                // Also support legacy formats for backward compatibility
-                content = record.prompt || record.feedback_content || record.feedback ||
-                    record.content || record.body || record.task_content ||
-                    record.text || record.message || record.instruction || record.response;
+                // Prefer the field that matches the row's type; fall back to all known content columns
+                if (rowType === 'FEEDBACK') {
+                    content = record.feedback_content || record.feedback ||
+                        record.prompt || record.task_prompt ||
+                        record.content || record.body || record.task_content ||
+                        record.text || record.message || record.instruction || record.response;
+                } else {
+                    content = record.prompt || record.task_prompt || record.feedback_content || record.feedback ||
+                        record.content || record.body || record.task_content ||
+                        record.text || record.message || record.instruction || record.response;
+                }
 
                 if (!content || content.length < 10) {
                     const textFields = Object.entries(record)
@@ -596,7 +605,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
         // 2. DUPLICATE DETECTION (Optimized: Single query per chunk instead of per record)
         // Extract all task IDs and task keys from the chunk (new CSV format uses task_id and task_key)
         const taskIds = validChunk
-            .map(v => v.record.task_id || v.record.id || v.record.uuid || v.record.record_id)
+            .map(v => v.record.task_id || v.record.feedback_id || v.record.id || v.record.uuid || v.record.record_id)
             .filter(id => id != null);
         const taskKeys = validChunk
             .map(v => v.record.task_key)
@@ -620,6 +629,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
 
             if (taskIdStrings.length > 0) {
                 conditions.push(Prisma.sql`metadata->>'task_id' IN (${Prisma.join(taskIdStrings)})`);
+                conditions.push(Prisma.sql`metadata->>'feedback_id' IN (${Prisma.join(taskIdStrings)})`);
                 conditions.push(Prisma.sql`metadata->>'id' IN (${Prisma.join(taskIdStrings)})`);
                 conditions.push(Prisma.sql`metadata->>'uuid' IN (${Prisma.join(taskIdStrings)})`);
                 conditions.push(Prisma.sql`metadata->>'record_id' IN (${Prisma.join(taskIdStrings)})`);
@@ -633,6 +643,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                 const existing = await prisma.$queryRaw<{
                     type: RecordType;
                     task_id: string | null;
+                    feedback_id: string | null;
                     task_key: string | null;
                     id: string | null;
                     uuid: string | null;
@@ -641,6 +652,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     SELECT
                         type,
                         metadata->>'task_id' as task_id,
+                        metadata->>'feedback_id' as feedback_id,
                         metadata->>'task_key' as task_key,
                         metadata->>'id' as id,
                         metadata->>'uuid' as uuid,
@@ -656,6 +668,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
                     const typeKeys = existingTaskKeysByType.get(row.type)!;
 
                     if (row.task_id) typeIds.add(row.task_id);
+                    if (row.feedback_id) typeIds.add(row.feedback_id);
                     if (row.task_key) typeKeys.add(row.task_key);
                     if (row.id) typeIds.add(row.id);
                     if (row.uuid) typeIds.add(row.uuid);
@@ -666,7 +679,7 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
 
         // Filter out duplicates in memory (check by type)
         const finalChunk = validChunk.filter(v => {
-            const taskId = v.record.task_id || v.record.id || v.record.uuid || v.record.record_id;
+            const taskId = v.record.task_id || v.record.feedback_id || v.record.id || v.record.uuid || v.record.record_id;
             const taskKey = v.record.task_key;
 
             if (!taskId && !taskKey) return true; // No ID or key to check, allow it
@@ -691,33 +704,38 @@ export async function processAndStore(records: any[], options: IngestOptions, jo
         });
 
         await Promise.all(finalChunk.map(v => {
-            // Extract timestamps from CSV data
+            // Extract timestamps — prefer type-specific columns, fall back to generic ones
             const createdAtValue = v.record?.created_at || v.record?.createdAt ||
-                                  v.record?.timestamp || v.record?.date_created;
+                (v.rowType === 'FEEDBACK' ? v.record?.feedback_created_at : v.record?.task_created_at) ||
+                v.record?.feedback_created_at || v.record?.task_created_at ||
+                v.record?.timestamp || v.record?.date_created;
             const updatedAtValue = v.record?.updated_at || v.record?.updatedAt ||
-                                  v.record?.date_updated || v.record?.modified_at;
+                v.record?.date_updated || v.record?.modified_at;
 
-            // Parse timestamps if they exist
             const createdAt = createdAtValue ? new Date(createdAtValue) : undefined;
             const updatedAt = updatedAtValue ? new Date(updatedAtValue) : undefined;
-
-            // Validate parsed dates
             const validCreatedAt = createdAt && !isNaN(createdAt.getTime()) ? createdAt : undefined;
             const validUpdatedAt = updatedAt && !isNaN(updatedAt.getTime()) ? updatedAt : undefined;
 
+            // Creator fields — support legacy (author_*/created_by_*), new task format
+            // (task_creator_*), and new feedback format (rater_*)
+            const nameRaw = v.record?.author_name || v.record?.created_by_name ||
+                (v.rowType === 'FEEDBACK' ? v.record?.rater_name : v.record?.task_creator_name);
+            const emailRaw = v.record?.author_email || v.record?.created_by_email ||
+                (v.rowType === 'FEEDBACK' ? v.record?.rater_email : v.record?.task_creator_email);
+
             return prisma.dataRecord.create({
                 data: {
-                    environment: v.rowEnvironment,  // Use row-specific environment from CSV
-                    type: v.rowType,  // Use row-specific type instead of job-level type
+                    environment: v.rowEnvironment,
+                    type: v.rowType,
                     category: v.category,
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
                     // embedding is Unsupported("vector") - defaults to NULL, set via raw SQL in vectorizeJob
-                    // Support both new format (author_*) and legacy format (created_by_*)
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
-                    createdByName: v.record?.author_name || v.record?.created_by_name ? String(v.record?.author_name || v.record?.created_by_name) : null,
-                    createdByEmail: v.record?.author_email || v.record?.created_by_email ? String(v.record?.author_email || v.record?.created_by_email) : null,
+                    createdByName: nameRaw ? String(nameRaw) : null,
+                    createdByEmail: emailRaw ? String(emailRaw) : null,
                     ...(validCreatedAt && { createdAt: validCreatedAt }),
                     ...(validUpdatedAt && { updatedAt: validUpdatedAt }),
                 }
