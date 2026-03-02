@@ -20,10 +20,11 @@ export async function GET() {
 
         // Query distinct environments from all relevant tables
         // Using Prisma for better error handling
-        const envSet = new Set<string>();
+        // Deduplicate case-insensitively, preserving the first-seen casing
+        const envMap = new Map<string, string>();
         const add = (val: string | null | undefined) => {
             const v = val?.trim();
-            if (v) envSet.add(v.toLowerCase());
+            if (v && !envMap.has(v.toLowerCase())) envMap.set(v.toLowerCase(), v);
         };
 
         // Get environments from each table, catching errors if table doesn't exist
@@ -51,7 +52,7 @@ export async function GET() {
             exemplarTasks.forEach(e => add(e.environment));
         } catch (e) { /* Table might not exist */ }
 
-        const environments = Array.from(envSet).sort();
+        const environments = Array.from(envMap.values()).sort();
 
         return NextResponse.json({ environments });
     } catch (error: any) {
