@@ -63,7 +63,11 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
         }
 
-        const { data: updatedProfile, error: updateError } = await supabase
+        // Use admin client to bypass RLS — the auth check above already verified the caller is ADMIN.
+        // The regular user client is subject to RLS policies on profiles, which can cause spurious
+        // 400 errors on role updates (PostgREST returns 400 for RLS WITH CHECK violations).
+        const adminClient = await createAdminClient()
+        const { data: updatedProfile, error: updateError } = await adminClient
             .from('profiles')
             .update(updateData)
             .eq('id', userId)

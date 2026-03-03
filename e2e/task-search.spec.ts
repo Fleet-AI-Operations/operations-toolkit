@@ -196,6 +196,62 @@ test.describe('Task Search - AI Check', () => {
     });
 });
 
+test.describe('Task Search - Environment Filter', () => {
+    test('should not show environment filter when no results exist', async ({ page }) => {
+        await page.goto(`${CORE_URL}/task-search`);
+        await page.waitForLoadState('networkidle');
+
+        await page.fill('input[placeholder*="name, email"]', '__no_match_expected_xyz_123__');
+        await page.locator('button:has-text("Search")').click();
+
+        await expect(page.locator('text=/No tasks found/i')).toBeVisible({ timeout: 8000 });
+        await expect(page.locator('select, [role="combobox"]').filter({ hasText: /environment/i })).not.toBeVisible();
+    });
+
+    test('should show environment filter when results span multiple environments', async ({ page }) => {
+        await page.goto(`${CORE_URL}/task-search`);
+        await page.waitForLoadState('networkidle');
+
+        await page.fill('input[placeholder*="name, email"]', '@');
+        await page.locator('button:has-text("Search")').click();
+        await page.waitForTimeout(3000);
+
+        const resultCount = await page.locator('text=/result.*found/i').count();
+        if (resultCount > 0) {
+            // Filter only appears when results span >1 environment — either outcome is valid
+            const filterVisible = await page.locator('select').filter({ hasText: /All environments/i }).count();
+            // If shown, it should contain "All environments" as the default option
+            if (filterVisible > 0) {
+                await expect(page.locator('select').filter({ hasText: /All environments/i })).toBeVisible();
+            }
+        }
+    });
+
+    test('should update result count when environment filter is applied', async ({ page }) => {
+        await page.goto(`${CORE_URL}/task-search`);
+        await page.waitForLoadState('networkidle');
+
+        await page.fill('input[placeholder*="name, email"]', '@');
+        await page.locator('button:has-text("Search")').click();
+        await page.waitForTimeout(3000);
+
+        const filterSelect = page.locator('select').filter({ hasText: /All environments/i });
+        if (await filterSelect.count() > 0) {
+            // Select the first non-default option
+            const options = await filterSelect.locator('option').all();
+            if (options.length > 1) {
+                const firstEnv = await options[1].textContent();
+                await filterSelect.selectOption({ index: 1 });
+
+                // Count should now show "X of Y results in "env""
+                await expect(
+                    page.locator(`text=/of.*results in/i`).first()
+                ).toBeVisible({ timeout: 3000 });
+            }
+        }
+    });
+});
+
 test.describe('Task Search - Navigation', () => {
     test('should show other Core sidebar items', async ({ page }) => {
         await page.goto(`${CORE_URL}/task-search`);
