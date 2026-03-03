@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'AI returned invalid verdict or confidence values' }, { status: 502 });
         }
 
-        logAudit({
+        await logAudit({
             action: 'AI_CHECK_REQUESTED',
             entityType: 'AI_REQUEST',
             userId: user.id,

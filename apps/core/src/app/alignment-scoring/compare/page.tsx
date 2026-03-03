@@ -111,7 +111,7 @@ function CompareContent() {
                             </div>
                             {recordData?.metadata?.avg_score !== undefined && (
                                 <div style={{ fontSize: '0.8rem', background: 'rgba(0, 255, 136, 0.1)', color: '#00ff88', padding: '4px 12px', borderRadius: '12px', border: '1px solid rgba(0, 255, 136, 0.2)', fontWeight: 700 }}>
-                                    Quality Score: {(parseFloat(recordData.metadata.avg_score) * 1).toFixed(0)}%
+                                    Quality Score: {parseFloat(recordData.metadata.avg_score).toFixed(0)}%
                                 </div>
                             )}
                         </div>

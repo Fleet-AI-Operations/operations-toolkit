@@ -59,7 +59,7 @@ Provide a clear analysis of their similarity.`;
             costDisplay = `$${result.usage.cost.toFixed(4)}`;
         }
 
-        logAudit({
+        await logAudit({
             action: 'AI_SIMILARITY_COMPARE',
             entityType: 'AI_REQUEST',
             userId: user.id,

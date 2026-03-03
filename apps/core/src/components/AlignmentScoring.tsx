@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, LayoutDashboard, AlertCircle, Inbox, FileCheck, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Inbox, FileCheck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { EnvironmentFilter } from '@repo/ui/components';
 
@@ -48,10 +48,13 @@ function AlignmentContent() {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [recordsError, setRecordsError] = useState<string | null>(null);
 
     const [modalRecord, setModalRecord] = useState<Record | null>(null);
     const [guidelines, setGuidelines] = useState<Guideline[]>([]);
     const [guidelinesLoading, setGuidelinesLoading] = useState(false);
+    const [guidelinesError, setGuidelinesError] = useState<string | null>(null);
+    const [hasLoadedGuidelines, setHasLoadedGuidelines] = useState(false);
     const [selectedGuidelineId, setSelectedGuidelineId] = useState('');
 
     const pageSize = 10;
@@ -64,6 +67,7 @@ function AlignmentContent() {
 
     const fetchRecords = async () => {
         setLoading(true);
+        setRecordsError(null);
         try {
             const skip = (page - 1) * pageSize;
             // Build query parameters
@@ -84,11 +88,18 @@ function AlignmentContent() {
             }
 
             const res = await fetch(`/api/records?${params.toString()}`);
+            if (!res.ok) {
+                setRecordsError('Failed to load records. Please try again.');
+                setRecords([]);
+                setTotal(0);
+                return;
+            }
             const data = await res.json();
             setRecords(data.records || []);
             setTotal(data.total || 0);
         } catch (err) {
             console.error('Failed to fetch records', err);
+            setRecordsError('Failed to load records. Please try again.');
             setRecords([]);
             setTotal(0);
         } finally {
@@ -104,14 +115,20 @@ function AlignmentContent() {
     const openGuidelineModal = async (record: Record) => {
         setModalRecord(record);
         setSelectedGuidelineId('');
-        if (guidelines.length === 0) {
+        setGuidelinesError(null);
+        if (!hasLoadedGuidelines) {
             setGuidelinesLoading(true);
             try {
                 const res = await fetch('/api/guidelines');
-                const data = await res.json();
-                setGuidelines(data.guidelines || []);
+                if (!res.ok) {
+                    setGuidelinesError('Failed to load guidelines. Please try again.');
+                } else {
+                    const data = await res.json();
+                    setGuidelines(data.guidelines || []);
+                    setHasLoadedGuidelines(true);
+                }
             } catch {
-                setGuidelines([]);
+                setGuidelinesError('Failed to load guidelines. Please try again.');
             } finally {
                 setGuidelinesLoading(false);
             }
@@ -352,7 +369,10 @@ function AlignmentContent() {
                                 </div>
                             </div>
                             ))}
-                            {records.length === 0 && !loading && (
+                            {recordsError && !loading && (
+                                <div style={{ padding: '80px', textAlign: 'center', color: 'var(--error)', opacity: 0.8 }}>{recordsError}</div>
+                            )}
+                            {records.length === 0 && !loading && !recordsError && (
                             <div style={{ padding: '80px', textAlign: 'center' }}>
                                 <Inbox size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
                                 <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '8px', opacity: 0.6 }}>
@@ -472,6 +492,8 @@ function AlignmentContent() {
 
                     {guidelinesLoading ? (
                         <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.5 }}>Loading guidelines...</div>
+                    ) : guidelinesError ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--error)', opacity: 0.8 }}>{guidelinesError}</div>
                     ) : guidelines.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.5 }}>
                             No guidelines found. Upload guidelines in the Fleet app.

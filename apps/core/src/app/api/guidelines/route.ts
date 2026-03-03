@@ -18,10 +18,23 @@ export async function GET() {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const guidelines = await prisma.guideline.findMany({
-        select: { id: true, name: true, environments: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true },
     });
 
-    return NextResponse.json({ guidelines });
+    if (!profile || !['CORE', 'FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    try {
+        const guidelines = await prisma.guideline.findMany({
+            select: { id: true, name: true, environments: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+        });
+        return NextResponse.json({ guidelines });
+    } catch (err) {
+        console.error('Guidelines API Error: Failed to fetch guidelines', err);
+        return NextResponse.json({ error: 'Failed to load guidelines' }, { status: 500 });
+    }
 }

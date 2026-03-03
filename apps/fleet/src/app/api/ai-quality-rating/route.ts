@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        logAudit({
+        await logAudit({
             action: 'AI_QUALITY_RATING_JOB_STARTED',
             entityType: 'AI_REQUEST',
             entityId: jobId,

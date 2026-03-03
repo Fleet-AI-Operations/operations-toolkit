@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        logAudit({
+        await logAudit({
             action: 'AI_LIKERT_LLM_EVALUATION',
             entityType: 'AI_REQUEST',
             entityId: recordId,

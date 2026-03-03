@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    logAudit({
+    await logAudit({
       action: 'AI_PROMPT_AUTHENTICITY_JOB_STARTED',
       entityType: 'AI_REQUEST',
       entityId: job.id,

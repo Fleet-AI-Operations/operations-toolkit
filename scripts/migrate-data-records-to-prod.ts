@@ -30,6 +30,11 @@ const ENVIRONMENT_FILTER = process.env.ENVIRONMENT || null;
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '500', 10);
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
+if (isNaN(BATCH_SIZE) || BATCH_SIZE < 1) {
+    console.error('❌ BATCH_SIZE must be a positive integer');
+    process.exit(1);
+}
+
 // Columns to copy. Excludes relation fields (likertScores, assignments, etc.)
 // that live in other tables. The `embedding` vector column is included as-is.
 const COLUMNS = [
@@ -276,6 +281,10 @@ async function migrate() {
             console.log(`📊 Target records after: ${targetCountAfter.toLocaleString()} (was ${targetCountBefore.toLocaleString()})`);
         }
         console.log('');
+
+        if (totalErrors > 0) {
+            process.exitCode = 1;
+        }
 
     } finally {
         await source.end();
