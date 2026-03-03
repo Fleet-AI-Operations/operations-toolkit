@@ -23,11 +23,16 @@ export async function updatePasswordAction(password: string) {
 
     // Clear the forced-reset flag now that the user has set their own password.
     // Uses the admin client because RLS only permits admins to UPDATE profiles.
-    const adminClient = await createAdminClient()
-    await adminClient
-        .from('profiles')
-        .update({ mustResetPassword: false })
-        .eq('id', data.user.id)
+    // Non-critical — password change already succeeded, so don't let this throw.
+    try {
+        const adminClient = await createAdminClient()
+        await adminClient
+            .from('profiles')
+            .update({ mustResetPassword: false })
+            .eq('id', data.user.id)
+    } catch (err) {
+        console.error('updatePasswordAction: failed to clear mustResetPassword flag', err)
+    }
 
     return { success: true }
 }

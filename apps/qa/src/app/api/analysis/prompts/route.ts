@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
             where.environment = environment;
         }
 
-        prompts = await prisma.dataRecord.findMany({
+        const rawPrompts = await prisma.dataRecord.findMany({
             where,
             select: {
                 id: true,
@@ -46,6 +46,14 @@ export async function GET(req: NextRequest) {
             },
             orderBy: { createdAt: 'desc' },
             take: Math.min(limit, 2000) // Cap at 2000 for safety
+        });
+
+        // Deduplicate by content — keep most recent (first) when duplicates exist
+        const seenContent = new Set<string>();
+        prompts = rawPrompts.filter(p => {
+            if (seenContent.has(p.content)) return false;
+            seenContent.add(p.content);
+            return true;
         });
     } catch (dbError: any) {
         console.error('Prompts API Error: Database query failed', {

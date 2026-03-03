@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)!;
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -60,10 +60,14 @@ export async function middleware(request: NextRequest) {
       console.error('[SSO] Failed to exchange tokens:', error.message);
     }
 
-    // Remove tokens from URL and redirect
+    // Remove tokens from URL and redirect, forwarding the session cookies
     url.searchParams.delete('sso_access_token');
     url.searchParams.delete('sso_refresh_token');
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach(({ name, value, ...rest }) => {
+      redirectResponse.cookies.set(name, value, rest);
+    });
+    return redirectResponse;
   }
 
   // Standard session refresh for authenticated routes
