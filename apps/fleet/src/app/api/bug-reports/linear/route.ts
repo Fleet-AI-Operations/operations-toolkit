@@ -33,6 +33,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bug report not found' }, { status: 404 })
     }
 
+    if (report.linearIssueId) {
+      return NextResponse.json({ error: 'This bug report already has a linked Linear issue.', linearIssueUrl: report.linearIssueUrl }, { status: 409 })
+    }
+
     // Read Linear credentials from SystemSetting
     const settings = await prisma.systemSetting.findMany({
       where: { key: { in: ['linear_api_key', 'linear_team_id'] } }

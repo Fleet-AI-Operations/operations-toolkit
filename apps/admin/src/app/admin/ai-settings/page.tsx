@@ -19,8 +19,6 @@ interface AdminSettings {
     llm_model: string;
     embedding_model: string;
     openrouter_key: string;
-    linear_api_key: string;
-    linear_team_id: string;
 }
 
 export default function AISettingsPage() {
@@ -35,8 +33,6 @@ export default function AISettingsPage() {
         llm_model: '',
         embedding_model: '',
         openrouter_key: '',
-        linear_api_key: '',
-        linear_team_id: '',
     });
     const [useCustomLlm, setUseCustomLlm] = useState(false);
     const [useCustomEmbedding, setUseCustomEmbedding] = useState(false);
@@ -202,41 +198,6 @@ export default function AISettingsPage() {
                         </div>
                     </div>
                 )}
-
-                {/* Linear Integration */}
-                <div className="glass-card" style={{ padding: '32px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                        <Settings size={24} color="var(--accent)" />
-                        <h2 style={{ fontSize: '1.3rem', margin: 0 }}>Linear Integration</h2>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>API Key</label>
-                            <input
-                                type="password"
-                                value={settings.linear_api_key}
-                                onChange={e => setSettings({ ...settings, linear_api_key: e.target.value })}
-                                placeholder="lin_api_..."
-                                className="input-field"
-                            />
-                        </div>
-
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Team ID</label>
-                            <input
-                                type="text"
-                                value={settings.linear_team_id}
-                                onChange={e => setSettings({ ...settings, linear_team_id: e.target.value })}
-                                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                                className="input-field"
-                            />
-                            <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '6px' }}>
-                                Find your team ID in Linear → Settings → API
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 {/* Configuration Form */}
                 <div className="glass-card" style={{ padding: '32px' }}>

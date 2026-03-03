@@ -33,7 +33,7 @@ export default function BugReportsPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [pushingToLinear, setPushingToLinear] = useState<string | null>(null)
-  const [linearError, setLinearError] = useState<string | null>(null)
+  const [linearErrors, setLinearErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetchReports()
@@ -104,7 +104,7 @@ export default function BugReportsPage() {
   const pushToLinear = async (report: BugReport) => {
     try {
       setPushingToLinear(report.id)
-      setLinearError(null)
+      setLinearErrors(prev => { const next = { ...prev }; delete next[report.id]; return next })
       const response = await fetch('/api/bug-reports/linear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,13 +114,13 @@ export default function BugReportsPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        setLinearError(data.error || 'Failed to create Linear issue')
+        setLinearErrors(prev => ({ ...prev, [report.id]: data.error || 'Failed to create Linear issue' }))
         return
       }
 
       await fetchReports()
     } catch (err) {
-      setLinearError(err instanceof Error ? err.message : 'Failed to create Linear issue')
+      setLinearErrors(prev => ({ ...prev, [report.id]: err instanceof Error ? err.message : 'Failed to create Linear issue' }))
     } finally {
       setPushingToLinear(null)
     }
@@ -349,8 +349,8 @@ export default function BugReportsPage() {
                                 </button>
                               )}
 
-                              {linearError && expandedId === report.id && (
-                                <span style={{ color: '#ff4d4d', fontSize: '0.8rem' }}>{linearError}</span>
+                              {linearErrors[report.id] && (
+                                <span style={{ color: '#ff4d4d', fontSize: '0.8rem' }}>{linearErrors[report.id]}</span>
                               )}
                             </div>
                           </div>
