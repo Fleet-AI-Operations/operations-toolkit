@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Middleware to handle cross-app SSO via token passing
  *
  * Flow:
- * 1. Check if URL has ?sso_token=xxx parameter
+ * 1. Check if URL has ?sso_access_token=xxx&sso_refresh_token=yyy parameters
  * 2. If yes, exchange token for session
  * 3. Set session cookies
  * 4. Redirect to same URL without token
@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)!;
 
   const supabase = createServerClient(
     supabaseUrl,
@@ -51,19 +51,32 @@ export async function middleware(request: NextRequest) {
 
   if (ssoAccessToken && ssoRefreshToken) {
     // Exchange tokens for session
-    const { data, error } = await supabase.auth.setSession({
+    const { error } = await supabase.auth.setSession({
       access_token: ssoAccessToken,
       refresh_token: ssoRefreshToken,
     });
 
     if (error) {
       console.error('[SSO] Failed to exchange tokens:', error.message);
+      // Redirect to login — proceeding without a valid session would just bounce
+      // the user to login anyway, and this preserves a clean URL.
+      url.searchParams.delete('sso_access_token');
+      url.searchParams.delete('sso_refresh_token');
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
     }
 
-    // Remove tokens from URL and redirect
+    // Remove tokens from URL and redirect.
+    // The session cookies set by setSession() live on `response`, not on the redirect
+    // response, so they must be copied explicitly — otherwise the browser would receive
+    // the redirect without any session cookies and end up unauthenticated.
     url.searchParams.delete('sso_access_token');
     url.searchParams.delete('sso_refresh_token');
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach(({ name, value, ...rest }) => {
+      redirectResponse.cookies.set(name, value, rest);
+    });
+    return redirectResponse;
   }
 
   // Standard session refresh for authenticated routes

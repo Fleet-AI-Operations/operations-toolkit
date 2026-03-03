@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch prompts from database (filter by environment if provided)
     // Limit to most recent to prevent performance issues
-    let prompts;
+    let rawPrompts;
     try {
         const where: any = {
             type: 'TASK'
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
             where.environment = environment;
         }
 
-        prompts = await prisma.dataRecord.findMany({
+        rawPrompts = await prisma.dataRecord.findMany({
             where,
             select: {
                 id: true,
@@ -56,6 +56,17 @@ export async function GET(req: NextRequest) {
             error: 'Failed to fetch prompts from database. Please try again.'
         }, { status: 500 });
     }
+
+    // Deduplicate by content — keep most recent (first) when duplicates exist.
+    // Duplicate records are expected: the same task content can be ingested across
+    // multiple jobs. We expose only one representative record per unique prompt here.
+    const seenContent = new Set<string>();
+    const prompts = rawPrompts.filter(p => {
+        if (!p.content) return false;
+        if (seenContent.has(p.content)) return false;
+        seenContent.add(p.content);
+        return true;
+    });
 
     // Process user list - optimize by only fetching unique users
     try {
