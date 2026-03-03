@@ -16,6 +16,8 @@ interface BugReport {
   status: string
   assignedTo: string | null
   assignedToEmail: string | null
+  linearIssueId: string | null
+  linearIssueUrl: string | null
 }
 
 export default function BugReportsPage() {
@@ -30,6 +32,8 @@ export default function BugReportsPage() {
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [pushingToLinear, setPushingToLinear] = useState<string | null>(null)
+  const [linearError, setLinearError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchReports()
@@ -94,6 +98,31 @@ export default function BugReportsPage() {
       alert(err instanceof Error ? err.message : 'Failed to update bug report')
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  const pushToLinear = async (report: BugReport) => {
+    try {
+      setPushingToLinear(report.id)
+      setLinearError(null)
+      const response = await fetch('/api/bug-reports/linear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: report.id }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setLinearError(data.error || 'Failed to create Linear issue')
+        return
+      }
+
+      await fetchReports()
+    } catch (err) {
+      setLinearError(err instanceof Error ? err.message : 'Failed to create Linear issue')
+    } finally {
+      setPushingToLinear(null)
     }
   }
 
@@ -294,6 +323,34 @@ export default function BugReportsPage() {
 
                               {updatingId === report.id && (
                                 <span className={styles.updating}>Updating...</span>
+                              )}
+
+                              {report.linearIssueUrl ? (
+                                <a
+                                  href={report.linearIssueUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={styles.assignButton}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ textDecoration: 'none' }}
+                                >
+                                  View in Linear ↗
+                                </a>
+                              ) : (
+                                <button
+                                  className={styles.assignButton}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    pushToLinear(report)
+                                  }}
+                                  disabled={pushingToLinear === report.id}
+                                >
+                                  {pushingToLinear === report.id ? 'Creating...' : 'Create Linear Issue'}
+                                </button>
+                              )}
+
+                              {linearError && expandedId === report.id && (
+                                <span style={{ color: '#ff4d4d', fontSize: '0.8rem' }}>{linearError}</span>
                               )}
                             </div>
                           </div>
