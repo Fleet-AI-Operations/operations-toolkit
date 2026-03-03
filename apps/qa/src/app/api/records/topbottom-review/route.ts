@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { RecordCategory } from '@prisma/client';
+import { RecordCategory, RecordType } from '@prisma/client';
 import { prisma } from '@repo/database';
 import { createClient } from '@repo/auth/server';
 
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
         const includeReviewed = searchParams.get('includeReviewed') === 'true';
 
         const whereClause: any = {
+            type: RecordType.TASK,
             category: {
                 in: ['TOP_10', 'BOTTOM_10']
             }

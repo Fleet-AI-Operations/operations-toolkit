@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
  * Body: { recordId: string }
  *
  * Finds other tasks submitted by the same user (matched by createdByEmail or
- * createdById) across all environments, ranked by vector similarity.
+ * createdById) within the same environment, ranked by vector similarity.
  *
  * Prefers version 1 tasks. Falls back to all versions if the user has no v1 tasks.
  */
@@ -52,15 +52,22 @@ export async function POST(request: NextRequest) {
         id: string;
         createdByEmail: string | null;
         createdById: string | null;
+        environment: string;
         has_embedding: boolean;
     }>>`
-        SELECT id, "createdByEmail", "createdById", embedding IS NOT NULL AS has_embedding
+        SELECT id, "createdByEmail", "createdById", environment, embedding IS NOT NULL AS has_embedding
         FROM public.data_records
         WHERE id = ${recordId}
     `;
 
     if (!source) {
         return NextResponse.json({ error: 'Record not found' }, { status: 404 });
+    }
+
+    if (!source.environment || source.environment.trim() === '') {
+        return NextResponse.json({
+            error: 'Source record has no environment value — cannot scope similarity search.'
+        }, { status: 422 });
     }
 
     if (!source.has_embedding) {
@@ -94,12 +101,14 @@ export async function POST(request: NextRequest) {
             WHERE type = 'TASK' AND id != ${recordId}
             AND ("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})
             AND metadata->>'task_version' = '1'
+            AND environment = ${source.environment}
           `
         : await prisma.$queryRaw<[{ v1_count: bigint }]>`
             SELECT COUNT(*) AS v1_count FROM public.data_records
             WHERE type = 'TASK' AND id != ${recordId}
             AND "createdById" = ${source.createdById}
             AND metadata->>'task_version' = '1'
+            AND environment = ${source.environment}
           `;
 
     const hasV1 = Number(v1_count) > 0;
@@ -122,6 +131,7 @@ export async function POST(request: NextRequest) {
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
                 AND ("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})
                 AND metadata->>'task_version' = '1'
+                AND environment = ${source.environment}
                 ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
                 LIMIT 20
               `
@@ -139,6 +149,7 @@ export async function POST(request: NextRequest) {
                 AND embedding IS NOT NULL
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
                 AND ("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})
+                AND environment = ${source.environment}
                 ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
                 LIMIT 20
               `
@@ -158,6 +169,7 @@ export async function POST(request: NextRequest) {
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
                 AND "createdById" = ${source.createdById}
                 AND metadata->>'task_version' = '1'
+                AND environment = ${source.environment}
                 ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
                 LIMIT 20
               `
@@ -175,6 +187,7 @@ export async function POST(request: NextRequest) {
                 AND embedding IS NOT NULL
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
                 AND "createdById" = ${source.createdById}
+                AND environment = ${source.environment}
                 ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
                 LIMIT 20
               `;
@@ -183,7 +196,7 @@ export async function POST(request: NextRequest) {
         matches: matches.map(m => ({
             ...m,
             similarity: Number(m.similarity),
-            createdAt: m.createdAt.toISOString(),
+            createdAt: new Date(m.createdAt).toISOString(),
         })),
         versionFiltered: hasV1,
     });
