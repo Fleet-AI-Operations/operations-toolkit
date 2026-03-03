@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { generateCompletion } from '@repo/core/ai';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,14 @@ export async function POST(request: NextRequest) {
         if (!validVerdicts.includes(result.verdict) || !validConfidences.includes(result.confidence)) {
             return NextResponse.json({ error: 'AI returned invalid verdict or confidence values' }, { status: 502 });
         }
+
+        logAudit({
+            action: 'AI_CHECK_REQUESTED',
+            entityType: 'AI_REQUEST',
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { callType: 'TASK_AI_CHECK', verdict: result.verdict },
+        });
 
         return NextResponse.json({
             verdict: result.verdict as 'AI_GENERATED' | 'TEMPLATED' | 'AUTHENTIC',

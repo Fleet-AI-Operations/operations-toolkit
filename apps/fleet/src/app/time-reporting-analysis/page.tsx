@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppSwitcher } from '@repo/ui';
 import { Calendar, X, RefreshCw } from 'lucide-react';
 
 interface Flag {
@@ -377,7 +376,6 @@ export default function TimeReportingAnalysisPage() {
         padding: '40px',
       }}
     >
-      <AppSwitcher currentApp="fleet" />
 
       <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
         <div style={{ marginBottom: '40px' }}>

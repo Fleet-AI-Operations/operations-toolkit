@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { analyzePromptAuthenticity } from '@repo/core';
+import { logAudit } from '@repo/core/audit';
 
 // ============================================================================
 // VERCEL CONFIGURATION - Increase timeout for long-running analysis jobs
@@ -229,6 +230,15 @@ export async function POST(request: NextRequest) {
         startedAt: new Date(),
         lastHeartbeat: new Date(),
       },
+    });
+
+    logAudit({
+      action: 'AI_PROMPT_AUTHENTICITY_JOB_STARTED',
+      entityType: 'AI_REQUEST',
+      entityId: job.id,
+      userId: authResult.user!.id,
+      userEmail: authResult.user!.email!,
+      metadata: { jobId: job.id, totalPrompts: totalPending, batchSize },
     });
 
     // Start processing in background (don't await)

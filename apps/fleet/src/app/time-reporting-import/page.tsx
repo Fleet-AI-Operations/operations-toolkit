@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { AppSwitcher } from '@repo/ui';
 
 interface ImportResult {
   success: boolean;
@@ -131,7 +130,6 @@ export default function TimeReportingImportPage() {
         padding: '40px',
       }}
     >
-      <AppSwitcher currentApp="fleet" />
 
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}

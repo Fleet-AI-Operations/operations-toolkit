@@ -32,7 +32,6 @@ import {
     LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { AppSwitcher } from './AppSwitcher';
 
 type AppName = 'user' | 'qa' | 'core' | 'fleet' | 'admin';
 
@@ -258,8 +257,6 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
                     {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                 </button>
             </div>
-
-            {!collapsed && <AppSwitcher currentApp={currentApp} userRole={userRole} />}
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
                 {visibleSections.map((section) => {
