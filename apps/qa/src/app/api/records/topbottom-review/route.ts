@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
         const includeReviewed = searchParams.get('includeReviewed') === 'true';
 
         const whereClause: any = {
+            type: 'TASK',
             category: {
                 in: ['TOP_10', 'BOTTOM_10']
             }
