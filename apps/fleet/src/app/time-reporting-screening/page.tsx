@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppSwitcher } from '@repo/ui';
 import Link from 'next/link';
 import { CheckSquare, Filter, X, Calendar, Upload, CheckCircle2, XCircle } from 'lucide-react';
 
@@ -215,7 +214,6 @@ export default function TimeReportingScreeningPage() {
 
   return (
     <div style={{ padding: '40px', maxWidth: '1800px', margin: '0 auto' }}>
-      <AppSwitcher currentApp="fleet" />
 
       {/* Header */}
       <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

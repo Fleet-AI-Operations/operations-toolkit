@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@repo/auth/server";
 import { prisma } from "@repo/database";
+import { logAudit } from "@repo/core/audit";
 
 //This is temporary (maybe) unless there's another way Naman/Max want to identify LLM evaluations
 const LLM_SYSTEM_UUID = "00000000-0000-0000-0000-000000000000";
@@ -93,6 +95,13 @@ Respond in JSON format only: {"realism": <1-7>, "quality": <1-7>}`,
 }
 
 export async function POST(request: NextRequest) {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         const { recordId, content, models }: EvaluationRequest = await request.json();
 
@@ -147,6 +156,15 @@ export async function POST(request: NextRequest) {
                 });
             }
         }
+
+        await logAudit({
+            action: 'AI_LIKERT_LLM_EVALUATION',
+            entityType: 'AI_REQUEST',
+            entityId: recordId,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { models, recordId },
+        });
 
         return NextResponse.json({ results });
     } catch (error) {

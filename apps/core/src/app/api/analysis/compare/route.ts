@@ -40,10 +40,12 @@ export async function POST(req: NextRequest) {
     // Parse request body
     let recordId: string;
     let forceRegenerate: boolean;
+    let guidelineId: string | undefined;
     try {
         const body = await req.json();
         recordId = body.recordId;
         forceRegenerate = body.forceRegenerate;
+        guidelineId = body.guidelineId;
     } catch (parseError: any) {
         console.error('Compare API Error: Invalid request body', {
             error: parseError.message
@@ -84,15 +86,17 @@ export async function POST(req: NextRequest) {
         });
         const role = profile?.role || 'USER';
 
-        const allowedRoles = ['CORE', 'FLEET', 'ADMIN'];
+        const allowedRoles = ['CORE', 'FLEET', 'MANAGER', 'ADMIN'];
         if (!allowedRoles.includes(role)) {
             return NextResponse.json({
                 error: 'Forbidden: Insufficient permissions to generate alignment analysis'
             }, { status: 403 });
         }
 
-        // Return cached analysis if available and not forcing regeneration
-        if (record.alignmentAnalysis && !forceRegenerate) {
+        // Return cached analysis if available and not forcing regeneration.
+        // Skip cache when a specific guidelineId is provided — the user explicitly
+        // selected a guideline and expects a fresh analysis against it.
+        if (record.alignmentAnalysis && !forceRegenerate && !guidelineId) {
             console.log('Compare API: Returned cached alignment analysis', {
                 recordId: record.id,
                 environment: record.environment,
@@ -107,19 +111,34 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // Look up guideline for this record's environment (environment-specific first, then global)
-        const guideline = await prisma.guideline.findFirst({
-            where: {
-                OR: [
-                    { environments: { has: record.environment } },
-                    { environments: { isEmpty: true } }
-                ]
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        // Look up the guideline — use the explicitly selected one if provided,
+        // otherwise fall back to environment-specific or global.
+        const guideline = guidelineId
+            ? await prisma.guideline.findUnique({ where: { id: guidelineId } })
+            : await prisma.guideline.findFirst({
+                where: {
+                    OR: [
+                        { environments: { has: record.environment } },
+                        { environments: { isEmpty: true } }
+                    ]
+                },
+                orderBy: { createdAt: 'desc' }
+            });
 
         if (!guideline) {
             return NextResponse.json({ error: 'No guidelines found for this environment. Please upload guidelines in the Fleet app.' }, { status: 400 });
+        }
+
+        // When a specific guideline was requested, verify it applies to this record's environment.
+        // Global guidelines (empty environments array) apply to all environments.
+        if (guidelineId) {
+            const isGlobal = guideline.environments.length === 0;
+            const appliesToEnvironment = guideline.environments.includes(record.environment);
+            if (!isGlobal && !appliesToEnvironment) {
+                return NextResponse.json({
+                    error: 'The selected guideline does not apply to this record\'s environment.'
+                }, { status: 400 });
+            }
         }
 
         // Parse PDF guidelines (with in-process cache to avoid re-parsing on every request)
@@ -203,20 +222,22 @@ export async function POST(req: NextRequest) {
             }, { status: 500 });
         }
 
-        // Save analysis to record
-        try {
-            await prisma.dataRecord.update({
-                where: { id: record.id },
-                data: { alignmentAnalysis: result.content }
-            });
-        } catch (updateError: any) {
-            console.error('Compare API Error: Failed to save analysis to database', {
-                environment: record.environment,
-                recordId: record.id,
-                error: updateError.message
-            });
-            // Return the result anyway since the analysis was generated successfully
-            console.warn('Returning analysis despite database save failure');
+        // Save analysis to record only when using the default guideline lookup.
+        // When a specific guidelineId is provided, skip saving to avoid overwriting
+        // the stored default analysis with a one-off comparison result.
+        if (!guidelineId) {
+            try {
+                await prisma.dataRecord.update({
+                    where: { id: record.id },
+                    data: { alignmentAnalysis: result.content }
+                });
+            } catch (updateError: any) {
+                console.error('Compare API Error: Failed to save analysis to database', {
+                    environment: record.environment,
+                    recordId: record.id,
+                    error: updateError.message
+                });
+            }
         }
 
         // Log successful operation

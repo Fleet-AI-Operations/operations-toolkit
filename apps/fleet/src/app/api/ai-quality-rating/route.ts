@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,15 @@ export async function POST(request: NextRequest) {
                 status: 'PENDING',
                 totalRecords,
             },
+        });
+
+        await logAudit({
+            action: 'AI_QUALITY_RATING_JOB_STARTED',
+            entityType: 'AI_REQUEST',
+            entityId: jobId,
+            userId: authResult.user!.id,
+            userEmail: authResult.user!.email!,
+            metadata: { jobId, environment, totalRecords },
         });
 
         // Fire-and-forget: kick off first batch

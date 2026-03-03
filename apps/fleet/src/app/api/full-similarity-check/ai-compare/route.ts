@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { generateCompletionWithUsage } from '@repo/core/ai';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +58,14 @@ Provide a clear analysis of their similarity.`;
         if (result.usage?.cost) {
             costDisplay = `$${result.usage.cost.toFixed(4)}`;
         }
+
+        await logAudit({
+            action: 'AI_SIMILARITY_COMPARE',
+            entityType: 'AI_REQUEST',
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { provider: result.provider },
+        });
 
         return NextResponse.json({
             analysis: result.content,

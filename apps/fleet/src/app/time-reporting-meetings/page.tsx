@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppSwitcher } from '@repo/ui';
 import { Plus, Edit, Trash2, X, Save, Search, Calendar } from 'lucide-react';
 
 interface Meeting {
@@ -197,7 +196,6 @@ export default function TimeReportingMeetingsPage() {
 
   return (
     <div style={{ padding: '40px', maxWidth: '1800px', margin: '0 auto' }}>
-      <AppSwitcher currentApp="fleet" />
 
       {/* Header */}
       <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
