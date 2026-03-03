@@ -79,7 +79,7 @@ export async function pushBugReportToLinear(bugReportId: string): Promise<{ line
     throw new Error('Failed to create Linear issue')
   }
 
-  const linearData = await linearResponse.json()
+  const linearData = await linearResponse.json() as any
 
   if (linearData.errors) {
     console.error('Linear GraphQL errors:', linearData.errors)
