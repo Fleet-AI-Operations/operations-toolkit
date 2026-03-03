@@ -240,6 +240,8 @@ model BugReport {
   status                               String   @default("PENDING")
   assignedTo                           String?  @map("assigned_to") @db.Uuid
   assignedToEmail                      String?  @map("assigned_to_email")
+  linearIssueId                        String?  @map("linear_issue_id")
+  linearIssueUrl                       String?  @map("linear_issue_url")
   users_bug_reports_assigned_toTousers users?   @relation("bug_reports_assigned_toTousers", fields: [assignedTo], references: [id], onUpdate: NoAction)
   users_bug_reports_user_idTousers     users?   @relation("bug_reports_user_idTousers", fields: [userId], references: [id], onUpdate: NoAction)
 

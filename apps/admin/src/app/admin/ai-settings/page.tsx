@@ -32,7 +32,7 @@ export default function AISettingsPage() {
         ai_host: '',
         llm_model: '',
         embedding_model: '',
-        openrouter_key: ''
+        openrouter_key: '',
     });
     const [useCustomLlm, setUseCustomLlm] = useState(false);
     const [useCustomEmbedding, setUseCustomEmbedding] = useState(false);

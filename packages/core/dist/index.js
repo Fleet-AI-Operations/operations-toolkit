@@ -1,4 +1,5 @@
 // Re-export all core modules
+export * from './linear';
 export * from './utils';
 export * from './similarity';
 export * from './audit';
@@ -10,6 +11,7 @@ export * from './notifications/email-service';
 export * from './time-reporting';
 export * from './prompt-analysis';
 // Export module namespaces for better organization
+export * as linear from './linear';
 export * as utils from './utils';
 export * as similarity from './similarity';
 export * as audit from './audit';
