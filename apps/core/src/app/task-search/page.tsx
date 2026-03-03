@@ -82,6 +82,7 @@ export default function TaskSearchPage() {
     const [results, setResults] = useState<TaskResult[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [cardStates, setCardStates] = useState<Record<string, TaskCardState>>({});
+    const [selectedEnvironment, setSelectedEnvironment] = useState<string>('');
 
     const search = async (q: string) => {
         if (!q.trim()) return;
@@ -89,6 +90,7 @@ export default function TaskSearchPage() {
         setError(null);
         setResults(null);
         setCardStates({});
+        setSelectedEnvironment('');
         try {
             const res = await fetch(`/api/task-search?q=${encodeURIComponent(q.trim())}`);
             const data = await res.json();
@@ -259,13 +261,43 @@ export default function TaskSearchPage() {
             )}
 
             {/* Results */}
-            {results && results.length > 0 && (
+            {results && results.length > 0 && (() => {
+                const environments = Array.from(new Set(results.map(t => t.environment).filter(Boolean))).sort();
+                const filtered = selectedEnvironment
+                    ? results.filter(t => t.environment === selectedEnvironment)
+                    : results;
+
+                return (
                 <div>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', marginBottom: '16px' }}>
-                        {results.length} result{results.length !== 1 ? 's' : ''} found
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', margin: 0 }}>
+                            {filtered.length} of {results.length} result{results.length !== 1 ? 's' : ''}
+                            {selectedEnvironment ? ` in "${selectedEnvironment}"` : ''}
+                        </p>
+                        {environments.length > 1 && (
+                            <select
+                                value={selectedEnvironment}
+                                onChange={e => setSelectedEnvironment(e.target.value)}
+                                style={{
+                                    padding: '6px 12px',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    borderRadius: '8px',
+                                    color: selectedEnvironment ? 'rgba(99,102,241,0.9)' : 'rgba(255,255,255,0.5)',
+                                    fontSize: '0.82rem',
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                }}
+                            >
+                                <option value="">All environments</option>
+                                {environments.map(env => (
+                                    <option key={env} value={env}>{env}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {results.map(task => {
+                        {filtered.map(task => {
                             const state = getCardState(task.id);
                             const isLong = task.content.length > 300;
                             const displayContent = isLong && !state.expanded
@@ -674,7 +706,8 @@ export default function TaskSearchPage() {
                         })}
                     </div>
                 </div>
-            )}
+                );
+            })()}
         </div>
     );
 }

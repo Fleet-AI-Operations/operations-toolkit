@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest, processQueuedJobs } from '@repo/core/ingestion';
-import { RecordType } from '@prisma/client';
+import { startBackgroundIngestFromSession, processQueuedJobs } from '@repo/core/ingestion';
 import { prisma } from '@repo/database';
-import { writeFile, readFile, mkdir, rm, readdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
-import os from 'os';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -17,47 +12,13 @@ const MAX_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB per chunk
 const MAX_TOTAL_SIZE = 150 * 1024 * 1024; // 150MB total
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-// Use OS temp directory (works on Vercel, local dev, etc.)
-const UPLOAD_DIR = path.join(os.tmpdir(), 'csv-uploads');
-
-async function ensureUploadDir(): Promise<void> {
-    if (!existsSync(UPLOAD_DIR)) {
-        await mkdir(UPLOAD_DIR, { recursive: true });
-    }
-}
-
-async function getSessionDir(uploadId: string): Promise<string> {
-    // Sanitize uploadId to prevent path traversal
-    const safeId = uploadId.replace(/[^a-zA-Z0-9_-]/g, '');
-    return path.join(UPLOAD_DIR, safeId);
+// Sanitize uploadId to prevent injection via the primary key
+function safeId(uploadId: string): string {
+    return uploadId.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
 async function cleanupExpiredSessions(): Promise<void> {
-    try {
-        if (!existsSync(UPLOAD_DIR)) return;
-
-        const sessions = await readdir(UPLOAD_DIR);
-        const now = Date.now();
-
-        for (const sessionId of sessions) {
-            const sessionDir = path.join(UPLOAD_DIR, sessionId);
-            const metaPath = path.join(sessionDir, 'meta.json');
-
-            try {
-                if (existsSync(metaPath)) {
-                    const meta = JSON.parse(await readFile(metaPath, 'utf-8'));
-                    if (now > meta.expiresAt) {
-                        await rm(sessionDir, { recursive: true, force: true });
-                    }
-                }
-            } catch {
-                // If we can't read meta, session is corrupted - clean it up
-                await rm(sessionDir, { recursive: true, force: true }).catch(() => {});
-            }
-        }
-    } catch {
-        // Ignore cleanup errors
-    }
+    await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE expires_at < NOW()`;
 }
 
 export async function POST(req: NextRequest) {
@@ -72,7 +33,6 @@ export async function POST(req: NextRequest) {
             case 'start': {
                 const { uploadId, fileName, totalChunks, generateEmbeddings } = body;
 
-                // Validation
                 if (!uploadId || typeof uploadId !== 'string' || uploadId.length > 100) {
                     return NextResponse.json({ error: 'Invalid uploadId' }, { status: 400 });
                 }
@@ -82,32 +42,26 @@ export async function POST(req: NextRequest) {
                     }, { status: 400 });
                 }
 
-                await ensureUploadDir();
-                const sessionDir = await getSessionDir(uploadId);
+                const id = safeId(uploadId);
+                const safeName = (fileName || 'upload.csv').slice(0, 255);
+                const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-                // Check if session already exists
-                if (existsSync(sessionDir)) {
+                const [inserted] = await prisma.$queryRaw<[{ id: string }?]>`
+                    INSERT INTO public.upload_sessions (id, file_name, total_chunks, generate_embeddings, expires_at)
+                    VALUES (${id}, ${safeName}, ${totalChunks}, ${generateEmbeddings ?? true}, ${expiresAt})
+                    ON CONFLICT (id) DO NOTHING
+                    RETURNING id
+                `;
+                if (!inserted) {
                     return NextResponse.json({ error: 'Upload session already exists' }, { status: 409 });
                 }
 
-                // Create session directory and metadata
-                await mkdir(sessionDir, { recursive: true });
-                const meta = {
-                    fileName: (fileName || 'upload.csv').slice(0, 255),
-                    totalChunks,
-                    generateEmbeddings: generateEmbeddings ?? true,
-                    expiresAt: Date.now() + SESSION_TTL_MS,
-                    createdAt: Date.now()
-                };
-                await writeFile(path.join(sessionDir, 'meta.json'), JSON.stringify(meta));
-
-                return NextResponse.json({ success: true, uploadId });
+                return NextResponse.json({ success: true, uploadId: id });
             }
 
             case 'chunk': {
                 const { uploadId, chunkIndex, content } = body;
 
-                // Validation
                 if (!uploadId || typeof uploadId !== 'string') {
                     return NextResponse.json({ error: 'Invalid uploadId' }, { status: 400 });
                 }
@@ -123,45 +77,47 @@ export async function POST(req: NextRequest) {
                     }, { status: 400 });
                 }
 
-                const sessionDir = await getSessionDir(uploadId);
-                const metaPath = path.join(sessionDir, 'meta.json');
+                const id = safeId(uploadId);
 
-                if (!existsSync(metaPath)) {
+                const [session] = await prisma.$queryRaw<Array<{ total_chunks: number; expires_at: Date }>>`
+                    SELECT total_chunks, expires_at FROM public.upload_sessions WHERE id = ${id}
+                `;
+
+                if (!session) {
                     return NextResponse.json({ error: 'Upload session not found' }, { status: 404 });
                 }
-
-                const meta = JSON.parse(await readFile(metaPath, 'utf-8'));
-
-                // Check expiration
-                if (Date.now() > meta.expiresAt) {
-                    await rm(sessionDir, { recursive: true, force: true });
+                if (new Date() > session.expires_at) {
+                    await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${id}`;
                     return NextResponse.json({ error: 'Upload session expired' }, { status: 410 });
                 }
-
-                // Validate chunk index
-                if (chunkIndex >= meta.totalChunks) {
+                if (chunkIndex >= session.total_chunks) {
                     return NextResponse.json({
-                        error: `chunkIndex ${chunkIndex} exceeds totalChunks ${meta.totalChunks}`
+                        error: `chunkIndex ${chunkIndex} exceeds totalChunks ${session.total_chunks}`
                     }, { status: 400 });
                 }
 
-                // Write chunk to file
-                const chunkPath = path.join(sessionDir, `chunk_${String(chunkIndex).padStart(5, '0')}`);
-                await writeFile(chunkPath, content, 'utf-8');
+                // Upsert chunk (idempotent — safe to retry)
+                await prisma.$executeRaw`
+                    INSERT INTO public.upload_chunks (session_id, chunk_index, content)
+                    VALUES (${id}, ${chunkIndex}, ${content})
+                    ON CONFLICT (session_id, chunk_index) DO UPDATE SET content = EXCLUDED.content
+                `;
 
-                // Extend expiration
-                meta.expiresAt = Date.now() + SESSION_TTL_MS;
-                await writeFile(metaPath, JSON.stringify(meta));
+                // Extend TTL on each chunk received
+                const newExpiry = new Date(Date.now() + SESSION_TTL_MS);
+                await prisma.$executeRaw`
+                    UPDATE public.upload_sessions SET expires_at = ${newExpiry} WHERE id = ${id}
+                `;
 
-                // Count received chunks
-                const files = await readdir(sessionDir);
-                const chunkCount = files.filter(f => f.startsWith('chunk_')).length;
+                const [{ chunk_count }] = await prisma.$queryRaw<[{ chunk_count: bigint }]>`
+                    SELECT COUNT(*) AS chunk_count FROM public.upload_chunks WHERE session_id = ${id}
+                `;
 
                 return NextResponse.json({
                     success: true,
                     receivedChunk: chunkIndex,
-                    totalReceived: chunkCount,
-                    totalExpected: meta.totalChunks
+                    totalReceived: Number(chunk_count),
+                    totalExpected: session.total_chunks
                 });
             }
 
@@ -172,72 +128,71 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ error: 'Invalid uploadId' }, { status: 400 });
                 }
 
-                const sessionDir = await getSessionDir(uploadId);
-                const metaPath = path.join(sessionDir, 'meta.json');
+                const id = safeId(uploadId);
 
-                if (!existsSync(metaPath)) {
+                const [session] = await prisma.$queryRaw<Array<{
+                    file_name: string;
+                    total_chunks: number;
+                    generate_embeddings: boolean;
+                    expires_at: Date;
+                }>>`
+                    SELECT file_name, total_chunks, generate_embeddings, expires_at
+                    FROM public.upload_sessions WHERE id = ${id}
+                `;
+
+                if (!session) {
                     return NextResponse.json({ error: 'Upload session not found' }, { status: 404 });
                 }
+                if (new Date() > session.expires_at) {
+                    await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${id}`;
+                    return NextResponse.json({ error: 'Upload session expired' }, { status: 410 });
+                }
 
-                const meta = JSON.parse(await readFile(metaPath, 'utf-8'));
+                // Validate all chunks are present — fetch only chunk_index to avoid loading content
+                const receivedIndexes = await prisma.$queryRaw<Array<{ chunk_index: number }>>`
+                    SELECT chunk_index FROM public.upload_chunks
+                    WHERE session_id = ${id}
+                    ORDER BY chunk_index ASC
+                `;
 
-                // Get all chunk files sorted by index
-                const files = await readdir(sessionDir);
-                const chunkFiles = files.filter(f => f.startsWith('chunk_')).sort((a, b) => {
-                    const aIndex = parseInt(a.replace('chunk_', ''), 10);
-                    const bIndex = parseInt(b.replace('chunk_', ''), 10);
-                    return aIndex - bIndex;
-                });
-
-                // Verify all chunks received
-                if (chunkFiles.length !== meta.totalChunks) {
-                    const received = chunkFiles.map(f => parseInt(f.replace('chunk_', ''), 10));
+                if (receivedIndexes.length !== session.total_chunks) {
+                    const received = receivedIndexes.map(c => c.chunk_index);
                     const missing: number[] = [];
-                    for (let i = 0; i < meta.totalChunks; i++) {
+                    for (let i = 0; i < session.total_chunks; i++) {
                         if (!received.includes(i)) missing.push(i);
                     }
                     return NextResponse.json({
                         error: `Missing chunks: ${missing.slice(0, 10).join(', ')}${missing.length > 10 ? '...' : ''}`,
-                        received: chunkFiles.length,
-                        expected: meta.totalChunks
+                        received: receivedIndexes.length,
+                        expected: session.total_chunks
                     }, { status: 400 });
                 }
 
-                // Read and combine all chunks
-                const chunks: string[] = [];
-                let totalSize = 0;
-
-                for (const chunkFile of chunkFiles) {
-                    const content = await readFile(path.join(sessionDir, chunkFile), 'utf-8');
-                    totalSize += content.length;
-
-                    if (totalSize > MAX_TOTAL_SIZE) {
-                        await rm(sessionDir, { recursive: true, force: true });
-                        return NextResponse.json({
-                            error: `Total file size exceeds maximum of ${MAX_TOTAL_SIZE / 1024 / 1024}MB`
-                        }, { status: 400 });
-                    }
-
-                    chunks.push(content);
+                // Validate total size using a DB-side SUM — avoids loading any content into memory
+                const [{ total_size }] = await prisma.$queryRaw<[{ total_size: bigint }]>`
+                    SELECT COALESCE(SUM(LENGTH(content)), 0) AS total_size
+                    FROM public.upload_chunks WHERE session_id = ${id}
+                `;
+                if (Number(total_size) > MAX_TOTAL_SIZE) {
+                    await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${id}`;
+                    return NextResponse.json({
+                        error: `Total file size exceeds maximum of ${MAX_TOTAL_SIZE / 1024 / 1024}MB`
+                    }, { status: 400 });
                 }
 
-                const csvContent = chunks.join('');
-
-                // Start background ingestion (environment and type extracted from CSV)
-                const jobId = await startBackgroundIngest('CSV', csvContent, {
-                    source: `csv:${meta.fileName}`,
+                // Pass a session reference to the ingestion pipeline — chunks are streamed
+                // directly from the database during processing, never assembled into a single string.
+                // The session is deleted by the processor after all chunks have been consumed.
+                const jobId = await startBackgroundIngestFromSession(id, session.total_chunks, {
+                    source: `csv:${session.file_name}`,
                     filterKeywords: undefined,
-                    generateEmbeddings: meta.generateEmbeddings,
+                    generateEmbeddings: session.generate_embeddings,
                 });
 
                 // IMPORTANT: In serverless, we must await initial processing or it gets killed
-                // Status endpoint will continue processing on each poll
                 await processQueuedJobs().catch(err =>
                     console.error('Initial Queue Processor Error:', err)
                 );
-
-                // Cleanup session directory (non-blocking)
-                rm(sessionDir, { recursive: true, force: true }).catch(() => {});
 
                 return NextResponse.json({
                     message: 'Ingestion started in the background.',

@@ -53,7 +53,13 @@ The search matches against:
 - **Creator email** — partial, case-insensitive (`ILIKE %query%`)
 - **Task ID** — exact match
 
-Up to 25 results are returned, ordered by most recently created first. Each result card displays:
+Up to 25 results are returned, ordered by most recently created first.
+
+### Environment Filter
+
+When results span more than one environment, a dropdown appears below the result count letting you narrow results to a single environment. Filtering is applied client-side — no new API call is made. The count updates to show `X of Y results in "environment-name"` while a filter is active. Clearing the dropdown back to **All environments** restores the full result set.
+
+Each result card displays:
 
 | Field | Description |
 |-------|-------------|
@@ -201,4 +207,4 @@ The AI check uses a structured system prompt that instructs the LLM to output JS
 
 ---
 
-*Last Updated: 2026-02-27*
+*Last Updated: 2026-03-02*

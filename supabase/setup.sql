@@ -1,29 +1,39 @@
 -- 1. Create UserRole type if it doesn't exist
-DO $$ 
+DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
         CREATE TYPE "UserRole" AS ENUM ('USER', 'MANAGER', 'ADMIN');
     END IF;
 END $$;
 
--- Ensure 'PENDING' value exists in the enum (must be run outside DO block)
--- We wrap this in a separate execution or just provide the command
--- Note: In Supabase SQL editor, you can run multiple statements.
+-- Ensure all role values exist (must be run outside DO block)
+-- ORDER matters: PENDING before USER, new hierarchy roles added after base values.
 ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'PENDING' BEFORE 'USER';
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'QA';
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'CORE';
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'FLEET';
 
 -- 2. Create or Update the profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   role "UserRole" DEFAULT 'PENDING'::"UserRole",
+  "firstName" TEXT,
+  "lastName" TEXT,
   "mustResetPassword" BOOLEAN DEFAULT FALSE,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Ensure existing tables have the new column
+-- Ensure existing tables have all columns (idempotent)
 ALTER TABLE public.profiles
 ADD COLUMN IF NOT EXISTS "mustResetPassword" BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS "firstName" TEXT;
+
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS "lastName" TEXT;
 
 -- Ensure updatedAt has default for existing tables
 ALTER TABLE public.profiles
@@ -156,3 +166,31 @@ CREATE POLICY "Authenticated users can insert audit logs"
   FOR INSERT
   TO authenticated
   WITH CHECK (true);
+
+-- Upload sessions for chunked CSV ingestion
+-- Replaces filesystem-based session storage (/tmp) which is not shared
+-- across Vercel serverless invocations.
+
+CREATE TABLE IF NOT EXISTS public.upload_sessions (
+    id TEXT PRIMARY KEY,
+    file_name TEXT NOT NULL,
+    total_chunks INTEGER NOT NULL,
+    generate_embeddings BOOLEAN NOT NULL DEFAULT TRUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.upload_chunks (
+    session_id TEXT NOT NULL REFERENCES public.upload_sessions(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    PRIMARY KEY (session_id, chunk_index)
+);
+
+-- Used by opportunistic cleanup to quickly find expired sessions
+CREATE INDEX IF NOT EXISTS idx_upload_sessions_expires_at ON public.upload_sessions (expires_at);
+
+-- Functional index on metadata->>'task_key' to speed up task key lookups
+-- and ingestion duplicate detection queries.
+CREATE INDEX IF NOT EXISTS idx_data_records_task_key
+ON public.data_records ((metadata->>'task_key'));

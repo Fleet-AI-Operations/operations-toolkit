@@ -23,7 +23,9 @@
  * - RLS policies on ingest_jobs table should restrict access to authorized users
  * - For sensitive data, consider encrypting payloads at rest or using separate storage
  */
-import { parse } from 'csv-parse/sync';
+import { parse as parseSync } from 'csv-parse/sync';
+import { parse as parseAsync } from 'csv-parse';
+import { Readable } from 'stream';
 import { prisma, Prisma } from '@repo/database';
 import { getEmbeddings } from '../ai';
 import { RecordCategory } from '@repo/types';
@@ -42,11 +44,12 @@ export async function startBackgroundIngest(type, payload, options) {
     let recordType = options.type;
     if (!environment || !recordType) {
         try {
-            const rows = parse(payload, {
+            const rows = parseSync(payload, {
                 columns: true,
                 skip_empty_lines: true,
                 trim: true,
-                relax_column_count: true
+                relax_column_count: true,
+                to: 2 // Only need the first row — avoid parsing the entire CSV here
             });
             if (rows.length > 0) {
                 const firstRow = rows[0];
@@ -95,6 +98,71 @@ export async function startBackgroundIngest(type, payload, options) {
     return job.id;
 }
 /**
+ * ENTRY POINT: startBackgroundIngestFromSession
+ *
+ * Session-aware variant that stores only a reference to the upload session instead
+ * of assembling and storing the full CSV payload. This avoids loading large files
+ * into memory — chunks are streamed directly from `upload_chunks` during processing.
+ *
+ * The upload session is deleted by `streamChunksAndProcess` after ingestion completes.
+ */
+export async function startBackgroundIngestFromSession(sessionId, totalChunks, options) {
+    let environment = options.environment;
+    let recordType = options.type;
+    if (!environment || !recordType) {
+        try {
+            // Fetch just the first chunk to detect environment/type from first row
+            const [firstChunk] = await prisma.$queryRaw `
+                SELECT content FROM public.upload_chunks
+                WHERE session_id = ${sessionId} AND chunk_index = 0
+            `;
+            if (firstChunk) {
+                const rows = parseSync(firstChunk.content, {
+                    columns: true,
+                    skip_empty_lines: true,
+                    trim: true,
+                    relax_column_count: true,
+                    to: 2,
+                });
+                if (rows.length > 0) {
+                    const firstRow = rows[0];
+                    if (!environment) {
+                        environment = firstRow.environment_name || firstRow.environment ||
+                            firstRow.env_key || firstRow.env || 'default';
+                    }
+                    if (!recordType) {
+                        const typeValue = (firstRow.type || firstRow.record_type || 'TASK').toString().toUpperCase();
+                        recordType = (typeValue === 'FEEDBACK' ? 'FEEDBACK' : 'TASK');
+                    }
+                }
+            }
+        }
+        catch (error) {
+            console.error('Error extracting environment/type from first chunk:', error);
+        }
+        environment = environment || 'default';
+        recordType = recordType || 'TASK';
+    }
+    const job = await prisma.ingestJob.create({
+        data: {
+            environment: environment,
+            type: recordType,
+            status: 'PENDING',
+            payload: null, // No payload — data stays in upload_chunks until streamed
+            options: {
+                ...options,
+                environment,
+                type: recordType,
+                ingestionType: 'CSV_SESSION',
+                sessionId,
+                totalChunks,
+            },
+        }
+    });
+    processQueuedJobs().catch(err => console.error('Queue Processor Error:', err));
+    return job.id;
+}
+/**
  * PUBLIC ENTRY POINT: processQueuedJobs
  * Triggers processing of both Phase 1 (Data Loading) and Phase 2 (Vectorization) jobs.
  * Safe to call repeatedly - internal locking prevents concurrent processing.
@@ -137,26 +205,21 @@ export async function processQueuedJobs(environment) {
  */
 async function processJobs(environment) {
     const activeProcessing = await prisma.ingestJob.findFirst({
-        where: { environment, status: 'PROCESSING' }
+        where: { environment, status: 'PROCESSING' },
+        select: { id: true }
     });
     if (activeProcessing) {
         // In serverless, we can't rely on memory state, so just return and let the job be picked up later
         return; // Wait for the active data load to finish
     }
+    // Fetch metadata only — exclude payload to avoid loading a potentially large CSV into memory
     const nextJob = await prisma.ingestJob.findFirst({
         where: { environment, status: 'PENDING' },
-        orderBy: { createdAt: 'asc' }
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, environment: true, type: true, options: true }
     });
     if (!nextJob)
         return;
-    if (!nextJob.payload) {
-        await prisma.ingestJob.update({
-            where: { id: nextJob.id },
-            data: { status: 'FAILED', error: 'Job payload missing from database.' }
-        });
-        processJobs(environment);
-        return;
-    }
     if (!nextJob.options) {
         await prisma.ingestJob.update({
             where: { id: nextJob.id },
@@ -165,55 +228,73 @@ async function processJobs(environment) {
         processJobs(environment);
         return;
     }
-    // Reconstruct cache object from database-stored payload and options
     const storedOptions = nextJob.options;
-    const cache = {
-        type: (storedOptions.ingestionType || 'CSV'),
-        payload: nextJob.payload,
-        options: {
-            environment: nextJob.environment,
-            source: storedOptions.source || 'csv',
-            type: nextJob.type,
-            filterKeywords: storedOptions.filterKeywords,
-            generateEmbeddings: storedOptions.generateEmbeddings ?? true,
-        }
+    const jobOptions = {
+        environment: nextJob.environment,
+        source: storedOptions.source || 'csv',
+        type: nextJob.type,
+        filterKeywords: storedOptions.filterKeywords,
+        generateEmbeddings: storedOptions.generateEmbeddings ?? true,
     };
+    const ingestionType = (storedOptions.ingestionType || 'CSV');
     try {
         await prisma.ingestJob.update({
             where: { id: nextJob.id },
             data: { status: 'PROCESSING' }
         });
-        let records = [];
-        if (cache.type === 'CSV') {
-            records = parse(cache.payload, {
-                columns: true,
-                skip_empty_lines: true,
-                trim: true,
-                relax_column_count: true
-            });
+        if (ingestionType === 'CSV_SESSION') {
+            // Stream chunks directly from upload_chunks table — no payload needed
+            const sessionId = storedOptions.sessionId;
+            const totalChunks = storedOptions.totalChunks;
+            if (!sessionId || !totalChunks) {
+                await prisma.ingestJob.update({
+                    where: { id: nextJob.id },
+                    data: { status: 'FAILED', error: 'Session ID or chunk count missing from job options.' }
+                });
+                processJobs(environment);
+                return;
+            }
+            await streamChunksAndProcess(sessionId, totalChunks, jobOptions, nextJob.id);
         }
         else {
-            // API type: payload can be either a URL or direct JSON string
-            let data;
-            // Try to parse as JSON first (direct JSON payload)
-            try {
-                data = JSON.parse(cache.payload);
+            // Fetch payload separately so the large field isn't held alongside metadata
+            const jobData = await prisma.ingestJob.findUnique({
+                where: { id: nextJob.id },
+                select: { payload: true }
+            });
+            if (!jobData?.payload) {
+                await prisma.ingestJob.update({
+                    where: { id: nextJob.id },
+                    data: { status: 'FAILED', error: 'Job payload missing from database.' }
+                });
+                processJobs(environment);
+                return;
             }
-            catch {
-                // If parsing fails, treat as URL and fetch
-                const response = await fetch(cache.payload);
-                data = await response.json();
+            if (ingestionType === 'CSV') {
+                // Stream the CSV through the async parser — only one batch of records
+                // lives in memory at a time instead of the full parsed array.
+                await streamCsvAndProcess(jobData.payload, jobOptions, nextJob.id);
             }
-            records = Array.isArray(data) ? data : [data];
+            else {
+                // API type: payload can be either a URL or direct JSON string
+                let data;
+                try {
+                    data = JSON.parse(jobData.payload);
+                }
+                catch {
+                    const response = await fetch(jobData.payload);
+                    data = await response.json();
+                }
+                const records = Array.isArray(data) ? data : [data];
+                await prisma.ingestJob.update({
+                    where: { id: nextJob.id },
+                    data: { totalRecords: records.length }
+                });
+                await processAndStore(records, jobOptions, nextJob.id);
+            }
         }
-        // Update job with total record count for progress tracking
-        await prisma.ingestJob.update({
-            where: { id: nextJob.id },
-            data: { totalRecords: records.length }
-        });
-        await processAndStore(records, cache.options, nextJob.id);
         // Phase 1 Complete: Mark as queued for vectorization
-        if (cache.options.generateEmbeddings) {
+        if (jobOptions.generateEmbeddings) {
             await prisma.ingestJob.update({
                 where: { id: nextJob.id },
                 data: { status: 'QUEUED_FOR_VEC' }
@@ -247,15 +328,17 @@ async function processJobs(environment) {
 async function processVectorizationJobs(environment) {
     // Check if there's already a job vectorizing for this environment
     const activeVectorizing = await prisma.ingestJob.findFirst({
-        where: { environment, status: 'VECTORIZING' }
+        where: { environment, status: 'VECTORIZING' },
+        select: { id: true }
     });
     if (activeVectorizing) {
         return; // Wait for active vectorization to finish
     }
-    // Get the next job queued for vectorization
+    // Get the next job queued for vectorization (payload not needed here)
     const nextJob = await prisma.ingestJob.findFirst({
         where: { environment, status: 'QUEUED_FOR_VEC' },
-        orderBy: { createdAt: 'asc' }
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, environment: true }
     });
     if (!nextJob)
         return;
@@ -429,6 +512,97 @@ async function vectorizeJob(jobId, environment) {
     console.log(`[Vectorize] Job ${jobId} completed. Total embedded: ${totalEmbedded}, skipped due to persistent failures: ${totalSkipped}`);
 }
 /**
+ * Streams a CSV string through the async csv-parse API, processing records in batches.
+ * This avoids loading the entire parsed array into memory at once — only one batch
+ * (CHUNK_SIZE records) is held in memory at a time alongside the raw CSV string.
+ */
+async function streamCsvAndProcess(csvText, options, jobId) {
+    const STREAM_BATCH_SIZE = 100;
+    const parser = parseAsync({
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+    });
+    parser.write(csvText);
+    parser.end();
+    let batch = [];
+    let totalSeen = 0;
+    for await (const record of parser) {
+        batch.push(record);
+        totalSeen++;
+        if (batch.length >= STREAM_BATCH_SIZE) {
+            // Update total estimate incrementally so UI shows progress
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { totalRecords: { increment: STREAM_BATCH_SIZE } }
+            });
+            await processAndStore(batch, options, jobId);
+            batch = [];
+        }
+    }
+    if (batch.length > 0) {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { totalRecords: { increment: batch.length } }
+        });
+        await processAndStore(batch, options, jobId);
+    }
+}
+/**
+ * Streams chunks from the `upload_chunks` table through csv-parse, processing records in batches.
+ * Fetches one chunk at a time via an async generator so at most one chunk (~4 MB) is in memory
+ * at a time — the full CSV is never assembled as a single string.
+ * Deletes the upload session when streaming completes.
+ */
+async function streamChunksAndProcess(sessionId, totalChunks, options, jobId) {
+    const STREAM_BATCH_SIZE = 100;
+    // Async generator that fetches one chunk at a time from the database
+    async function* chunkGenerator() {
+        for (let i = 0; i < totalChunks; i++) {
+            const [row] = await prisma.$queryRaw `
+                SELECT content FROM public.upload_chunks
+                WHERE session_id = ${sessionId} AND chunk_index = ${i}
+            `;
+            if (row)
+                yield row.content;
+        }
+    }
+    const readable = Readable.from(chunkGenerator());
+    const parser = readable.pipe(parseAsync({
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+    }));
+    let batch = [];
+    let cancelled = false;
+    for await (const record of parser) {
+        batch.push(record);
+        if (batch.length >= STREAM_BATCH_SIZE) {
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { totalRecords: { increment: STREAM_BATCH_SIZE } }
+            });
+            const result = await processAndStore(batch, options, jobId);
+            batch = [];
+            if (result?.cancelled) {
+                cancelled = true;
+                break;
+            }
+        }
+    }
+    if (!cancelled && batch.length > 0) {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { totalRecords: { increment: batch.length } }
+        });
+        await processAndStore(batch, options, jobId);
+    }
+    // Clean up upload session — cascades to chunks via FK
+    await prisma.$executeRaw `DELETE FROM public.upload_sessions WHERE id = ${sessionId}`;
+}
+/**
  * Phase 1: Data Loading
  * Parses records, filters by content/keywords, detects categories, and prevents duplicates.
  *
@@ -473,6 +647,10 @@ export async function processAndStore(records, options, jobId) {
                     rowType = 'TASK';
                 }
             }
+            else if (record.feedback_id || (record.feedback_content && record.task_prompt)) {
+                // QA feedback analysis format: no type column, but feedback-specific fields present
+                rowType = 'FEEDBACK';
+            }
             // --- Environment Detection (Per Row) ---
             // Extract environment from CSV columns: env_key, environment_name, environment, env
             let rowEnvironment = actualEnvironment; // Default to job-level environment
@@ -494,11 +672,18 @@ export async function processAndStore(records, options, jobId) {
                 content = record;
             }
             else {
-                // New CSV format: 'prompt' column for tasks, 'feedback_content' for feedback
-                // Also support legacy formats for backward compatibility
-                content = record.prompt || record.feedback_content || record.feedback ||
-                    record.content || record.body || record.task_content ||
-                    record.text || record.message || record.instruction || record.response;
+                // Prefer the field that matches the row's type; fall back to all known content columns
+                if (rowType === 'FEEDBACK') {
+                    content = record.feedback_content || record.feedback ||
+                        record.prompt || record.task_prompt ||
+                        record.content || record.body || record.task_content ||
+                        record.text || record.message || record.instruction || record.response;
+                }
+                else {
+                    content = record.prompt || record.task_prompt || record.feedback_content || record.feedback ||
+                        record.content || record.body || record.task_content ||
+                        record.text || record.message || record.instruction || record.response;
+                }
                 if (!content || content.length < 10) {
                     const textFields = Object.entries(record)
                         .filter(([, val]) => typeof val === 'string' && String(val).length > 10)
@@ -549,7 +734,7 @@ export async function processAndStore(records, options, jobId) {
         // 2. DUPLICATE DETECTION (Optimized: Single query per chunk instead of per record)
         // Extract all task IDs and task keys from the chunk (new CSV format uses task_id and task_key)
         const taskIds = validChunk
-            .map(v => v.record.task_id || v.record.id || v.record.uuid || v.record.record_id)
+            .map(v => v.record.task_id || v.record.feedback_id || v.record.id || v.record.uuid || v.record.record_id)
             .filter(id => id != null);
         const taskKeys = validChunk
             .map(v => v.record.task_key)
@@ -569,6 +754,7 @@ export async function processAndStore(records, options, jobId) {
             const conditions = [];
             if (taskIdStrings.length > 0) {
                 conditions.push(Prisma.sql `metadata->>'task_id' IN (${Prisma.join(taskIdStrings)})`);
+                conditions.push(Prisma.sql `metadata->>'feedback_id' IN (${Prisma.join(taskIdStrings)})`);
                 conditions.push(Prisma.sql `metadata->>'id' IN (${Prisma.join(taskIdStrings)})`);
                 conditions.push(Prisma.sql `metadata->>'uuid' IN (${Prisma.join(taskIdStrings)})`);
                 conditions.push(Prisma.sql `metadata->>'record_id' IN (${Prisma.join(taskIdStrings)})`);
@@ -581,6 +767,7 @@ export async function processAndStore(records, options, jobId) {
                     SELECT
                         type,
                         metadata->>'task_id' as task_id,
+                        metadata->>'feedback_id' as feedback_id,
                         metadata->>'task_key' as task_key,
                         metadata->>'id' as id,
                         metadata->>'uuid' as uuid,
@@ -595,6 +782,8 @@ export async function processAndStore(records, options, jobId) {
                     const typeKeys = existingTaskKeysByType.get(row.type);
                     if (row.task_id)
                         typeIds.add(row.task_id);
+                    if (row.feedback_id)
+                        typeIds.add(row.feedback_id);
                     if (row.task_key)
                         typeKeys.add(row.task_key);
                     if (row.id)
@@ -608,7 +797,7 @@ export async function processAndStore(records, options, jobId) {
         }
         // Filter out duplicates in memory (check by type)
         const finalChunk = validChunk.filter(v => {
-            const taskId = v.record.task_id || v.record.id || v.record.uuid || v.record.record_id;
+            const taskId = v.record.task_id || v.record.feedback_id || v.record.id || v.record.uuid || v.record.record_id;
             const taskKey = v.record.task_key;
             if (!taskId && !taskKey)
                 return true; // No ID or key to check, allow it
@@ -628,30 +817,35 @@ export async function processAndStore(records, options, jobId) {
             currentDetails[reason] = (currentDetails[reason] || 0) + count;
         });
         await Promise.all(finalChunk.map(v => {
-            // Extract timestamps from CSV data
+            // Extract timestamps — prefer type-specific columns, fall back to generic ones
             const createdAtValue = v.record?.created_at || v.record?.createdAt ||
+                (v.rowType === 'FEEDBACK' ? v.record?.feedback_created_at : v.record?.task_created_at) ||
+                v.record?.feedback_created_at || v.record?.task_created_at ||
                 v.record?.timestamp || v.record?.date_created;
             const updatedAtValue = v.record?.updated_at || v.record?.updatedAt ||
                 v.record?.date_updated || v.record?.modified_at;
-            // Parse timestamps if they exist
             const createdAt = createdAtValue ? new Date(createdAtValue) : undefined;
             const updatedAt = updatedAtValue ? new Date(updatedAtValue) : undefined;
-            // Validate parsed dates
             const validCreatedAt = createdAt && !isNaN(createdAt.getTime()) ? createdAt : undefined;
             const validUpdatedAt = updatedAt && !isNaN(updatedAt.getTime()) ? updatedAt : undefined;
+            // Creator fields — support legacy (author_*/created_by_*), new task format
+            // (task_creator_*), and new feedback format (rater_*)
+            const nameRaw = v.record?.author_name || v.record?.created_by_name ||
+                (v.rowType === 'FEEDBACK' ? v.record?.rater_name : v.record?.task_creator_name);
+            const emailRaw = v.record?.author_email || v.record?.created_by_email ||
+                (v.rowType === 'FEEDBACK' ? v.record?.rater_email : v.record?.task_creator_email);
             return prisma.dataRecord.create({
                 data: {
-                    environment: v.rowEnvironment, // Use row-specific environment from CSV
-                    type: v.rowType, // Use row-specific type instead of job-level type
+                    environment: v.rowEnvironment,
+                    type: v.rowType,
                     category: v.category,
                     source,
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
                     // embedding is Unsupported("vector") - defaults to NULL, set via raw SQL in vectorizeJob
-                    // Support both new format (author_*) and legacy format (created_by_*)
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
-                    createdByName: v.record?.author_name || v.record?.created_by_name ? String(v.record?.author_name || v.record?.created_by_name) : null,
-                    createdByEmail: v.record?.author_email || v.record?.created_by_email ? String(v.record?.author_email || v.record?.created_by_email) : null,
+                    createdByName: nameRaw ? String(nameRaw) : null,
+                    createdByEmail: emailRaw ? String(emailRaw) : null,
                     ...(validCreatedAt && { createdAt: validCreatedAt }),
                     ...(validUpdatedAt && { updatedAt: validUpdatedAt }),
                 }

@@ -18,6 +18,16 @@ export interface IngestOptions {
  */
 export declare function startBackgroundIngest(type: 'CSV' | 'API', payload: string, options: IngestOptions): Promise<string>;
 /**
+ * ENTRY POINT: startBackgroundIngestFromSession
+ *
+ * Session-aware variant that stores only a reference to the upload session instead
+ * of assembling and storing the full CSV payload. This avoids loading large files
+ * into memory — chunks are streamed directly from `upload_chunks` during processing.
+ *
+ * The upload session is deleted by `streamChunksAndProcess` after ingestion completes.
+ */
+export declare function startBackgroundIngestFromSession(sessionId: string, totalChunks: number, options: IngestOptions): Promise<string>;
+/**
  * PUBLIC ENTRY POINT: processQueuedJobs
  * Triggers processing of both Phase 1 (Data Loading) and Phase 2 (Vectorization) jobs.
  * Safe to call repeatedly - internal locking prevents concurrent processing.
@@ -51,18 +61,18 @@ export declare function processAndStore(records: any[], options: IngestOptions, 
 export declare function cancelIngest(jobId: string): Promise<void>;
 export declare function getIngestStatus(jobId: string): Promise<{
     id: string;
-    createdAt: Date;
-    updatedAt: Date;
     environment: string;
-    error: string | null;
+    type: import("@prisma/client").$Enums.RecordType;
     status: string;
     totalRecords: number;
-    type: import("@prisma/client").$Enums.RecordType;
     savedCount: number;
     skippedCount: number;
     skippedDetails: Prisma.JsonValue | null;
+    error: string | null;
     payload: string | null;
     options: Prisma.JsonValue | null;
+    createdAt: Date;
+    updatedAt: Date;
 } | null>;
 export declare function deleteIngestedData(jobId: string): Promise<void>;
 //# sourceMappingURL=index.d.ts.map
