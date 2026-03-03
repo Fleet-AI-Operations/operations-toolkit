@@ -23,7 +23,9 @@
  * - RLS policies on ingest_jobs table should restrict access to authorized users
  * - For sensitive data, consider encrypting payloads at rest or using separate storage
  */
-import { parse } from 'csv-parse/sync';
+import { parse as parseSync } from 'csv-parse/sync';
+import { parse as parseAsync } from 'csv-parse';
+import { Readable } from 'stream';
 import { prisma, Prisma } from '@repo/database';
 import { getEmbeddings } from '../ai';
 import { RecordType, RecordCategory } from '@repo/types';
@@ -52,11 +54,12 @@ export async function startBackgroundIngest(type: 'CSV' | 'API', payload: string
 
     if (!environment || !recordType) {
         try {
-            const rows = parse(payload, {
+            const rows = parseSync(payload, {
                 columns: true,
                 skip_empty_lines: true,
                 trim: true,
-                relax_column_count: true
+                relax_column_count: true,
+                to: 2  // Only need the first row — avoid parsing the entire CSV here
             });
 
             if (rows.length > 0) {
@@ -109,6 +112,80 @@ export async function startBackgroundIngest(type: 'CSV' | 'API', payload: string
 }
 
 /**
+ * ENTRY POINT: startBackgroundIngestFromSession
+ *
+ * Session-aware variant that stores only a reference to the upload session instead
+ * of assembling and storing the full CSV payload. This avoids loading large files
+ * into memory — chunks are streamed directly from `upload_chunks` during processing.
+ *
+ * The upload session is deleted by `streamChunksAndProcess` after ingestion completes.
+ */
+export async function startBackgroundIngestFromSession(
+    sessionId: string,
+    totalChunks: number,
+    options: IngestOptions
+) {
+    let environment = options.environment;
+    let recordType = options.type;
+
+    if (!environment || !recordType) {
+        try {
+            // Fetch just the first chunk to detect environment/type from first row
+            const [firstChunk] = await prisma.$queryRaw<[{ content: string }]>`
+                SELECT content FROM public.upload_chunks
+                WHERE session_id = ${sessionId} AND chunk_index = 0
+            `;
+
+            if (firstChunk) {
+                const rows = parseSync(firstChunk.content, {
+                    columns: true,
+                    skip_empty_lines: true,
+                    trim: true,
+                    relax_column_count: true,
+                    to: 2,
+                });
+
+                if (rows.length > 0) {
+                    const firstRow = rows[0] as any;
+                    if (!environment) {
+                        environment = firstRow.environment_name || firstRow.environment ||
+                                     firstRow.env_key || firstRow.env || 'default';
+                    }
+                    if (!recordType) {
+                        const typeValue = (firstRow.type || firstRow.record_type || 'TASK').toString().toUpperCase();
+                        recordType = (typeValue === 'FEEDBACK' ? 'FEEDBACK' : 'TASK') as RecordType;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error extracting environment/type from first chunk:', error);
+        }
+        environment = environment || 'default';
+        recordType = recordType || 'TASK';
+    }
+
+    const job = await prisma.ingestJob.create({
+        data: {
+            environment: environment!,
+            type: recordType!,
+            status: 'PENDING',
+            payload: null,  // No payload — data stays in upload_chunks until streamed
+            options: {
+                ...options,
+                environment,
+                type: recordType,
+                ingestionType: 'CSV_SESSION',
+                sessionId,
+                totalChunks,
+            } as any,
+        }
+    });
+
+    processQueuedJobs().catch(err => console.error('Queue Processor Error:', err));
+    return job.id;
+}
+
+/**
  * PUBLIC ENTRY POINT: processQueuedJobs
  * Triggers processing of both Phase 1 (Data Loading) and Phase 2 (Vectorization) jobs.
  * Safe to call repeatedly - internal locking prevents concurrent processing.
@@ -156,7 +233,8 @@ export async function processQueuedJobs(environment?: string) {
  */
 async function processJobs(environment: string) {
     const activeProcessing = await prisma.ingestJob.findFirst({
-        where: { environment, status: 'PROCESSING' }
+        where: { environment, status: 'PROCESSING' },
+        select: { id: true }
     });
 
     if (activeProcessing) {
@@ -164,21 +242,14 @@ async function processJobs(environment: string) {
         return; // Wait for the active data load to finish
     }
 
+    // Fetch metadata only — exclude payload to avoid loading a potentially large CSV into memory
     const nextJob = await prisma.ingestJob.findFirst({
         where: { environment, status: 'PENDING' },
-        orderBy: { createdAt: 'asc' }
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, environment: true, type: true, options: true }
     });
 
     if (!nextJob) return;
-
-    if (!nextJob.payload) {
-        await prisma.ingestJob.update({
-            where: { id: nextJob.id },
-            data: { status: 'FAILED', error: 'Job payload missing from database.' }
-        });
-        processJobs(environment);
-        return;
-    }
 
     if (!nextJob.options) {
         await prisma.ingestJob.update({
@@ -189,19 +260,15 @@ async function processJobs(environment: string) {
         return;
     }
 
-    // Reconstruct cache object from database-stored payload and options
     const storedOptions = nextJob.options as any;
-    const cache = {
-        type: (storedOptions.ingestionType || 'CSV') as 'CSV' | 'API',
-        payload: nextJob.payload,
-        options: {
-            environment: nextJob.environment,
-            source: storedOptions.source || 'csv',
-            type: nextJob.type,
-            filterKeywords: storedOptions.filterKeywords,
-            generateEmbeddings: storedOptions.generateEmbeddings ?? true,
-        }
+    const jobOptions: IngestOptions = {
+        environment: nextJob.environment,
+        source: storedOptions.source || 'csv',
+        type: nextJob.type,
+        filterKeywords: storedOptions.filterKeywords,
+        generateEmbeddings: storedOptions.generateEmbeddings ?? true,
     };
+    const ingestionType = (storedOptions.ingestionType || 'CSV') as 'CSV' | 'API' | 'CSV_SESSION';
 
     try {
         await prisma.ingestJob.update({
@@ -209,40 +276,61 @@ async function processJobs(environment: string) {
             data: { status: 'PROCESSING' }
         });
 
-        let records: any[] = [];
-        if (cache.type === 'CSV') {
-            records = parse(cache.payload, {
-                columns: true,
-                skip_empty_lines: true,
-                trim: true,
-                relax_column_count: true
-            });
-        } else {
-            // API type: payload can be either a URL or direct JSON string
-            let data: any;
+        if (ingestionType === 'CSV_SESSION') {
+            // Stream chunks directly from upload_chunks table — no payload needed
+            const sessionId = storedOptions.sessionId as string;
+            const totalChunks = storedOptions.totalChunks as number;
 
-            // Try to parse as JSON first (direct JSON payload)
-            try {
-                data = JSON.parse(cache.payload);
-            } catch {
-                // If parsing fails, treat as URL and fetch
-                const response = await fetch(cache.payload);
-                data = await response.json();
+            if (!sessionId || !totalChunks) {
+                await prisma.ingestJob.update({
+                    where: { id: nextJob.id },
+                    data: { status: 'FAILED', error: 'Session ID or chunk count missing from job options.' }
+                });
+                processJobs(environment);
+                return;
             }
 
-            records = Array.isArray(data) ? data : [data];
+            await streamChunksAndProcess(sessionId, totalChunks, jobOptions, nextJob.id);
+        } else {
+            // Fetch payload separately so the large field isn't held alongside metadata
+            const jobData = await prisma.ingestJob.findUnique({
+                where: { id: nextJob.id },
+                select: { payload: true }
+            });
+
+            if (!jobData?.payload) {
+                await prisma.ingestJob.update({
+                    where: { id: nextJob.id },
+                    data: { status: 'FAILED', error: 'Job payload missing from database.' }
+                });
+                processJobs(environment);
+                return;
+            }
+
+            if (ingestionType === 'CSV') {
+                // Stream the CSV through the async parser — only one batch of records
+                // lives in memory at a time instead of the full parsed array.
+                await streamCsvAndProcess(jobData.payload, jobOptions, nextJob.id);
+            } else {
+                // API type: payload can be either a URL or direct JSON string
+                let data: any;
+                try {
+                    data = JSON.parse(jobData.payload);
+                } catch {
+                    const response = await fetch(jobData.payload);
+                    data = await response.json();
+                }
+                const records = Array.isArray(data) ? data : [data];
+                await prisma.ingestJob.update({
+                    where: { id: nextJob.id },
+                    data: { totalRecords: records.length }
+                });
+                await processAndStore(records, jobOptions, nextJob.id);
+            }
         }
 
-        // Update job with total record count for progress tracking
-        await prisma.ingestJob.update({
-            where: { id: nextJob.id },
-            data: { totalRecords: records.length }
-        });
-
-        await processAndStore(records, cache.options, nextJob.id);
-
         // Phase 1 Complete: Mark as queued for vectorization
-        if (cache.options.generateEmbeddings) {
+        if (jobOptions.generateEmbeddings) {
             await prisma.ingestJob.update({
                 where: { id: nextJob.id },
                 data: { status: 'QUEUED_FOR_VEC' }
@@ -277,17 +365,19 @@ async function processJobs(environment: string) {
 async function processVectorizationJobs(environment: string) {
     // Check if there's already a job vectorizing for this environment
     const activeVectorizing = await prisma.ingestJob.findFirst({
-        where: { environment, status: 'VECTORIZING' }
+        where: { environment, status: 'VECTORIZING' },
+        select: { id: true }
     });
 
     if (activeVectorizing) {
         return; // Wait for active vectorization to finish
     }
 
-    // Get the next job queued for vectorization
+    // Get the next job queued for vectorization (payload not needed here)
     const nextJob = await prisma.ingestJob.findFirst({
         where: { environment, status: 'QUEUED_FOR_VEC' },
-        orderBy: { createdAt: 'asc' }
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, environment: true }
     });
 
     if (!nextJob) return;
@@ -476,6 +566,111 @@ async function vectorizeJob(jobId: string, environment: string) {
     }
 
     console.log(`[Vectorize] Job ${jobId} completed. Total embedded: ${totalEmbedded}, skipped due to persistent failures: ${totalSkipped}`);
+}
+
+/**
+ * Streams a CSV string through the async csv-parse API, processing records in batches.
+ * This avoids loading the entire parsed array into memory at once — only one batch
+ * (CHUNK_SIZE records) is held in memory at a time alongside the raw CSV string.
+ */
+async function streamCsvAndProcess(csvText: string, options: IngestOptions, jobId: string) {
+    const STREAM_BATCH_SIZE = 100;
+
+    const parser = parseAsync({
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+    });
+
+    parser.write(csvText);
+    parser.end();
+
+    let batch: any[] = [];
+    let totalSeen = 0;
+
+    for await (const record of parser) {
+        batch.push(record);
+        totalSeen++;
+
+        if (batch.length >= STREAM_BATCH_SIZE) {
+            // Update total estimate incrementally so UI shows progress
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { totalRecords: { increment: STREAM_BATCH_SIZE } }
+            });
+            await processAndStore(batch, options, jobId);
+            batch = [];
+        }
+    }
+
+    if (batch.length > 0) {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { totalRecords: { increment: batch.length } }
+        });
+        await processAndStore(batch, options, jobId);
+    }
+}
+
+/**
+ * Streams chunks from the `upload_chunks` table through csv-parse, processing records in batches.
+ * Fetches one chunk at a time via an async generator so at most one chunk (~4 MB) is in memory
+ * at a time — the full CSV is never assembled as a single string.
+ * Deletes the upload session when streaming completes.
+ */
+async function streamChunksAndProcess(
+    sessionId: string,
+    totalChunks: number,
+    options: IngestOptions,
+    jobId: string
+) {
+    const STREAM_BATCH_SIZE = 100;
+
+    // Async generator that fetches one chunk at a time from the database
+    async function* chunkGenerator() {
+        for (let i = 0; i < totalChunks; i++) {
+            const [row] = await prisma.$queryRaw<[{ content: string }]>`
+                SELECT content FROM public.upload_chunks
+                WHERE session_id = ${sessionId} AND chunk_index = ${i}
+            `;
+            if (row) yield row.content;
+        }
+    }
+
+    const readable = Readable.from(chunkGenerator());
+    const parser = readable.pipe(parseAsync({
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+    }));
+
+    let batch: any[] = [];
+
+    for await (const record of parser) {
+        batch.push(record);
+
+        if (batch.length >= STREAM_BATCH_SIZE) {
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { totalRecords: { increment: STREAM_BATCH_SIZE } }
+            });
+            await processAndStore(batch, options, jobId);
+            batch = [];
+        }
+    }
+
+    if (batch.length > 0) {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { totalRecords: { increment: batch.length } }
+        });
+        await processAndStore(batch, options, jobId);
+    }
+
+    // Clean up upload session — cascades to chunks via FK
+    await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${sessionId}`;
 }
 
 /**

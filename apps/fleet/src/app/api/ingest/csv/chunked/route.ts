@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest, processQueuedJobs } from '@repo/core/ingestion';
+import { startBackgroundIngestFromSession, processQueuedJobs } from '@repo/core/ingestion';
 import { prisma } from '@repo/database';
 
 export const dynamic = 'force-dynamic';
@@ -46,17 +46,15 @@ export async function POST(req: NextRequest) {
                 const safeName = (fileName || 'upload.csv').slice(0, 255);
                 const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-                const [existing] = await prisma.$queryRaw<[{ id: string }?]>`
-                    SELECT id FROM public.upload_sessions WHERE id = ${id}
-                `;
-                if (existing) {
-                    return NextResponse.json({ error: 'Upload session already exists' }, { status: 409 });
-                }
-
-                await prisma.$executeRaw`
+                const [inserted] = await prisma.$queryRaw<[{ id: string }?]>`
                     INSERT INTO public.upload_sessions (id, file_name, total_chunks, generate_embeddings, expires_at)
                     VALUES (${id}, ${safeName}, ${totalChunks}, ${generateEmbeddings ?? true}, ${expiresAt})
+                    ON CONFLICT (id) DO NOTHING
+                    RETURNING id
                 `;
+                if (!inserted) {
+                    return NextResponse.json({ error: 'Upload session already exists' }, { status: 409 });
+                }
 
                 return NextResponse.json({ success: true, uploadId: id });
             }
@@ -150,40 +148,42 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ error: 'Upload session expired' }, { status: 410 });
                 }
 
-                const chunks = await prisma.$queryRaw<Array<{ chunk_index: number; content: string }>>`
-                    SELECT chunk_index, content FROM public.upload_chunks
+                // Validate all chunks are present — fetch only chunk_index to avoid loading content
+                const receivedIndexes = await prisma.$queryRaw<Array<{ chunk_index: number }>>`
+                    SELECT chunk_index FROM public.upload_chunks
                     WHERE session_id = ${id}
                     ORDER BY chunk_index ASC
                 `;
 
-                if (chunks.length !== session.total_chunks) {
-                    const received = chunks.map(c => c.chunk_index);
+                if (receivedIndexes.length !== session.total_chunks) {
+                    const received = receivedIndexes.map(c => c.chunk_index);
                     const missing: number[] = [];
                     for (let i = 0; i < session.total_chunks; i++) {
                         if (!received.includes(i)) missing.push(i);
                     }
                     return NextResponse.json({
                         error: `Missing chunks: ${missing.slice(0, 10).join(', ')}${missing.length > 10 ? '...' : ''}`,
-                        received: chunks.length,
+                        received: receivedIndexes.length,
                         expected: session.total_chunks
                     }, { status: 400 });
                 }
 
-                // Check total size before combining
-                let totalSize = 0;
-                for (const chunk of chunks) {
-                    totalSize += chunk.content.length;
-                    if (totalSize > MAX_TOTAL_SIZE) {
-                        await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${id}`;
-                        return NextResponse.json({
-                            error: `Total file size exceeds maximum of ${MAX_TOTAL_SIZE / 1024 / 1024}MB`
-                        }, { status: 400 });
-                    }
+                // Validate total size using a DB-side SUM — avoids loading any content into memory
+                const [{ total_size }] = await prisma.$queryRaw<[{ total_size: bigint }]>`
+                    SELECT COALESCE(SUM(LENGTH(content)), 0) AS total_size
+                    FROM public.upload_chunks WHERE session_id = ${id}
+                `;
+                if (Number(total_size) > MAX_TOTAL_SIZE) {
+                    await prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${id}`;
+                    return NextResponse.json({
+                        error: `Total file size exceeds maximum of ${MAX_TOTAL_SIZE / 1024 / 1024}MB`
+                    }, { status: 400 });
                 }
 
-                const csvContent = chunks.map(c => c.content).join('');
-
-                const jobId = await startBackgroundIngest('CSV', csvContent, {
+                // Pass a session reference to the ingestion pipeline — chunks are streamed
+                // directly from the database during processing, never assembled into a single string.
+                // The session is deleted by the processor after all chunks have been consumed.
+                const jobId = await startBackgroundIngestFromSession(id, session.total_chunks, {
                     source: `csv:${session.file_name}`,
                     filterKeywords: undefined,
                     generateEmbeddings: session.generate_embeddings,
@@ -193,9 +193,6 @@ export async function POST(req: NextRequest) {
                 await processQueuedJobs().catch(err =>
                     console.error('Initial Queue Processor Error:', err)
                 );
-
-                // Cleanup session (cascades to chunks via FK)
-                prisma.$executeRaw`DELETE FROM public.upload_sessions WHERE id = ${id}`.catch(() => {});
 
                 return NextResponse.json({
                     message: 'Ingestion started in the background.',

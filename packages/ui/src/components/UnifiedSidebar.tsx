@@ -316,7 +316,7 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
                                 if (isInternal) {
                                     return (
                                         <Link
-                                            key={item.href}
+                                            key={`${item.app}:${item.href}`}
                                             href={item.href}
                                             className={`sidebar-link ${active ? 'active' : ''}`}
                                             title={collapsed ? item.label : ''}
@@ -330,7 +330,7 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
 
                                 return (
                                     <a
-                                        key={item.href}
+                                        key={`${item.app}:${item.href}`}
                                         href={`${getBaseUrl(item.app)}${item.href}`}
                                         className="sidebar-link"
                                         title={collapsed ? item.label : ''}
