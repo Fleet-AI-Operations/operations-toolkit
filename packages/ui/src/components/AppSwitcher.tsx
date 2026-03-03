@@ -67,7 +67,6 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [sessionTokens, setSessionTokens] = useState<{ access: string; refresh: string } | null>(null);
 
-    // Get current session tokens for SSO
     useEffect(() => {
         const getSession = async () => {
             try {
@@ -178,11 +177,9 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                     {accessibleApps.map(app => {
                         const isCurrent = app.name === currentApp;
 
-                        // Generate environment-appropriate URL with SSO token
                         const getAppUrl = (appName: keyof typeof APP_URLS, port: number): string => {
                             let baseUrl = '';
 
-                            // In browser, check if we're on localhost
                             if (typeof window !== 'undefined') {
                                 const isDevelopment = window.location.hostname === 'localhost' ||
                                                      window.location.hostname === '127.0.0.1';
@@ -203,12 +200,12 @@ export function AppSwitcher({ currentApp, userRole }: AppSwitcherProps) {
                                             `Set this environment variable in Vercel with the production URL for the ${appName} app.`
                                         );
 
-                                        // Return empty string to make the link obvious broken
+                                        // Use a recognizable placeholder so the broken link is obvious in the UI
                                         return '#missing-env-var';
                                     }
                                 }
                             } else {
-                                // Server-side fallback
+                                // SSR pre-render pass: window is not available yet, fall back to localhost
                                 baseUrl = `http://localhost:${port}`;
                             }
 
