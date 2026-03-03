@@ -64,6 +64,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Record not found' }, { status: 404 });
     }
 
+    if (!source.environment || source.environment.trim() === '') {
+        return NextResponse.json({
+            error: 'Source record has no environment value — cannot scope similarity search.'
+        }, { status: 422 });
+    }
+
     if (!source.has_embedding) {
         return NextResponse.json({
             error: 'This record has no embedding yet. Run vectorization before checking similarity.'
@@ -190,7 +196,7 @@ export async function POST(request: NextRequest) {
         matches: matches.map(m => ({
             ...m,
             similarity: Number(m.similarity),
-            createdAt: m.createdAt.toISOString(),
+            createdAt: new Date(m.createdAt).toISOString(),
         })),
         versionFiltered: hasV1,
     });
