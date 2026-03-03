@@ -34,6 +34,8 @@ export default function AdminConsole() {
     const [loading, setLoading] = useState(true);
     const [linearApiKey, setLinearApiKey] = useState('');
     const [linearTeamId, setLinearTeamId] = useState('');
+    const [linearWebhookSecret, setLinearWebhookSecret] = useState('');
+    const [webhookUrl, setWebhookUrl] = useState('');
     const [savingLinear, setSavingLinear] = useState(false);
     const [linearStatus, setLinearStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -53,8 +55,11 @@ export default function AdminConsole() {
             const res = await fetch('/api/admin/settings');
             if (res.ok) {
                 const data = await res.json();
+                // Sensitive fields return '__masked__' if set — keep that value so the
+                // POST handler knows not to overwrite an unchanged credential.
                 setLinearApiKey(data.linear_api_key || '');
                 setLinearTeamId(data.linear_team_id || '');
+                setLinearWebhookSecret(data.linear_webhook_secret || '');
             }
         } catch (err) {
             console.error('Failed to load Linear settings', err);
@@ -68,7 +73,11 @@ export default function AdminConsole() {
             const res = await fetch('/api/admin/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ linear_api_key: linearApiKey, linear_team_id: linearTeamId }),
+                body: JSON.stringify({
+                    linear_api_key: linearApiKey,
+                    linear_team_id: linearTeamId,
+                    linear_webhook_secret: linearWebhookSecret,
+                }),
             });
             if (!res.ok) throw new Error('Failed to save');
             setLinearStatus({ type: 'success', message: 'Linear configuration saved.' });
@@ -83,6 +92,7 @@ export default function AdminConsole() {
     useEffect(() => {
         fetchSystemInfo();
         loadLinearSettings();
+        setWebhookUrl(`${window.location.origin}/api/webhooks/linear`);
     }, []);
 
     // Polling for active job status
@@ -375,7 +385,7 @@ export default function AdminConsole() {
                         <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Linear Config</h2>
                     </div>
                     <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', marginBottom: '24px' }}>
-                        Connect to Linear to push bug reports as issues directly from the Bug Reports page.
+                        Connect to Linear to push bug reports as issues and receive status updates via webhook.
                     </p>
 
                     {linearStatus && (
@@ -415,6 +425,49 @@ export default function AdminConsole() {
                             />
                             <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '6px' }}>
                                 Find your team ID in Linear → Settings → API
+                            </div>
+                        </div>
+
+                        <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Webhook URL</label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={webhookUrl}
+                                    className="input-field"
+                                    style={{ flex: 1, opacity: 0.7, cursor: 'default' }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => navigator.clipboard.writeText(webhookUrl)}
+                                    style={{
+                                        padding: '0 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'rgba(255,255,255,0.05)', color: 'var(--foreground)', cursor: 'pointer',
+                                        fontSize: '0.85rem', whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '6px' }}>
+                                Add this URL in Linear → Settings → API → Webhooks. Select the <em>Issue</em> event.
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Webhook Signing Secret</label>
+                            <input
+                                type="password"
+                                value={linearWebhookSecret}
+                                onChange={e => setLinearWebhookSecret(e.target.value)}
+                                placeholder="Paste the signing secret from Linear"
+                                className="input-field"
+                            />
+                            <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '6px' }}>
+                                Found on the webhook detail page in Linear after creating the webhook. Used to verify incoming events.
                             </div>
                         </div>
 

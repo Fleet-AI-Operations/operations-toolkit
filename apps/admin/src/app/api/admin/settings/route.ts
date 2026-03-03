@@ -34,9 +34,10 @@ export async function GET() {
             ai_host: map['ai_host'] || process.env.AI_HOST || 'http://localhost:1234/v1',
             llm_model: map['llm_model'] || (map['ai_provider'] === 'openrouter' ? process.env.OPENROUTER_LLM_MODEL : process.env.LLM_MODEL) || 'meta-llama-3-8b-instruct',
             embedding_model: map['embedding_model'] || (map['ai_provider'] === 'openrouter' ? process.env.OPENROUTER_EMBEDDING_MODEL : process.env.EMBEDDING_MODEL) || 'text-embedding-nomic-embed-text-v1.5',
-            openrouter_key: map['openrouter_key'] || '', // Don't send partial env key for security, only explicit DB override
-            linear_api_key: map['linear_api_key'] || '',
+            openrouter_key: map['openrouter_key'] ? '__masked__' : '',
+            linear_api_key: map['linear_api_key'] ? '__masked__' : '',
             linear_team_id: map['linear_team_id'] || '',
+            linear_webhook_secret: map['linear_webhook_secret'] ? '__masked__' : '',
         });
     } catch (error) {
         console.error('Error fetching settings:', error);
@@ -64,10 +65,12 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const allowedKeys = ['ai_provider', 'ai_host', 'llm_model', 'embedding_model', 'openrouter_key', 'linear_api_key', 'linear_team_id'];
+        const allowedKeys = ['ai_provider', 'ai_host', 'llm_model', 'embedding_model', 'openrouter_key', 'linear_api_key', 'linear_team_id', 'linear_webhook_secret'];
+        const maskedKeys = new Set(['openrouter_key', 'linear_api_key', 'linear_webhook_secret']);
 
         const operations = Object.entries(body)
             .filter(([key]) => allowedKeys.includes(key))
+            .filter(([key, value]) => !(maskedKeys.has(key) && value === '__masked__'))
             .map(([key, value]) => {
                 return prisma.systemSetting.upsert({
                     where: { key },
