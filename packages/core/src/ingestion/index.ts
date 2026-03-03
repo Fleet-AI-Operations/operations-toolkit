@@ -647,6 +647,7 @@ async function streamChunksAndProcess(
     }));
 
     let batch: any[] = [];
+    let cancelled = false;
 
     for await (const record of parser) {
         batch.push(record);
@@ -656,12 +657,13 @@ async function streamChunksAndProcess(
                 where: { id: jobId },
                 data: { totalRecords: { increment: STREAM_BATCH_SIZE } }
             });
-            await processAndStore(batch, options, jobId);
+            const result = await processAndStore(batch, options, jobId);
             batch = [];
+            if (result?.cancelled) { cancelled = true; break; }
         }
     }
 
-    if (batch.length > 0) {
+    if (!cancelled && batch.length > 0) {
         await prisma.ingestJob.update({
             where: { id: jobId },
             data: { totalRecords: { increment: batch.length } }
