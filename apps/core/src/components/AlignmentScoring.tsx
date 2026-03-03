@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, LayoutDashboard, AlertCircle, Inbox, FileCheck, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { EnvironmentFilter } from '@repo/ui/components';
@@ -14,6 +14,12 @@ interface Record {
     metadata: any;
     alignmentAnalysis?: string | null;
     createdAt: string;
+}
+
+interface Guideline {
+    id: string;
+    name: string;
+    environments: string[];
 }
 
 const extractAlignmentScore = (analysis: string | null | undefined): string | null => {
@@ -33,6 +39,7 @@ export default function AlignmentScoring() {
 
 function AlignmentContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const [environment, setEnvironment] = useState<string>(searchParams.get('environment') || '');
     const [selectedType, setSelectedType] = useState<string>(searchParams.get('type') || 'TASK');
     const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'ALL');
@@ -41,6 +48,11 @@ function AlignmentContent() {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
+
+    const [modalRecord, setModalRecord] = useState<Record | null>(null);
+    const [guidelines, setGuidelines] = useState<Guideline[]>([]);
+    const [guidelinesLoading, setGuidelinesLoading] = useState(false);
+    const [selectedGuidelineId, setSelectedGuidelineId] = useState('');
 
     const pageSize = 10;
 
@@ -89,9 +101,33 @@ function AlignmentContent() {
         setPage(1);
     }, [environment, selectedType, selectedCategory]);
 
+    const openGuidelineModal = async (record: Record) => {
+        setModalRecord(record);
+        setSelectedGuidelineId('');
+        if (guidelines.length === 0) {
+            setGuidelinesLoading(true);
+            try {
+                const res = await fetch('/api/guidelines');
+                const data = await res.json();
+                setGuidelines(data.guidelines || []);
+            } catch {
+                setGuidelines([]);
+            } finally {
+                setGuidelinesLoading(false);
+            }
+        }
+    };
+
+    const runAnalysis = () => {
+        if (!modalRecord || !selectedGuidelineId) return;
+        router.push(`/alignment-scoring/compare?id=${modalRecord.id}&guidelineId=${selectedGuidelineId}`);
+        setModalRecord(null);
+    };
+
     const totalPages = Math.ceil(total / pageSize);
 
     return (
+        <>
         <div style={{ width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
             <div style={{ marginBottom: '24px' }}>
                 <h1 className="premium-gradient" style={{ fontSize: '1.5rem', marginBottom: '8px', textTransform: 'capitalize' }}>
@@ -289,8 +325,8 @@ function AlignmentContent() {
                                                 Alignment: {extractAlignmentScore(record.alignmentAnalysis)}%
                                             </Link>
                                         ) : (
-                                            <Link
-                                                href={`/alignment-scoring/compare?id=${record.id}`}
+                                            <button
+                                                onClick={() => openGuidelineModal(record)}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -303,12 +339,12 @@ function AlignmentContent() {
                                                     background: 'rgba(0, 112, 243, 0.05)',
                                                     border: '1px solid rgba(0, 112, 243, 0.1)',
                                                     transition: 'all 0.2s',
-                                                    textDecoration: 'none'
+                                                    cursor: 'pointer'
                                                 }}
                                                 className="hover-bright"
                                             >
                                                 <FileCheck size={12} /> Generate Alignment Score
-                                            </Link>
+                                            </button>
                                         )}
 
                                         <span style={{ fontSize: '0.75rem', opacity: 0.4, marginLeft: '8px' }}>{new Date(record.createdAt).toLocaleDateString()}</span>
@@ -416,5 +452,76 @@ function AlignmentContent() {
                 </div>
             </main>
         </div>
+
+        {modalRecord && (
+            <div style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            }}>
+                <div className="glass-card" style={{ width: '480px', maxWidth: '90vw', padding: '32px' }}>
+                    <h3 style={{ marginBottom: '8px', fontSize: '1.1rem', fontWeight: 700 }}>Select Guidelines</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>
+                        Choose which guidelines to run the alignment check against.
+                    </p>
+
+                    {guidelinesLoading ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.5 }}>Loading guidelines...</div>
+                    ) : guidelines.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.5 }}>
+                            No guidelines found. Upload guidelines in the Fleet app.
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                            {guidelines.map(g => (
+                                <button
+                                    key={g.id}
+                                    onClick={() => setSelectedGuidelineId(g.id)}
+                                    style={{
+                                        padding: '12px 16px',
+                                        borderRadius: '8px',
+                                        border: `1px solid ${selectedGuidelineId === g.id ? 'var(--accent)' : 'var(--border)'}`,
+                                        background: selectedGuidelineId === g.id ? 'rgba(0, 112, 243, 0.1)' : 'rgba(255,255,255,0.02)',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        width: '100%'
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'white', marginBottom: '4px' }}>{g.name}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+                                        {g.environments.length === 0 ? 'Global (all environments)' : g.environments.join(', ')}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={() => setModalRecord(null)}
+                            className="btn-outline"
+                            style={{ padding: '8px 16px' }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={runAnalysis}
+                            className="btn-primary"
+                            disabled={!selectedGuidelineId}
+                            style={{ padding: '8px 16px', opacity: selectedGuidelineId ? 1 : 0.4 }}
+                        >
+                            Run Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 }

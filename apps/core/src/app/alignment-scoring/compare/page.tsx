@@ -8,6 +8,7 @@ import Link from 'next/link';
 function CompareContent() {
     const searchParams = useSearchParams();
     const recordId = searchParams.get('id');
+    const guidelineId = searchParams.get('guidelineId') || undefined;
 
     const [loading, setLoading] = useState(true);
     const [evaluation, setEvaluation] = useState<string | null>(null);
@@ -29,7 +30,7 @@ function CompareContent() {
             const res = await fetch('/api/analysis/compare', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recordId, forceRegenerate: force }),
+                body: JSON.stringify({ recordId, forceRegenerate: force, guidelineId }),
             });
             const data = await res.json();
             if (res.ok) {

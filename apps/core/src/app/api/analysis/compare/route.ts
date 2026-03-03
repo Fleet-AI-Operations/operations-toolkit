@@ -40,10 +40,12 @@ export async function POST(req: NextRequest) {
     // Parse request body
     let recordId: string;
     let forceRegenerate: boolean;
+    let guidelineId: string | undefined;
     try {
         const body = await req.json();
         recordId = body.recordId;
         forceRegenerate = body.forceRegenerate;
+        guidelineId = body.guidelineId;
     } catch (parseError: any) {
         console.error('Compare API Error: Invalid request body', {
             error: parseError.message
@@ -91,8 +93,10 @@ export async function POST(req: NextRequest) {
             }, { status: 403 });
         }
 
-        // Return cached analysis if available and not forcing regeneration
-        if (record.alignmentAnalysis && !forceRegenerate) {
+        // Return cached analysis if available and not forcing regeneration.
+        // Skip cache when a specific guidelineId is provided — the user explicitly
+        // selected a guideline and expects a fresh analysis against it.
+        if (record.alignmentAnalysis && !forceRegenerate && !guidelineId) {
             console.log('Compare API: Returned cached alignment analysis', {
                 recordId: record.id,
                 environment: record.environment,
@@ -107,16 +111,19 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // Look up guideline for this record's environment (environment-specific first, then global)
-        const guideline = await prisma.guideline.findFirst({
-            where: {
-                OR: [
-                    { environments: { has: record.environment } },
-                    { environments: { isEmpty: true } }
-                ]
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        // Look up the guideline — use the explicitly selected one if provided,
+        // otherwise fall back to environment-specific or global.
+        const guideline = guidelineId
+            ? await prisma.guideline.findUnique({ where: { id: guidelineId } })
+            : await prisma.guideline.findFirst({
+                where: {
+                    OR: [
+                        { environments: { has: record.environment } },
+                        { environments: { isEmpty: true } }
+                    ]
+                },
+                orderBy: { createdAt: 'desc' }
+            });
 
         if (!guideline) {
             return NextResponse.json({ error: 'No guidelines found for this environment. Please upload guidelines in the Fleet app.' }, { status: 400 });
