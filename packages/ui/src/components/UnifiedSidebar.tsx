@@ -179,24 +179,8 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
     const userWeight = userRole ? (ROLE_WEIGHTS[userRole] ?? -1) : -1;
 
     function getBaseUrl(app: AppName): string {
-        if (typeof window !== 'undefined') {
-            const isDev =
-                window.location.hostname === 'localhost' ||
-                window.location.hostname === '127.0.0.1';
-
-            if (isDev) {
-                return `http://localhost:${APP_PORTS[app]}`;
-            }
-
-            const envUrl = APP_URLS[app];
-            if (envUrl) return envUrl;
-
-            console.error(
-                `UnifiedSidebar: NEXT_PUBLIC_${app.toUpperCase()}_APP_URL not set. ` +
-                `Cross-app navigation will not work correctly.`
-            );
-            return '#missing-env-var';
-        }
+        const envUrl = APP_URLS[app];
+        if (envUrl) return envUrl;
         return `http://localhost:${APP_PORTS[app]}`;
     }
 
