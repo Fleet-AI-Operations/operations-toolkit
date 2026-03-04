@@ -1,0 +1,26 @@
+type,environment_name,task_id,task_creator_email,task_creator_name,prompt
+TASK,similarity-test,seed-A-001,alice@example.com,Alice Chen,Write a Python function that sorts a list of integers in ascending order
+TASK,similarity-test,seed-A-002,alice@example.com,Alice Chen,Explain what recursion is in programming with a concrete code example
+TASK,similarity-test,seed-A-003,alice@example.com,Alice Chen,Write a regular expression pattern to validate email address format
+TASK,similarity-test,seed-A-004,alice@example.com,Alice Chen,What are the SOLID principles and why are they important in software development?
+TASK,similarity-test,seed-A-005,alice@example.com,Alice Chen,Explain how photosynthesis converts sunlight into energy in plants
+TASK,similarity-test,seed-A-006,alice@example.com,Alice Chen,What are the main causes of the French Revolution?
+TASK,similarity-test,seed-A-007,alice@example.com,Alice Chen,Write a haiku about a mountain at sunrise
+TASK,similarity-test,seed-A-008,alice@example.com,Alice Chen,Describe the water cycle and its various stages
+TASK,similarity-test,seed-B-001,bob@example.com,Bob Martinez,Write a SQL query to find and list all duplicate rows in a database table
+TASK,similarity-test,seed-B-002,bob@example.com,Bob Martinez,Explain the key differences between REST APIs and GraphQL
+TASK,similarity-test,seed-B-003,bob@example.com,Bob Martinez,How do you implement a binary search algorithm in Python?
+TASK,similarity-test,seed-B-004,bob@example.com,Bob Martinez,What are the main advantages of using TypeScript over plain JavaScript?
+TASK,similarity-test,seed-B-005,bob@example.com,Bob Martinez,What is the boiling point of water at different altitudes?
+TASK,similarity-test,seed-B-006,bob@example.com,Bob Martinez,Explain the process of making sourdough bread from scratch
+TASK,similarity-test,seed-B-007,bob@example.com,Bob Martinez,Describe the plot of Shakespeare's Hamlet
+TASK,similarity-test,seed-B-008,bob@example.com,Bob Martinez,How do vaccines train the immune system to fight disease?
+TASK,similarity-test,seed-C-001,carol@example.com,Carol Johnson,Write a function to check if a given string is a palindrome
+TASK,similarity-test,seed-C-002,carol@example.com,Carol Johnson,Explain how HTTP cookies work in web browsers and describe their common uses
+TASK,similarity-test,seed-C-003,carol@example.com,Carol Johnson,Describe the main differences between supervised and unsupervised machine learning
+TASK,similarity-test,seed-C-004,carol@example.com,Carol Johnson,Write a React component that displays a paginated list of items
+TASK,similarity-test,seed-C-005,carol@example.com,Carol Johnson,What are the health benefits of regular physical exercise?
+TASK,similarity-test,seed-C-006,carol@example.com,Carol Johnson,Explain how the human immune system fights off infection
+TASK,similarity-test,seed-C-007,carol@example.com,Carol Johnson,Describe the process of writing a business plan from scratch
+TASK,similarity-test,seed-C-008,carol@example.com,Carol Johnson,What are the rules of basketball and how is the game played?
+TASK,similarity-test,seed-C-009,carol@example.com,Carol Johnson,Write a limerick about a programmer who loves coffee

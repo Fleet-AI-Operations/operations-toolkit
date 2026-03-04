@@ -28,6 +28,7 @@ import { parse as parseAsync } from 'csv-parse';
 import { Readable } from 'stream';
 import { prisma, Prisma } from '@repo/database';
 import { getEmbeddings } from '../ai';
+import { startSimilarityDetection } from '../similarity';
 import { RecordCategory } from '@repo/types';
 /**
  * ENTRY POINT: startBackgroundIngest
@@ -176,11 +177,11 @@ export async function startBackgroundIngestFromSession(sessionId, totalChunks, o
  */
 export async function processQueuedJobs(environment) {
     if (environment) {
-        // Process specific environment
-        await Promise.allSettled([
-            processJobs(environment),
-            processVectorizationJobs(environment)
-        ]);
+        // Run phases sequentially: Phase 1 first, then Phase 2.
+        // This ensures processVectorizationJobs runs AFTER processJobs has
+        // transitioned the job to QUEUED_FOR_VEC, so it always finds work to do.
+        await processJobs(environment);
+        await processVectorizationJobs(environment);
     }
     else {
         // Process all environments - get distinct environments from pending/queued jobs
@@ -191,11 +192,11 @@ export async function processQueuedJobs(environment) {
             select: { environment: true },
             distinct: ['environment']
         });
-        // Process each environment's jobs
-        await Promise.allSettled(environments.map(({ environment }) => Promise.allSettled([
-            processJobs(environment),
-            processVectorizationJobs(environment)
-        ])));
+        // Process each environment sequentially (Phase 1 → Phase 2), environments in parallel
+        await Promise.allSettled(environments.map(async ({ environment }) => {
+            await processJobs(environment);
+            await processVectorizationJobs(environment);
+        }));
     }
 }
 /**
@@ -362,6 +363,8 @@ async function processVectorizationJobs(environment) {
                 where: { id: nextJob.id },
                 data: { status: 'COMPLETED', payload: null }
             });
+            // Trigger automated similarity detection for the now-vectorized records
+            startSimilarityDetection(nextJob.id, environment).catch(err => console.error('[SimilarityDetection] Failed to start:', err));
         }
         // Process next job in queue
         processVectorizationJobs(environment);
@@ -843,6 +846,7 @@ export async function processAndStore(records, options, jobId) {
                     content: v.content,
                     metadata: typeof v.record === 'object' ? v.record : { value: v.record },
                     // embedding is Unsupported("vector") - defaults to NULL, set via raw SQL in vectorizeJob
+                    ingestJobId: jobId,
                     createdById: v.record?.created_by_id ? String(v.record.created_by_id) : null,
                     createdByName: nameRaw ? String(nameRaw) : null,
                     createdByEmail: emailRaw ? String(emailRaw) : null,

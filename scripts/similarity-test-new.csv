@@ -1,0 +1,26 @@
+type,environment_name,task_id,task_creator_email,task_creator_name,prompt
+TASK,similarity-test,new-A-001,alice@example.com,Alice Chen,Create a Python function to sort a list of numbers from smallest to largest
+TASK,similarity-test,new-A-002,alice@example.com,Alice Chen,Describe recursion in computer science and provide an illustrative code example
+TASK,similarity-test,new-A-003,alice@example.com,Alice Chen,Create a regex that checks whether an email address is valid
+TASK,similarity-test,new-A-004,alice@example.com,Alice Chen,Explain the five SOLID principles of object-oriented software design
+TASK,similarity-test,new-A-005,alice@example.com,Alice Chen,What is the GDP of Germany in 2023?
+TASK,similarity-test,new-A-006,alice@example.com,Alice Chen,Write a short poem about autumn leaves falling
+TASK,similarity-test,new-A-007,alice@example.com,Alice Chen,Explain the rules of chess and how each piece moves
+TASK,similarity-test,new-A-008,alice@example.com,Alice Chen,Describe how volcanoes form and what causes them to erupt
+TASK,similarity-test,new-B-001,bob@example.com,Bob Martinez,Create a SQL query that identifies duplicate records in a table and returns them
+TASK,similarity-test,new-B-002,bob@example.com,Bob Martinez,Compare GraphQL to REST and describe the main differences between them
+TASK,similarity-test,new-B-003,bob@example.com,Bob Martinez,Write a Python implementation of binary search and explain how it works
+TASK,similarity-test,new-B-004,bob@example.com,Bob Martinez,Why should a JavaScript developer switch to TypeScript? List the main benefits
+TASK,similarity-test,new-B-005,bob@example.com,Bob Martinez,List the planets in our solar system in order from the sun
+TASK,similarity-test,new-B-006,bob@example.com,Bob Martinez,What causes thunder and lightning during storms?
+TASK,similarity-test,new-B-007,bob@example.com,Bob Martinez,Write a recipe for a traditional beef stew
+TASK,similarity-test,new-B-008,bob@example.com,Bob Martinez,Explain how black holes form and what happens at the event horizon
+TASK,similarity-test,new-C-001,carol@example.com,Carol Johnson,Create a function that tests whether a string reads the same forwards and backwards
+TASK,similarity-test,new-C-002,carol@example.com,Carol Johnson,Describe the mechanism of browser cookies and how they are used in web applications
+TASK,similarity-test,new-C-003,carol@example.com,Carol Johnson,What is the difference between supervised learning and unsupervised learning in ML?
+TASK,similarity-test,new-C-004,carol@example.com,Carol Johnson,Create a React component for showing a list of items with pagination controls
+TASK,similarity-test,new-C-005,carol@example.com,Carol Johnson,Explain quantum entanglement in simple terms
+TASK,similarity-test,new-C-006,carol@example.com,Carol Johnson,What is the history of the Olympic Games?
+TASK,similarity-test,new-C-007,carol@example.com,Carol Johnson,Describe how self-driving cars use sensors to navigate
+TASK,similarity-test,new-C-008,carol@example.com,Carol Johnson,Write a short story about a robot that learns to feel emotions
+TASK,similarity-test,new-C-009,carol@example.com,Carol Johnson,What are the main symptoms and treatments for the common cold?

@@ -201,6 +201,88 @@ export async function notifyUserCreated(user: {
 }
 
 /**
+ * Sends notification when prompt similarity is detected after ingestion
+ */
+export async function notifySimilarityDetected(params: {
+  environment: string;
+  flagCount: number;
+  flags: Array<{ userName?: string; userEmail?: string; similarityScore: number }>;
+}): Promise<void> {
+  const recipients = await getNotificationRecipients('PROMPT_SIMILARITY_DETECTED');
+
+  if (recipients.length === 0) {
+    console.log('[SimilarityDetection] No notification recipients configured.');
+    return;
+  }
+
+  const { environment, flagCount, flags } = params;
+  const subject = `Similarity Alert: ${flagCount} similar prompt pair${flagCount !== 1 ? 's' : ''} detected in ${escapeHtml(environment)}`;
+
+  const flagRows = flags.slice(0, 20).map(f => {
+    const user = f.userName ? escapeHtml(f.userName) : (f.userEmail ? escapeHtml(f.userEmail) : 'Unknown');
+    const score = (f.similarityScore * 100).toFixed(1);
+    return `<tr>
+      <td style="padding: 6px 12px; border-bottom: 1px solid #eee;">${user}</td>
+      <td style="padding: 6px 12px; border-bottom: 1px solid #eee; text-align: center;">
+        <span style="color: ${f.similarityScore >= 0.95 ? '#ef4444' : '#f97316'}; font-weight: bold;">${score}%</span>
+      </td>
+      <td style="padding: 6px 12px; border-bottom: 1px solid #eee;">${escapeHtml(environment)}</td>
+    </tr>`;
+  }).join('');
+
+  const truncatedNote = flags.length > 20
+    ? `<p style="color: #666; font-size: 12px;">Showing 20 of ${flagCount} total flags.</p>`
+    : '';
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto;">
+      <h2 style="color: #333;">Prompt Similarity Detected</h2>
+
+      <div style="background: #fff8e1; border-left: 4px solid #f97316; padding: 16px; border-radius: 4px; margin: 20px 0;">
+        <p style="margin: 0; color: #555;">
+          <strong>${flagCount}</strong> similar prompt pair${flagCount !== 1 ? 's' : ''} detected after ingestion in environment
+          <strong>${escapeHtml(environment)}</strong>.
+        </p>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+          <tr style="background: #f5f5f5;">
+            <th style="padding: 8px 12px; text-align: left; font-size: 13px;">User</th>
+            <th style="padding: 8px 12px; text-align: center; font-size: 13px;">Score</th>
+            <th style="padding: 8px 12px; text-align: left; font-size: 13px;">Environment</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${flagRows}
+        </tbody>
+      </table>
+      ${truncatedNote}
+
+      <p style="color: #666;">
+        Review flagged pairs in the Core app under <strong>Similarity Flags</strong>.
+      </p>
+
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+        <p style="color: #999; font-size: 12px;">
+          This is an automated notification from Operations Toolkit.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await sendEmail(recipients.map(r => r.email), subject, html);
+
+  // Mark flags as notified
+  await prisma.$executeRaw`
+    UPDATE public.similarity_flags
+    SET notified_at = NOW()
+    WHERE environment = ${environment}
+    AND notified_at IS NULL
+  `;
+}
+
+/**
  * Sends notification when an AI call is used
  */
 export async function notifyAICallUsed(aiCall: {

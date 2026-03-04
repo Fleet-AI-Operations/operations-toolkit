@@ -45,6 +45,43 @@ model Profile {
   @@schema("public")
 }
 
+model SimilarityJob {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ingestJobId    String          @map("ingest_job_id")
+  environment    String
+  status         String          @default("PENDING")
+  recordsChecked Int             @default(0) @map("records_checked")
+  flagsFound     Int             @default(0) @map("flags_found")
+  error          String?
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  flags          SimilarityFlag[]
+
+  @@map("similarity_jobs")
+  @@schema("public")
+}
+
+model SimilarityFlag {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  similarityJobId String        @map("similarity_job_id") @db.Uuid
+  sourceRecordId  String        @map("source_record_id")
+  matchedRecordId String        @map("matched_record_id")
+  similarityScore Float         @map("similarity_score")
+  userEmail       String?       @map("user_email")
+  userName        String?       @map("user_name")
+  environment     String
+  status          String        @default("OPEN")
+  claimedByEmail  String?       @map("claimed_by_email")
+  claimedAt       DateTime?     @map("claimed_at") @db.Timestamptz(6)
+  notifiedAt      DateTime?     @map("notified_at") @db.Timestamptz(6)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  similarityJob   SimilarityJob @relation(fields: [similarityJobId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceRecordId, matchedRecordId])
+  @@map("similarity_flags")
+  @@schema("public")
+}
+
 model AnalyticsJob {
   id             String   @id @default(cuid())
   environment    String

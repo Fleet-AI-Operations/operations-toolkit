@@ -1,4 +1,6 @@
 import { prisma } from '@repo/database';
+import { cosineSimilarity } from '../ai';
+import { notifySimilarityDetected } from '../notifications/email-service';
 
 interface RecordWithEmbedding {
   id: string;
@@ -9,11 +11,19 @@ interface RecordWithEmbedding {
 }
 
 // Parse pgvector string format "[0.1,0.2,...]" to number[]
-function parseVector(vectorStr: string): number[] {
-  if (!vectorStr) return [];
-  const inner = vectorStr.slice(1, -1); // Remove [ and ]
-  if (!inner) return [];
-  return inner.split(',').map(Number);
+function parseVector(vectorStr: any): number[] | null {
+  if (!vectorStr) return null;
+
+  if (Array.isArray(vectorStr)) return vectorStr;
+
+  if (typeof vectorStr === 'string') {
+    const inner = vectorStr.slice(1, -1);
+    if (!inner) return null;
+    const values = inner.split(',').map(Number);
+    return values.filter(v => !isNaN(v));
+  }
+
+  return null;
 }
 
 export async function findSimilarRecords(targetId: string, limit: number = 5) {
@@ -32,7 +42,7 @@ export async function findSimilarRecords(targetId: string, limit: number = 5) {
   const targetRecord = targetRecords[0];
   const targetEmbedding = parseVector(targetRecord.embedding);
 
-  if (targetEmbedding.length === 0) {
+  if (!targetEmbedding || targetEmbedding.length === 0) {
     throw new Error('Target record has no valid embedding');
   }
 
@@ -41,7 +51,7 @@ export async function findSimilarRecords(targetId: string, limit: number = 5) {
     SELECT
       id,
       content,
-      "projectId",
+      environment,
       type,
       embedding::text as embedding,
       1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${targetId})) as similarity
@@ -61,4 +71,226 @@ export async function findSimilarRecords(targetId: string, limit: number = 5) {
     },
     similarity: Number(record.similarity)
   }));
+}
+
+/**
+ * Starts a background similarity detection job for newly ingested records.
+ * Creates a SimilarityJob record, fires runSimilarityDetection() asynchronously,
+ * and returns the job ID immediately.
+ */
+export async function startSimilarityDetection(
+  ingestJobId: string,
+  environment: string
+): Promise<string> {
+  const job = await prisma.$queryRaw<[{ id: string }]>`
+    INSERT INTO public.similarity_jobs (ingest_job_id, environment, status)
+    VALUES (${ingestJobId}, ${environment}, 'PENDING')
+    RETURNING id
+  `;
+
+  const jobId = job[0].id;
+
+  // Fire and forget — detection runs in background after ingest completes
+  runSimilarityDetection(jobId, ingestJobId, environment).catch(err => {
+    console.error('[SimilarityDetection] Unhandled error in runSimilarityDetection:', err);
+  });
+
+  return jobId;
+}
+
+/**
+ * Core similarity detection worker. Compares newly ingested TASK records
+ * (from this ingest job) against each user's historical TASK records.
+ * Pairs with cosine similarity >= SIMILARITY_THRESHOLD are flagged.
+ */
+async function runSimilarityDetection(
+  jobId: string,
+  ingestJobId: string,
+  environment: string
+): Promise<void> {
+  const threshold = parseFloat(process.env.SIMILARITY_THRESHOLD ?? '0.80');
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE public.similarity_jobs
+      SET status = 'PROCESSING', updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+    `;
+
+    // Fetch the most recent version of each TASK from this ingest job.
+    // If the batch contains multiple versions of the same task (same task_id / task_key),
+    // only the newest one is checked — avoids redundant flags for the same prompt.
+    const newRecords: Array<{
+      id: string;
+      content: string;
+      embedding: string;
+      created_by_email: string;
+      created_by_name: string | null;
+    }> = await prisma.$queryRaw`
+      WITH ranked AS (
+        SELECT
+          id, content, embedding::text AS embedding,
+          "createdByEmail" AS created_by_email,
+          "createdByName" AS created_by_name,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(
+              NULLIF(metadata->>'task_id', ''),
+              NULLIF(metadata->>'task_key', ''),
+              id
+            )
+            ORDER BY "createdAt" DESC
+          ) AS rn
+        FROM public.data_records
+        WHERE "ingestJobId" = ${ingestJobId}
+        AND type = 'TASK'
+        AND embedding IS NOT NULL
+        AND "createdByEmail" IS NOT NULL
+      )
+      SELECT id, content, embedding, created_by_email, created_by_name
+      FROM ranked
+      WHERE rn = 1
+    `;
+
+    if (newRecords.length === 0) {
+      await prisma.$executeRaw`
+        UPDATE public.similarity_jobs
+        SET status = 'COMPLETED', records_checked = 0, flags_found = 0, updated_at = NOW()
+        WHERE id = ${jobId}::uuid
+      `;
+      console.log(`[SimilarityDetection] Job ${jobId}: no eligible records found, completed.`);
+      return;
+    }
+
+    // Group new records by user email
+    const byUser = new Map<string, typeof newRecords>();
+    for (const record of newRecords) {
+      const key = record.created_by_email;
+      if (!byUser.has(key)) byUser.set(key, []);
+      byUser.get(key)!.push(record);
+    }
+
+    const allFlags: Array<{
+      similarityJobId: string;
+      sourceRecordId: string;
+      matchedRecordId: string;
+      similarityScore: number;
+      userEmail: string;
+      userName: string | null;
+      environment: string;
+    }> = [];
+
+    let totalChecked = 0;
+
+    for (const [userEmail, userNewRecords] of byUser) {
+      // Collect IDs of newly ingested records to exclude from historical set
+      const newIds = userNewRecords.map(r => r.id);
+
+      // Fetch the most recent version of each historical TASK for this user.
+      // "Most recent" is defined by ingest_jobs.created_at (when the import ran),
+      // not the record's own createdAt (which comes from CSV data and can predate newer imports).
+      // Falls back to record createdAt for legacy records with no ingestJobId.
+      const historicalRecords: Array<{
+        id: string;
+        content: string;
+        embedding: string;
+      }> = await prisma.$queryRaw`
+        WITH ranked AS (
+          SELECT
+            dr.id, dr.content, dr.embedding::text AS embedding,
+            ROW_NUMBER() OVER (
+              PARTITION BY COALESCE(
+                NULLIF(dr.metadata->>'task_id', ''),
+                NULLIF(dr.metadata->>'task_key', ''),
+                dr.id
+              )
+              ORDER BY COALESCE(ij."createdAt", dr."createdAt") DESC
+            ) AS rn
+          FROM public.data_records dr
+          LEFT JOIN public.ingest_jobs ij ON ij.id = dr."ingestJobId"
+          WHERE dr."createdByEmail" = ${userEmail}
+          AND dr.type = 'TASK'
+          AND dr.embedding IS NOT NULL
+          AND dr."ingestJobId" IS DISTINCT FROM ${ingestJobId}
+          AND dr.id != ALL(${newIds}::text[])
+        )
+        SELECT id, content, embedding
+        FROM ranked
+        WHERE rn = 1
+      `;
+
+      if (historicalRecords.length === 0) continue;
+
+      // Parse historical embeddings upfront
+      const historical = historicalRecords
+        .map(r => ({ id: r.id, content: r.content, vec: parseVector(r.embedding) }))
+        .filter(r => r.vec !== null) as Array<{ id: string; content: string; vec: number[] }>;
+
+      // Compare each new record against all historical records
+      for (const newRec of userNewRecords) {
+        const newVec = parseVector(newRec.embedding);
+        if (!newVec) continue;
+
+        totalChecked++;
+
+        for (const hist of historical) {
+          // Skip identical content
+          if (newRec.content.trim() === hist.content.trim()) continue;
+
+          const score = cosineSimilarity(newVec, hist.vec);
+          if (isNaN(score) || !isFinite(score)) continue;
+
+          if (score >= threshold) {
+            allFlags.push({
+              similarityJobId: jobId,
+              sourceRecordId: newRec.id,
+              matchedRecordId: hist.id,
+              similarityScore: score,
+              userEmail,
+              userName: newRec.created_by_name ?? null,
+              environment,
+            });
+          }
+        }
+      }
+    }
+
+    // Batch-insert flags (ON CONFLICT DO NOTHING for idempotency)
+    for (const flag of allFlags) {
+      await prisma.$executeRaw`
+        INSERT INTO public.similarity_flags
+          (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment)
+        VALUES
+          (${flag.similarityJobId}::uuid, ${flag.sourceRecordId}, ${flag.matchedRecordId},
+           ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment})
+        ON CONFLICT (source_record_id, matched_record_id) DO NOTHING
+      `;
+    }
+
+    await prisma.$executeRaw`
+      UPDATE public.similarity_jobs
+      SET status = 'COMPLETED', records_checked = ${totalChecked}, flags_found = ${allFlags.length}, updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+    `;
+
+    console.log(`[SimilarityDetection] Job ${jobId} completed: checked=${totalChecked}, flags=${allFlags.length}`);
+
+    if (allFlags.length > 0) {
+      notifySimilarityDetected({
+        environment,
+        flagCount: allFlags.length,
+        flags: allFlags.map(f => ({
+          userName: f.userName ?? undefined,
+          userEmail: f.userEmail,
+          similarityScore: f.similarityScore,
+        })),
+      }).catch(err => console.error('[SimilarityDetection] Notification error:', err));
+    }
+  } catch (err: any) {
+    console.error(`[SimilarityDetection] Job ${jobId} failed:`, err);
+    await prisma.$executeRaw`
+      UPDATE public.similarity_jobs
+      SET status = 'FAILED', error = ${err.message ?? String(err)}, updated_at = NOW()
+      WHERE id = ${jobId}::uuid
+    `;
+  }
 }

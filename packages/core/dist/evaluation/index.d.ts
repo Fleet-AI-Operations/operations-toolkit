@@ -27,9 +27,9 @@ export declare function getEvaluationJobStatus(jobId: string): Promise<({
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    environment: string;
-    error: string | null;
     status: import("@prisma/client").$Enums.JobStatus;
+    error: string | null;
+    environment: string;
     totalRecords: number;
     processedCount: number;
     modelConfigId: string;
@@ -51,9 +51,9 @@ export declare function getEnvironmentEvaluationJobs(environment: string, limit?
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    environment: string;
-    error: string | null;
     status: import("@prisma/client").$Enums.JobStatus;
+    error: string | null;
+    environment: string;
     totalRecords: number;
     processedCount: number;
     modelConfigId: string;

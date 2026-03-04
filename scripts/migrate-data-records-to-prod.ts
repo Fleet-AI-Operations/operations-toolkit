@@ -4,7 +4,12 @@
  *
  * Copies data_records from a source database to a target database in batches.
  * Records are scoped by the `environment` string field — no project mapping needed.
- * Duplicate records (same `id`) are silently skipped via ON CONFLICT DO NOTHING.
+ *
+ * Before migrating, all existing target IDs are loaded into memory so duplicates
+ * are identified upfront and filtered out before any INSERT is attempted.
+ * A secondary content-based check skips records whose trimmed content already
+ * exists in the target under a different id.
+ * ON CONFLICT (id) DO NOTHING is kept as a final safety net.
  *
  * Usage:
  *   SOURCE_DATABASE_URL="postgresql://..." \
@@ -140,14 +145,22 @@ async function migrate() {
         );
         const sourceCount = parseInt(sourceCountResult.rows[0].count, 10);
 
-        // Count existing target records (to report delta at end)
-        const targetCountResult = await target.query(
-            `SELECT COUNT(*) FROM public.data_records`
+        // Load all existing target IDs upfront so we can filter before inserting.
+        // This avoids surprise ON CONFLICT skips and gives an accurate pre-migration
+        // breakdown of what is genuinely new.
+        console.log('🔍 Loading existing IDs from target...');
+        const existingIdsResult = await target.query(
+            `SELECT id FROM public.data_records`
         );
-        const targetCountBefore = parseInt(targetCountResult.rows[0].count, 10);
+        const existingIds = new Set<string>(
+            existingIdsResult.rows.map((r: { id: string }) => r.id)
+        );
+        const targetCountBefore = existingIds.size;
 
-        console.log(`📊 Source records to migrate: ${sourceCount.toLocaleString()}`);
-        console.log(`📊 Target records before:     ${targetCountBefore.toLocaleString()}`);
+        console.log('');
+        console.log(`📊 Source records:        ${sourceCount.toLocaleString()}`);
+        console.log(`📊 Target records before: ${targetCountBefore.toLocaleString()}`);
+        console.log(`   (ID duplicates will be filtered per-batch using the loaded ID set)`);
         console.log('');
 
         if (sourceCount === 0) {
@@ -172,7 +185,7 @@ async function migrate() {
 
         if (!DRY_RUN) {
             console.log('⚠️  WARNING: This will INSERT records into the target database!');
-            console.log('⚠️  Existing records (same id) will be silently skipped.');
+            console.log('⚠️  Records with a matching id OR matching content are skipped.');
             console.log('');
             const confirmed = await askConfirmation('❓ Continue? (y/N): ');
             if (!confirmed) {
@@ -192,7 +205,8 @@ async function migrate() {
         console.log('');
 
         let totalInserted = 0;
-        let totalSkipped = 0;
+        let totalIdDupes = 0;
+        let totalContentDupes = 0;
         let totalErrors = 0;
         let offset = 0;
         let batchNum = 0;
@@ -217,18 +231,57 @@ async function migrate() {
             process.stdout.write(`  Batch ${batchNum}/${totalBatches} (${progress}%): `);
 
             if (DRY_RUN) {
-                totalInserted += batch.length;
-                console.log(`[DRY RUN] would insert ${batch.length} records`);
+                const newInBatch = batch.filter(row => !existingIds.has(row.id));
+                const idDupesInBatch = batch.length - newInBatch.length;
+                totalIdDupes += idDupesInBatch;
+                totalInserted += newInBatch.length;
+                console.log(`[DRY RUN] would insert ${newInBatch.length}, skip ${idDupesInBatch} id-duplicates`);
                 offset += batch.length;
                 continue;
             }
 
             try {
-                const placeholders = batch.map((_, rowIdx) =>
+                // Step 1: filter out records whose ID already exists in target
+                const afterIdFilter = batch.filter(row => !existingIds.has(row.id));
+                const idDupesInBatch = batch.length - afterIdFilter.length;
+                totalIdDupes += idDupesInBatch;
+
+                if (afterIdFilter.length === 0) {
+                    console.log(`skipped all ${batch.length} (id duplicates)`);
+                    offset += batch.length;
+                    continue;
+                }
+
+                // Step 2: filter out records whose trimmed content already exists in
+                // the target under a different id (catches duplicates ON CONFLICT misses)
+                const batchContents = afterIdFilter.map(row => (row.content ?? '').trim());
+                const existingContentsResult = await target.query(
+                    `SELECT TRIM(content) AS content
+                     FROM public.data_records
+                     WHERE TRIM(content) = ANY($1::text[])`,
+                    [batchContents]
+                );
+                const existingContents = new Set<string>(
+                    existingContentsResult.rows.map((r: { content: string }) => r.content)
+                );
+                const filteredBatch = afterIdFilter.filter(
+                    row => !existingContents.has((row.content ?? '').trim())
+                );
+                const contentDupes = afterIdFilter.length - filteredBatch.length;
+                totalContentDupes += contentDupes;
+
+                if (filteredBatch.length === 0) {
+                    const note = idDupesInBatch > 0 ? `, ${idDupesInBatch} id dupes` : '';
+                    console.log(`skipped all ${batch.length} (${contentDupes} content dupes${note})`);
+                    offset += batch.length;
+                    continue;
+                }
+
+                const placeholders = filteredBatch.map((_, rowIdx) =>
                     `(${COLUMNS.map((_, colIdx) => `$${rowIdx * COLUMNS.length + colIdx + 1}`).join(', ')})`
                 ).join(', ');
 
-                const values = batch.flatMap(row =>
+                const values = filteredBatch.flatMap(row =>
                     COLUMNS.map(col => {
                         const val = row[col];
                         if (col === 'metadata' && val !== null && typeof val === 'object') {
@@ -246,10 +299,11 @@ async function migrate() {
                 );
 
                 const inserted = result.rowCount ?? 0;
-                const skipped = batch.length - inserted;
                 totalInserted += inserted;
-                totalSkipped += skipped;
-                console.log(`inserted ${inserted}, skipped ${skipped} duplicates`);
+                const parts = [`inserted ${inserted}`];
+                if (idDupesInBatch > 0) parts.push(`${idDupesInBatch} id-dupes`);
+                if (contentDupes > 0) parts.push(`${contentDupes} content-dupes`);
+                console.log(parts.join(', '));
             } catch (err) {
                 totalErrors += batch.length;
                 console.log(`❌ Error: ${err instanceof Error ? err.message : err}`);
@@ -267,9 +321,10 @@ async function migrate() {
         console.log('  Complete');
         console.log('═══════════════════════════════════════════════════════════════');
         console.log('');
-        console.log(`✅ Inserted:   ${totalInserted.toLocaleString()} records`);
-        console.log(`⏭️  Skipped:    ${totalSkipped.toLocaleString()} duplicates`);
-        console.log(`❌ Errors:     ${totalErrors.toLocaleString()} records`);
+        console.log(`✅ Inserted:        ${totalInserted.toLocaleString()} records`);
+        console.log(`⏭️  ID duplicates:   ${totalIdDupes.toLocaleString()} records`);
+        console.log(`🔁 Content dupes:   ${totalContentDupes.toLocaleString()} records`);
+        console.log(`❌ Errors:          ${totalErrors.toLocaleString()} records`);
         console.log(`⏱️  Time:       ${elapsed}s (${rps} records/sec)`);
         console.log('');
 

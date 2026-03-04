@@ -25,6 +25,7 @@ import {
     Settings,
     Bot,
     Activity,
+    AlertTriangle,
     ChevronLeft,
     ChevronRight,
     ChevronDown,
@@ -83,6 +84,7 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { label: 'Alignment Scoring', href: '/alignment-scoring', icon: Sparkles, app: 'core' },
             { label: 'Likert Scoring', href: '/likert-scoring', icon: Star, app: 'core' },
+            { label: 'Similarity Flags', href: '/similarity-flags', icon: AlertTriangle, app: 'core' },
             { label: 'Task Search', href: '/task-search', icon: Search, app: 'core' },
         ],
     },

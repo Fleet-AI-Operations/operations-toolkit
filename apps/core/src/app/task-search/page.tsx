@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, Loader2, Bot, ChevronDown, ChevronUp, AlertCircle, CheckCircle, ShieldAlert, Users } from 'lucide-react';
 
 interface TaskResult {
@@ -77,12 +78,22 @@ const confidenceColor: Record<Confidence, string> = {
 };
 
 export default function TaskSearchPage() {
+    const searchParams = useSearchParams();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<TaskResult[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [cardStates, setCardStates] = useState<Record<string, TaskCardState>>({});
     const [selectedEnvironment, setSelectedEnvironment] = useState<string>('');
+
+    useEffect(() => {
+        const q = searchParams.get('q');
+        if (q) {
+            setQuery(q);
+            search(q);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const search = async (q: string) => {
         if (!q.trim()) return;
