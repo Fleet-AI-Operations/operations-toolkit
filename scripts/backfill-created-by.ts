@@ -27,9 +27,12 @@ async function main() {
         batch++;
 
         // CTE selects candidates and extracts values in one pass.
-        // UPDATE FROM is more efficient than UPDATE WHERE id IN (subquery)
-        // because the planner can use the partial index on the CTE scan
-        // and avoids re-reading metadata in the SET clause.
+        // MATERIALIZED forces the inner SELECT (and its LIMIT) to execute once
+        // and lock in candidate IDs before the UPDATE runs, avoiding the
+        // "moving target" problem where updated rows could shift mid-batch.
+        // The partial index (idx_data_records_needs_creator_backfill) accelerates
+        // the WHERE filter inside the CTE body.
+        // UPDATE FROM avoids re-reading metadata in the SET clause.
         const updated: number = await prisma.$executeRaw`
             WITH candidates AS MATERIALIZED (
                 SELECT id,

@@ -12,6 +12,6 @@
 --     no longer satisfy the WHERE clause and fall out of the index)
 --   - Zero overhead on already-backfilled rows
 -- ============================================================================
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_data_records_needs_creator_backfill
+CREATE INDEX IF NOT EXISTS idx_data_records_needs_creator_backfill
     ON public.data_records (id)
     WHERE "createdByName" IS NULL AND "createdByEmail" IS NULL;

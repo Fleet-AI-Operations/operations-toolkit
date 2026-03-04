@@ -6,8 +6,8 @@
 --
 -- 2. multiple_permissive_policies:
 --    - notification_settings: merge user + admin policies into one per operation
---    - time_entries: drop the redundant "view own" SELECT policy (subsumed by
---      the email-based policy added in 20260212000001)
+--    - time_entries: merge the uid-based and email-based SELECT policies into
+--      one to eliminate the multiple_permissive_policies warning
 --
 -- 3. duplicate_index: drop idx_time_report_records_worker_email, which is
 --    identical to idx_time_reports_worker_email added in the original table
@@ -19,8 +19,8 @@
 -- time_entries
 -- ============================================================================
 
--- Drop both SELECT policies; recreate only the email-based one (which is a
--- superset of the uid-based one). This resolves the multiple_permissive_policies
+-- Drop both SELECT policies and replace with a single merged policy that covers
+-- both uid match and email match. This resolves the multiple_permissive_policies
 -- warning for SELECT and the auth_rls_initplan warning in one step.
 DROP POLICY IF EXISTS "Users can view own time entries" ON public.time_entries;
 DROP POLICY IF EXISTS "Users can view entries by email" ON public.time_entries;
@@ -61,8 +61,8 @@ CREATE POLICY "Users can delete own time entries"
 
 -- ============================================================================
 -- notification_settings
--- Merges the per-user policies and the admin FOR ALL policy into one policy
--- per operation to eliminate multiple_permissive_policies warnings.
+-- Replaces the five named policies (four per-user + one admin) with one
+-- combined policy per operation to eliminate multiple_permissive_policies warnings.
 -- ============================================================================
 
 DROP POLICY IF EXISTS "Users can view their own notification settings" ON public.notification_settings;
