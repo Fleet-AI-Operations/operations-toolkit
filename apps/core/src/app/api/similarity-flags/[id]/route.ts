@@ -40,7 +40,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
 
-        const updated = await prisma.$queryRaw<{ id: string; status: string; claimed_by_email: string; claimed_at: Date }[]>`
+        const updated = await prisma.$queryRaw<{ id: string; status: string; claimed_by_email: string | null; claimed_at: Date }[]>`
             UPDATE public.similarity_flags
             SET status = 'CLAIMED',
                 claimed_by_email = ${user.email ?? null},

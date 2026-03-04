@@ -5,6 +5,7 @@ import UserProfileDropdown from './navigation/UserProfileDropdown'
 import BugReportNotification from './BugReportNotification'
 import UserBugReportTracker from './UserBugReportTracker'
 import SimilarityFlagsButton from './SimilarityFlagsButton'
+import TimeEntryButton from './TimeEntryButton'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -50,6 +51,7 @@ export default async function Header() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}
                     <SimilarityFlagsButton userRole={profile?.role || 'USER'} />
+                    <TimeEntryButton />
                     <UserBugReportTracker />
                     <BugReportNotification userRole={profile?.role || 'USER'} />
                     <UserProfileDropdown

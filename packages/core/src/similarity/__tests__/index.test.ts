@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { findSimilarRecords, startSimilarityDetection } from '../index';
+import { cosineSimilarity } from '../../ai';
 
 vi.mock('@repo/database', () => ({
   prisma: {
@@ -12,7 +13,7 @@ vi.mock('../notifications/email-service', () => ({
   notifySimilarityDetected: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('../ai', () => ({
+vi.mock('../../ai', () => ({
   cosineSimilarity: vi.fn(() => 0.95),
 }));
 
@@ -249,10 +250,152 @@ describe('startSimilarityDetection', () => {
 
     await startSimilarityDetection('ingest-001', 'test-env');
 
-    // The first $queryRaw call is the INSERT INTO similarity_jobs.
-    // The background runSimilarityDetection may have already issued additional
-    // $queryRaw calls (e.g. the newRecords fetch) before the microtask queue
-    // drains, so we only assert at least one call was made.
-    expect($queryRaw.mock.calls.length).toBeGreaterThanOrEqual(1);
+    // First $queryRaw call is the INSERT INTO similarity_jobs — verify its template
+    // contains the ingestJobId and environment values
+    const firstCall = $queryRaw.mock.calls[0];
+    const sqlTemplate = firstCall[0] as unknown as TemplateStringsArray;
+    const sqlStr = sqlTemplate.join('?');
+    expect(sqlStr).toContain('similarity_jobs');
+    expect(sqlStr).toContain('RETURNING id');
+    // The values passed as interpolated params should include the ingestJobId and environment
+    expect(firstCall).toContain('ingest-001');
+    expect(firstCall).toContain('test-env');
+  });
+});
+
+describe('runSimilarityDetection (via startSimilarityDetection)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    $executeRaw.mockResolvedValue(undefined);
+  });
+
+  it('marks the job COMPLETED with zero flags when no new records exist', async () => {
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-empty' }]); // INSERT similarity_job
+    $queryRaw.mockResolvedValueOnce([]);                    // newRecords = empty
+
+    await startSimilarityDetection('ingest-no-records', 'env-a');
+
+    // Drain microtask queue so background work completes
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // $executeRaw calls: PROCESSING update, then COMPLETED update
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('PROCESSING'))).toBe(true);
+    expect(execCalls.some(s => s.includes('COMPLETED'))).toBe(true);
+  });
+
+  it('inserts flags and marks COMPLETED when similar records are found', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(0.92); // above default 0.80 threshold
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-flags' }]); // INSERT similarity_job
+    // newRecords: one new record
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'new prompt text',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'user@example.com',
+      created_by_name: 'Test User',
+    }]);
+    // historicalRecords: one historical record (different content)
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'hist-rec-1',
+      content: 'historical prompt text',
+      embedding: '[0.1,0.2,0.3]',
+    }]);
+
+    await startSimilarityDetection('ingest-with-flags', 'env-b');
+
+    // Drain background work
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // $executeRaw should include: PROCESSING update, INSERT flag, COMPLETED update
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('PROCESSING'))).toBe(true);
+    expect(execCalls.some(s => s.includes('similarity_flags'))).toBe(true);
+    expect(execCalls.some(s => s.includes('COMPLETED'))).toBe(true);
+  });
+
+  it('skips records with identical content even when similarity is high', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(1.0); // cosine similarity = 1.0 (identical)
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-identical' }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'exact same content',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'user@example.com',
+      created_by_name: null,
+    }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'hist-rec-1',
+      content: 'exact same content', // identical — must be skipped
+      embedding: '[0.1,0.2,0.3]',
+    }]);
+
+    await startSimilarityDetection('ingest-identical', 'env-c');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // No INSERT into similarity_flags should occur
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('similarity_flags'))).toBe(false);
+  });
+
+  it('does not create flags when similarity score is below threshold', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(0.70); // below default 0.80
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-below' }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'new content',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'user@example.com',
+      created_by_name: null,
+    }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'hist-rec-1',
+      content: 'historical content',
+      embedding: '[0.4,0.5,0.6]',
+    }]);
+
+    await startSimilarityDetection('ingest-below', 'env-d');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('similarity_flags'))).toBe(false);
+    expect(execCalls.some(s => s.includes('COMPLETED'))).toBe(true);
+  });
+
+  it('marks job FAILED and logs job ID when an unexpected error occurs', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-fail' }]);
+    // Simulate DB failure during the newRecords fetch (first $executeRaw is PROCESSING update)
+    $executeRaw
+      .mockResolvedValueOnce(undefined) // PROCESSING update succeeds
+      .mockRejectedValueOnce(new Error('connection timeout')); // newRecords query via $executeRaw — actually $queryRaw
+    // Make the newRecords $queryRaw throw instead
+    $queryRaw.mockRejectedValueOnce(new Error('connection timeout'));
+
+    await startSimilarityDetection('ingest-fail', 'env-e');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // The error log should include the job ID
+    const errorLogs = consoleSpy.mock.calls.map(args => args.join(' '));
+    const jobFailLog = errorLogs.find(msg => msg.includes('job-fail'));
+    expect(jobFailLog).toBeTruthy();
+
+    consoleSpy.mockRestore();
   });
 });

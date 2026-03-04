@@ -204,6 +204,7 @@ export async function notifyUserCreated(user: {
  * Sends notification when prompt similarity is detected after ingestion
  */
 export async function notifySimilarityDetected(params: {
+  jobId: string;
   environment: string;
   flagCount: number;
   flags: Array<{ userName?: string; userEmail?: string; similarityScore: number }>;
@@ -215,7 +216,7 @@ export async function notifySimilarityDetected(params: {
     return;
   }
 
-  const { environment, flagCount, flags } = params;
+  const { jobId, environment, flagCount, flags } = params;
   const subject = `Similarity Alert: ${flagCount} similar prompt pair${flagCount !== 1 ? 's' : ''} detected in ${escapeHtml(environment)}`;
 
   const flagRows = flags.slice(0, 20).map(f => {
@@ -271,15 +272,24 @@ export async function notifySimilarityDetected(params: {
     </div>
   `;
 
-  await sendEmail(recipients.map(r => r.email), subject, html);
+  const emailResult = await sendEmail(recipients.map(r => r.email), subject, html);
 
-  // Mark flags as notified
-  await prisma.$executeRaw`
-    UPDATE public.similarity_flags
-    SET notified_at = NOW()
-    WHERE environment = ${environment}
-    AND notified_at IS NULL
-  `;
+  if (!emailResult.success) {
+    console.error('[SimilarityDetection] Email send failed, skipping notified_at update so flags can be retried:', emailResult.error);
+    return;
+  }
+
+  // Mark only this job's flags as notified to avoid cross-job race conditions
+  try {
+    await prisma.$executeRaw`
+      UPDATE public.similarity_flags
+      SET notified_at = NOW()
+      WHERE similarity_job_id = ${jobId}::uuid
+      AND notified_at IS NULL
+    `;
+  } catch (dbErr: any) {
+    console.error('[SimilarityDetection] Failed to mark flags as notified after successful email send. Duplicate notification may occur on next run:', dbErr);
+  }
 }
 
 /**

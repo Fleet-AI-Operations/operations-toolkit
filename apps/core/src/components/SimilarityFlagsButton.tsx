@@ -23,9 +23,11 @@ export default function SimilarityFlagsButton({ userRole }: Props) {
                 if (res.ok) {
                     const data = await res.json();
                     setOpenCount(data.total ?? 0);
+                } else {
+                    console.warn(`[SimilarityFlagsButton] Failed to fetch open count: HTTP ${res.status}`);
                 }
-            } catch {
-                // silently ignore
+            } catch (err) {
+                console.warn('[SimilarityFlagsButton] Network error fetching open count:', err);
             }
         };
 

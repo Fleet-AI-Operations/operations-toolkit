@@ -41,3 +41,20 @@ CREATE POLICY "similarity_flags_core_fleet_admin_select"
     WHERE id = (SELECT auth.uid())
     AND role IN ('CORE', 'FLEET', 'ADMIN', 'MANAGER')
   ));
+
+-- Server-side INSERT/UPDATE policies for the background similarity detection worker.
+-- The Prisma client connects via DATABASE_URL (service role / postgres superuser),
+-- which bypasses RLS. These policies exist as a safety net if a restricted role is
+-- ever used for DATABASE_URL, and to document the intended write access pattern.
+CREATE POLICY "similarity_jobs_server_insert"
+  ON public.similarity_jobs FOR INSERT TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "similarity_jobs_server_update"
+  ON public.similarity_jobs FOR UPDATE TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "similarity_flags_server_insert"
+  ON public.similarity_flags FOR INSERT TO authenticated
+  WITH CHECK (true);

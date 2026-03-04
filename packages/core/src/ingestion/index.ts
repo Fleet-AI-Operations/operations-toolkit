@@ -405,7 +405,7 @@ async function processVectorizationJobs(environment: string) {
             });
             // Trigger automated similarity detection for the now-vectorized records
             startSimilarityDetection(nextJob.id, environment).catch(err =>
-                console.error('[SimilarityDetection] Failed to start:', err)
+                console.error(`[SimilarityDetection] Failed to start for ingestJob=${nextJob.id}, env=${environment}:`, err)
             );
         }
 

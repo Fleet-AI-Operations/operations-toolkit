@@ -11,4 +11,9 @@ CREATE POLICY "similarity_flags_core_fleet_admin_update"
     SELECT 1 FROM public.profiles
     WHERE id = (SELECT auth.uid())
     AND role IN ('CORE', 'FLEET', 'ADMIN', 'MANAGER')
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = (SELECT auth.uid())
+    AND role IN ('CORE', 'FLEET', 'ADMIN', 'MANAGER')
   ));

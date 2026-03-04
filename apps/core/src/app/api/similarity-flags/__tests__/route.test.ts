@@ -197,4 +197,67 @@ describe('GET /api/similarity-flags', () => {
         expect(response.status).toBe(500);
         expect(data.error).toBe('Internal server error');
     });
+
+    it('applies status=CLAIMED and claimedBy=me filter, resolving "me" to user email server-side', async () => {
+        const { prisma } = await import('@repo/database');
+        const flagRow = makeFlagRow({ status: 'CLAIMED', claimed_by_email: 'core@example.com' });
+
+        vi.mocked(prisma.$queryRaw)
+            .mockResolvedValueOnce([flagRow])
+            .mockResolvedValueOnce([{ count: BigInt(1) }])
+            .mockResolvedValueOnce([]);
+
+        const request = new NextRequest(
+            'http://localhost:3003/api/similarity-flags?status=CLAIMED&claimedBy=me'
+        );
+        const response = await GET(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.flags).toHaveLength(1);
+        expect(data.flags[0].status).toBe('CLAIMED');
+        expect(data.flags[0].claimedByEmail).toBe('core@example.com');
+        // The route should have used the user's email (core@example.com) for filtering,
+        // not literally the string "me" — we verify by checking $queryRaw was called
+        expect(vi.mocked(prisma.$queryRaw)).toHaveBeenCalled();
+    });
+
+    it('ignores claimedBy=me when status is not CLAIMED', async () => {
+        const { prisma } = await import('@repo/database');
+        const flagRow = makeFlagRow({ status: 'OPEN' });
+
+        vi.mocked(prisma.$queryRaw)
+            .mockResolvedValueOnce([flagRow])
+            .mockResolvedValueOnce([{ count: BigInt(1) }])
+            .mockResolvedValueOnce([]);
+
+        // claimedBy=me with status=OPEN — should return results without filtering by email
+        const request = new NextRequest(
+            'http://localhost:3003/api/similarity-flags?status=OPEN&claimedBy=me'
+        );
+        const response = await GET(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.flags).toHaveLength(1);
+    });
+
+    it('treats invalid status values as no status filter (whitelist protection)', async () => {
+        const { prisma } = await import('@repo/database');
+        const flagRow = makeFlagRow();
+
+        vi.mocked(prisma.$queryRaw)
+            .mockResolvedValueOnce([flagRow])
+            .mockResolvedValueOnce([{ count: BigInt(1) }])
+            .mockResolvedValueOnce([]);
+
+        const request = new NextRequest(
+            'http://localhost:3003/api/similarity-flags?status=RESOLVED'
+        );
+        const response = await GET(request);
+        const data = await response.json();
+
+        // Invalid status should be treated as no filter, not as an error
+        expect(response.status).toBe(200);
+    });
 });

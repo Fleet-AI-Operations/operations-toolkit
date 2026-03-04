@@ -43,6 +43,7 @@ export default function SimilarityFlagsPage() {
         createdByName: string | null; createdByEmail: string | null; createdAt: string;
     } | null>(null);
     const [modalLoading, setModalLoading] = useState(false);
+    const [modalError, setModalError] = useState<string | null>(null);
 
     const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
@@ -71,9 +72,14 @@ export default function SimilarityFlagsPage() {
 
     useEffect(() => {
         fetch('/api/environments')
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
             .then(d => setEnvironments(d.environments || []))
-            .catch(() => {});
+            .catch(err => {
+                console.warn('[SimilarityFlags] Failed to load environments for filter:', err);
+            });
     }, []);
 
     useEffect(() => {
@@ -119,10 +125,20 @@ export default function SimilarityFlagsPage() {
     async function openModal(recordId: string, label: string) {
         setModal({ recordId, label });
         setModalRecord(null);
+        setModalError(null);
         setModalLoading(true);
         try {
             const res = await fetch(`/api/records/${recordId}`);
-            if (res.ok) setModalRecord(await res.json());
+            if (res.status === 404) {
+                setModalError('Record not found. It may have been deleted.');
+            } else if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                setModalError((data as any).error || `Failed to load record (HTTP ${res.status}). Please try again.`);
+            } else {
+                setModalRecord(await res.json());
+            }
+        } catch {
+            setModalError('Network error loading record. Check your connection and try again.');
         } finally {
             setModalLoading(false);
         }
@@ -528,6 +544,10 @@ export default function SimilarityFlagsPage() {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        ) : modalError ? (
+                            <div style={{ color: '#f87171', padding: '16px 0' }}>
+                                {modalError}
                             </div>
                         ) : (
                             <div style={{ color: 'rgba(255,255,255,0.4)', padding: '16px 0' }}>

@@ -92,7 +92,7 @@ export async function startSimilarityDetection(
 
   // Fire and forget — detection runs in background after ingest completes
   runSimilarityDetection(jobId, ingestJobId, environment).catch(err => {
-    console.error('[SimilarityDetection] Unhandled error in runSimilarityDetection:', err);
+    console.error(`[SimilarityDetection] Unhandled error in runSimilarityDetection for job ${jobId} (ingestJob=${ingestJobId}, env=${environment}):`, err);
   });
 
   return jobId;
@@ -109,6 +109,9 @@ async function runSimilarityDetection(
   environment: string
 ): Promise<void> {
   const threshold = parseFloat(process.env.SIMILARITY_THRESHOLD ?? '0.80');
+  if (isNaN(threshold) || threshold <= 0 || threshold > 1) {
+    throw new Error(`Invalid SIMILARITY_THRESHOLD="${process.env.SIMILARITY_THRESHOLD ?? '(not set)'}". Must be a number between 0 and 1 (e.g. 0.80).`);
+  }
 
   try {
     await prisma.$executeRaw`
@@ -254,30 +257,39 @@ async function runSimilarityDetection(
       }
     }
 
-    // Batch-insert flags (ON CONFLICT DO NOTHING for idempotency)
+    // Batch-insert flags (ON CONFLICT DO NOTHING for idempotency).
+    // Insert one at a time but tolerate individual failures so a single transient
+    // error doesn't abort the entire batch.
+    let insertedCount = 0;
     for (const flag of allFlags) {
-      await prisma.$executeRaw`
-        INSERT INTO public.similarity_flags
-          (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment)
-        VALUES
-          (${flag.similarityJobId}::uuid, ${flag.sourceRecordId}, ${flag.matchedRecordId},
-           ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment})
-        ON CONFLICT (source_record_id, matched_record_id) DO NOTHING
-      `;
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO public.similarity_flags
+            (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment)
+          VALUES
+            (${flag.similarityJobId}::uuid, ${flag.sourceRecordId}, ${flag.matchedRecordId},
+             ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment})
+          ON CONFLICT (source_record_id, matched_record_id) DO NOTHING
+        `;
+        insertedCount++;
+      } catch (insertErr: any) {
+        console.error(`[SimilarityDetection] Job ${jobId}: failed to insert flag (source=${flag.sourceRecordId}, matched=${flag.matchedRecordId}):`, insertErr);
+      }
     }
 
     await prisma.$executeRaw`
       UPDATE public.similarity_jobs
-      SET status = 'COMPLETED', records_checked = ${totalChecked}, flags_found = ${allFlags.length}, updated_at = NOW()
+      SET status = 'COMPLETED', records_checked = ${totalChecked}, flags_found = ${insertedCount}, updated_at = NOW()
       WHERE id = ${jobId}::uuid
     `;
 
     console.log(`[SimilarityDetection] Job ${jobId} completed: checked=${totalChecked}, flags=${allFlags.length}`);
 
-    if (allFlags.length > 0) {
+    if (insertedCount > 0) {
       notifySimilarityDetected({
+        jobId,
         environment,
-        flagCount: allFlags.length,
+        flagCount: insertedCount,
         flags: allFlags.map(f => ({
           userName: f.userName ?? undefined,
           userEmail: f.userEmail,
@@ -286,11 +298,15 @@ async function runSimilarityDetection(
       }).catch(err => console.error('[SimilarityDetection] Notification error:', err));
     }
   } catch (err: any) {
-    console.error(`[SimilarityDetection] Job ${jobId} failed:`, err);
-    await prisma.$executeRaw`
-      UPDATE public.similarity_jobs
-      SET status = 'FAILED', error = ${err.message ?? String(err)}, updated_at = NOW()
-      WHERE id = ${jobId}::uuid
-    `;
+    console.error(`[SimilarityDetection] Job ${jobId} (ingestJob=${ingestJobId}, env=${environment}) failed:`, err);
+    try {
+      await prisma.$executeRaw`
+        UPDATE public.similarity_jobs
+        SET status = 'FAILED', error = ${err.message ?? String(err)}, updated_at = NOW()
+        WHERE id = ${jobId}::uuid
+      `;
+    } catch (updateErr: any) {
+      console.error(`[SimilarityDetection] CRITICAL: Failed to mark job ${jobId} as FAILED. Job is stuck in PROCESSING. Update error:`, updateErr);
+    }
   }
 }
