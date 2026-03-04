@@ -26,13 +26,19 @@ async function main() {
     while (true) {
         batch++;
 
+        // CTE selects candidates and extracts values in one pass.
+        // MATERIALIZED forces the inner SELECT (and its LIMIT) to execute once
+        // and lock in candidate IDs before the UPDATE runs, avoiding the
+        // "moving target" problem where updated rows could shift mid-batch.
+        // The partial index (idx_data_records_needs_creator_backfill) accelerates
+        // the WHERE filter inside the CTE body.
+        // UPDATE FROM avoids re-reading metadata in the SET clause.
         const updated: number = await prisma.$executeRaw`
-            UPDATE public.data_records
-            SET
-                "createdByName"  = metadata->>'author_name',
-                "createdByEmail" = metadata->>'author_email'
-            WHERE id IN (
-                SELECT id FROM public.data_records
+            WITH candidates AS MATERIALIZED (
+                SELECT id,
+                       metadata->>'author_name'  AS name,
+                       metadata->>'author_email' AS email
+                FROM public.data_records
                 WHERE "createdByName" IS NULL
                 AND "createdByEmail" IS NULL
                 AND (
@@ -42,6 +48,12 @@ async function main() {
                 )
                 LIMIT ${BATCH_SIZE}
             )
+            UPDATE public.data_records dr
+            SET
+                "createdByName"  = c.name,
+                "createdByEmail" = c.email
+            FROM candidates c
+            WHERE dr.id = c.id
         `;
 
         totalUpdated += updated;
