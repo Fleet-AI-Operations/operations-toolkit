@@ -72,3 +72,4 @@ apps/*/node_modules/
 
 # Package build artifacts (TypeScript compilation)
 packages/*/dist/
+scripts/sync-feedback-outcome-to-prod.js
