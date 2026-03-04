@@ -26,13 +26,16 @@ async function main() {
     while (true) {
         batch++;
 
+        // CTE selects candidates and extracts values in one pass.
+        // UPDATE FROM is more efficient than UPDATE WHERE id IN (subquery)
+        // because the planner can use the partial index on the CTE scan
+        // and avoids re-reading metadata in the SET clause.
         const updated: number = await prisma.$executeRaw`
-            UPDATE public.data_records
-            SET
-                "createdByName"  = metadata->>'author_name',
-                "createdByEmail" = metadata->>'author_email'
-            WHERE id IN (
-                SELECT id FROM public.data_records
+            WITH candidates AS MATERIALIZED (
+                SELECT id,
+                       metadata->>'author_name'  AS name,
+                       metadata->>'author_email' AS email
+                FROM public.data_records
                 WHERE "createdByName" IS NULL
                 AND "createdByEmail" IS NULL
                 AND (
@@ -42,6 +45,12 @@ async function main() {
                 )
                 LIMIT ${BATCH_SIZE}
             )
+            UPDATE public.data_records dr
+            SET
+                "createdByName"  = c.name,
+                "createdByEmail" = c.email
+            FROM candidates c
+            WHERE dr.id = c.id
         `;
 
         totalUpdated += updated;
