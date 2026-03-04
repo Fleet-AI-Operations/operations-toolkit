@@ -85,6 +85,17 @@ export default function IngestionPage() {
                         }
                     }
                 }
+
+                // Re-trigger the processing queue for any stuck jobs.
+                // The status endpoint awaits processQueuedJobs() before returning, which is
+                // the designed mechanism for re-kicking jobs in serverless environments.
+                // Fire-and-forget: we don't need to await the result here.
+                const stuckJobs = data.filter((j: IngestJob) =>
+                    j.status === 'PENDING' || j.status === 'QUEUED_FOR_VEC'
+                );
+                for (const job of stuckJobs) {
+                    fetch(`/api/ingest/status?jobId=${job.id}`).catch(() => {});
+                }
             }
         } catch (err) {
             console.error('Failed to fetch recent jobs', err);

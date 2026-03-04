@@ -1,2 +1,2 @@
 select count (*) from data_records
-where environment = 'fos-revops'
+where embedding is null

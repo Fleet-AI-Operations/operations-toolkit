@@ -6,7 +6,7 @@
 
 After logging in, you'll see a sidebar on the left with the following sections:
 
-- **Core Tools** — Alignment Scoring, Likert Scoring, Task Search
+- **Core Tools** — Alignment Scoring, Likert Scoring, Task Search, Similarity Flags
 - **QA Tools** — Records, Similarity Search, Top Prompts, Top/Bottom 10
 - **Resources** — Links
 
@@ -18,17 +18,18 @@ Some items open in the same tab; others (marked with a small external link icon)
 1. [Alignment Scoring](#alignment-scoring)
 2. [Likert Scoring](#likert-scoring)
 3. [Task Search](#task-search)
+4. [Similarity Flags](#similarity-flags)
 
 ### QA Tools
-4. [Records](#records)
-5. [Similarity Search](#similarity-search)
-6. [Top Prompts](#top-prompts)
-7. [Top/Bottom 10](#topbottom-10)
+5. [Records](#records)
+6. [Similarity Search](#similarity-search)
+7. [Top Prompts](#top-prompts)
+8. [Top/Bottom 10](#topbottom-10)
 
 ### Other
-8. [Resources](#resources)
-9. [Reporting Bugs](#reporting-bugs)
-10. [Troubleshooting](#troubleshooting)
+9. [Resources](#resources)
+10. [Reporting Bugs](#reporting-bugs)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -180,6 +181,62 @@ The button shows **"Checking…"** while the analysis runs (a few seconds), then
 - "Templated" often indicates copy-paste patterns or repeated structures
 - A single check is a signal, not a final judgment — context matters
 - Run checks on tasks that look identical or suspiciously similar to others
+
+---
+
+## Similarity Flags
+
+Review prompt pairs that the system automatically detected as highly similar during data ingestion. These flags are generated without manual intervention — whenever a new batch of tasks is ingested and vectorized, the system compares each new prompt against historical prompts from the same user and creates a flag for any pair exceeding the similarity threshold (default: 80%).
+
+**Who can access this page**: CORE, FLEET, MANAGER, ADMIN roles.
+
+### What is a Similarity Flag?
+
+Each flag represents two task records — a source (the newly ingested task) and a match (a previously ingested task from the same user) — where the cosine similarity of their vector embeddings exceeds the threshold. A high similarity score means the two prompts are semantically very close and may warrant investigation.
+
+Flags are not a verdict. They are a signal for a reviewer to look at. Only a human review can determine whether the similarity indicates a problem.
+
+### Dashboard Overview
+
+The Similarity Flags page displays a table of detected pairs with the following columns:
+
+- **Status** — Either Open (not yet reviewed) or Claimed (a reviewer has indicated they are investigating)
+- **User** — The name and email of the worker who submitted both records
+- **Score** — The cosine similarity expressed as a percentage (e.g., 94.3%)
+- **Source (snippet)** — A truncated preview of the newly ingested task prompt
+- **Match (snippet)** — A truncated preview of the historically matched prompt
+- **Environment** — The data batch the source record belongs to
+- **Date** — When the flag was created
+
+### Filtering Flags
+
+Use the controls above the table to narrow down what you see:
+
+- **Status tabs** — Switch between All, Open, and Claimed views
+- **Mine only** — Appears when the Claimed tab is active; restricts the list to flags you personally claimed
+- **Environment dropdown** — Filter to a specific data batch
+
+Click **Refresh** to reload the current view without changing your filter settings.
+
+### Claiming a Flag
+
+When you decide to investigate a flag, click the **Claim** button in the actions column. Claiming records that you are investigating prevents multiple reviewers from duplicating effort. Claimed flags move to the Claimed tab and show your email address.
+
+Claiming does not resolve or close a flag — it is a lightweight coordination signal only.
+
+### Viewing Full Record Details
+
+Click any snippet text in the Source or Match columns to open a detail modal for that record. The modal shows:
+
+- The full prompt text
+- Task ID (if available in the record metadata)
+- Created by (name and email)
+- Environment
+- Date
+
+For source records that have a task ID, a **View in Task Search** link appears in the modal header. Clicking it opens the Task Search page pre-populated with that task ID, giving you access to the full AI authenticity check workflow.
+
+Close the modal by clicking the **×** button in the top-right corner or clicking outside the modal.
 
 ---
 

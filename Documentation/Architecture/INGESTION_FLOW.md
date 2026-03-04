@@ -14,6 +14,8 @@ sequenceDiagram
     participant API as API Route
     participant LIB as Ingestion Library
     participant VEC as Vector Worker
+    participant SIM as Similarity Detector
+    participant NOTIFY as Notification Service
     participant DB as Postgres (Prisma)
 
     UI->>API: POST /api/ingest/csv (File)
@@ -34,7 +36,21 @@ sequenceDiagram
     VEC->>AI: Batch getEmbeddings (Batch: 25)
     VEC->>DB: Update record embeddings
     VEC->>DB: Update Job (COMPLETED)
+
+    Note over SIM, DB: Phase 3: Similarity Detection (background)
+    VEC->>SIM: startSimilarityDetection(jobId, environment)
+    SIM->>DB: Create similarity_jobs row (PENDING)
+    SIM->>DB: Fetch new TASK records with embeddings
+    SIM->>DB: Fetch historical TASK records per user
+    SIM->>SIM: Compute cosine similarity for each pair
+    SIM->>DB: Insert similarity_flags (ON CONFLICT DO NOTHING)
+    SIM->>DB: Update similarity_jobs (COMPLETED, flagsFound)
+    SIM->>NOTIFY: notifySimilarityDetected() if flags > 0
 ```
+
+### Phase 3: Similarity Detection
+
+After vectorization completes, the system automatically runs a background similarity detection pass over the newly ingested records. This phase compares the cosine similarity of each new task's embedding against historical task embeddings from the same user. Any pair exceeding the configured threshold (default: 80%) is written to the `similarity_flags` table as an `OPEN` flag. Flags are surfaced in the **Similarity Flags** dashboard (Core app) for review by CORE, FLEET, MANAGER, and ADMIN users. The entire phase is non-blocking — ingestion completes regardless of similarity detection outcomes.
 
 ### Chunked Upload (Large Files)
 
@@ -83,11 +99,19 @@ Unlike typical sequential queues, this system allows **Phase 1 (Data Loading)** 
 - **Result**: Users see their new records in the dashboard almost instantly, while AI enrichment happens in the background.
 
 ### 2. Multi-Stage Status Lifecycle
+
+**Ingestion job statuses:**
 - **PENDING**: Job is queued, waiting for its turn to load data.
 - **PROCESSING**: The system is currently parsing the source and saving records to PostgreSQL.
 - **QUEUED_FOR_VEC**: Data is safely stored, but the AI server is currently busy with another job.
 - **VECTORIZING**: The AI server is actively generating embeddings for this job.
 - **COMPLETED/FAILED/CANCELLED**: Terminal states.
+
+**Similarity job statuses** (tracked separately in `similarity_jobs`):
+- **PENDING**: Similarity detection has been queued but has not yet started scanning records.
+- **PROCESSING**: The detector is actively computing cosine similarity and writing flags.
+- **COMPLETED**: All pairs have been evaluated; `flagsFound` reflects the count of new flags inserted.
+- **FAILED**: An unrecoverable error occurred during detection; the ingestion job itself is unaffected.
 
 ### 3. Queue Locking & Stability
 - **Data Lock**: Only one job per environment can be in `PROCESSING` at a time to ensure database write order and prevent primary key collisions.

@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
             AND (
                 id = ${q}
                 OR metadata->>'task_key' = ${q}
+                OR metadata->>'task_id' = ${q}
                 OR "createdByName" ILIKE ${'%' + q + '%'}
                 OR "createdByEmail" ILIKE ${'%' + q + '%'}
             )
