@@ -1,4 +1,5 @@
 import { prisma } from '@repo/database';
+import type { MatchType } from '@repo/types';
 import { cosineSimilarity } from '../ai';
 import { notifySimilarityDetected } from '../notifications/email-service';
 
@@ -20,7 +21,8 @@ function parseVector(vectorStr: any): number[] | null {
     const inner = vectorStr.slice(1, -1);
     if (!inner) return null;
     const values = inner.split(',').map(Number);
-    return values.filter(v => !isNaN(v));
+    if (values.some(v => isNaN(v))) return null;
+    return values;
   }
 
   return null;
@@ -91,8 +93,17 @@ export async function startSimilarityDetection(
   const jobId = job[0].id;
 
   // Fire and forget — detection runs in background after ingest completes
-  runSimilarityDetection(jobId, ingestJobId, environment).catch(err => {
+  runSimilarityDetection(jobId, ingestJobId, environment).catch(async (err) => {
     console.error(`[SimilarityDetection] Unhandled error in runSimilarityDetection for job ${jobId} (ingestJob=${ingestJobId}, env=${environment}):`, err);
+    try {
+      await prisma.$executeRaw`
+        UPDATE public.similarity_jobs
+        SET status = 'FAILED', error = ${err.message ?? String(err)}, updated_at = NOW()
+        WHERE id = ${jobId}::uuid
+      `;
+    } catch (updateErr) {
+      console.error(`[SimilarityDetection] CRITICAL: Failed to mark job ${jobId} as FAILED after pre-try error:`, updateErr);
+    }
   });
 
   return jobId;
@@ -180,6 +191,7 @@ async function runSimilarityDetection(
       userEmail: string;
       userName: string | null;
       environment: string;
+      matchType: MatchType;
     }> = [];
 
     let totalChecked = 0;
@@ -251,6 +263,54 @@ async function runSimilarityDetection(
               userEmail,
               userName: newRec.created_by_name ?? null,
               environment,
+              matchType: 'USER_HISTORY',
+            });
+          }
+        }
+      }
+    }
+
+    // Second pass: compare new records against daily great task records
+    const dailyGreatRecords: Array<{
+      id: string;
+      content: string;
+      embedding: string;
+    }> = await prisma.$queryRaw`
+      SELECT id, content, embedding::text AS embedding
+      FROM public.data_records
+      WHERE is_daily_great = true
+      AND type = 'TASK'
+      AND embedding IS NOT NULL
+    `;
+
+    if (dailyGreatRecords.length > 0) {
+      const parsedGreat = dailyGreatRecords
+        .map(r => ({ id: r.id, content: r.content, vec: parseVector(r.embedding) }))
+        .filter(r => r.vec !== null) as Array<{ id: string; content: string; vec: number[] }>;
+
+      for (const newRec of newRecords) {
+        const newVec = parseVector(newRec.embedding);
+        if (!newVec) continue;
+
+        totalChecked++;
+
+        for (const great of parsedGreat) {
+          // Skip identical content
+          if (newRec.content.trim() === great.content.trim()) continue;
+
+          const score = cosineSimilarity(newVec, great.vec);
+          if (isNaN(score) || !isFinite(score)) continue;
+
+          if (score >= threshold) {
+            allFlags.push({
+              similarityJobId: jobId,
+              sourceRecordId: newRec.id,
+              matchedRecordId: great.id,
+              similarityScore: score,
+              userEmail: newRec.created_by_email,
+              userName: newRec.created_by_name ?? null,
+              environment,
+              matchType: 'DAILY_GREAT',
             });
           }
         }
@@ -265,11 +325,11 @@ async function runSimilarityDetection(
       try {
         await prisma.$executeRaw`
           INSERT INTO public.similarity_flags
-            (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment)
+            (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment, match_type)
           VALUES
             (${flag.similarityJobId}::uuid, ${flag.sourceRecordId}, ${flag.matchedRecordId},
-             ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment})
-          ON CONFLICT (source_record_id, matched_record_id) DO NOTHING
+             ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment}, ${flag.matchType})
+          ON CONFLICT (source_record_id, matched_record_id, match_type) DO NOTHING
         `;
         insertedCount++;
       } catch (insertErr: any) {
@@ -294,6 +354,7 @@ async function runSimilarityDetection(
           userName: f.userName ?? undefined,
           userEmail: f.userEmail,
           similarityScore: f.similarityScore,
+          matchType: f.matchType,
         })),
       }).catch(err => console.error('[SimilarityDetection] Notification error:', err));
     }

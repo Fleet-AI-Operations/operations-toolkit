@@ -24,29 +24,29 @@ SET statement_timeout = 0;
 
 -- 1. data_records: Extract from metadata.environment_name or metadata.env_key
 ALTER TABLE public.data_records
-ADD COLUMN environment TEXT;
+ADD COLUMN IF NOT EXISTS environment TEXT;
 
 -- 2. ingest_jobs: Copy from associated records or default
 ALTER TABLE public.ingest_jobs
-ADD COLUMN environment TEXT;
+ADD COLUMN IF NOT EXISTS environment TEXT;
 
 -- 3. analytics_jobs: Copy from associated project or default
 ALTER TABLE public.analytics_jobs
-ADD COLUMN environment TEXT;
+ADD COLUMN IF NOT EXISTS environment TEXT;
 
 -- 4. audit_logs: Copy from project or default
 ALTER TABLE public.audit_logs
-ADD COLUMN environment TEXT;
+ADD COLUMN IF NOT EXISTS environment TEXT;
 
 -- 5. candidate_status: Copy from project or default
 ALTER TABLE public.candidate_status
-ADD COLUMN environment TEXT;
+ADD COLUMN IF NOT EXISTS environment TEXT;
 
 -- 6. rater_groups: Copy from project or default (skip if table doesn't exist)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'rater_groups') THEN
-        ALTER TABLE public.rater_groups ADD COLUMN environment TEXT;
+        ALTER TABLE public.rater_groups ADD COLUMN IF NOT EXISTS environment TEXT;
     END IF;
 END $$;
 
@@ -54,7 +54,7 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'assignment_batches') THEN
-        ALTER TABLE public.assignment_batches ADD COLUMN environment TEXT;
+        ALTER TABLE public.assignment_batches ADD COLUMN IF NOT EXISTS environment TEXT;
     END IF;
 END $$;
 
@@ -62,7 +62,7 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'llm_evaluation_jobs') THEN
-        ALTER TABLE public.llm_evaluation_jobs ADD COLUMN environment TEXT;
+        ALTER TABLE public.llm_evaluation_jobs ADD COLUMN IF NOT EXISTS environment TEXT;
     END IF;
 END $$;
 

@@ -31,6 +31,7 @@ Documentation/
 │
 ├── Feature Guides/
 │   ├── Exemplar Tasks             → ./EXEMPLAR_TASKS.md
+│   ├── Daily Great Tasks          → ./DAILY_GREAT_TASKS.md
 │   └── Task Search                → ./TASK_SEARCH.md
 │
 ├── Development/
@@ -80,6 +81,7 @@ Documentation/
 → [User Management](./USER_MANAGEMENT.md)
 → [Bug Reports](./BUG_REPORTS.md)
 → [Exemplar Tasks](./EXEMPLAR_TASKS.md) (Fleet)
+→ [Daily Great Tasks](./DAILY_GREAT_TASKS.md) (Fleet)
 → [Task Search](./TASK_SEARCH.md) (Core)
 
 #### **Develop Features**
@@ -323,4 +325,4 @@ Can't find what you're looking for?
 
 ---
 
-*Last Updated: 2026-02-27*
+*Last Updated: 2026-03-04*

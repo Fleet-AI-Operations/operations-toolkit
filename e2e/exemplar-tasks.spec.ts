@@ -136,6 +136,90 @@ test.describe('Exemplar Tasks - Compare Tab', () => {
     });
 });
 
+test.describe('Exemplar Tasks - Daily Great Tasks Tab', () => {
+    test('should show Daily Great Tasks tab button', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await expect(page.locator('button:has-text("Daily Great Tasks")')).toBeVisible();
+    });
+
+    test('should switch to Daily Great Tasks tab when clicked', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+
+        // Search section should be visible
+        await expect(page.locator('text=/Search by task key/i').first()).toBeVisible();
+    });
+
+    test('should show search input and Search button in Daily Great Tasks tab', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+
+        await expect(page.locator('input[placeholder*="task key" i], input[placeholder*="task_key" i]').first()).toBeVisible();
+        await expect(page.locator('button:has-text("Search")')).toBeVisible();
+    });
+
+    test('should show Currently Flagged section in Daily Great Tasks tab', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+
+        await expect(page.locator('text=/Currently Flagged/i').first()).toBeVisible();
+    });
+
+    test('should show On-Demand Compare section in Daily Great Tasks tab', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+
+        await expect(page.locator('text=/On.Demand Compare/i').first()).toBeVisible();
+        await expect(page.locator('button:has-text("Run Comparison")')).toBeVisible();
+    });
+
+    test('should show threshold input with default value 80 in Daily Great Tasks Compare section', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+
+        // DG Compare section uses a number input — find it in the Compare section
+        const thresholdInput = page.locator('text=/On.Demand Compare/i').locator('..').locator('input[type="number"]');
+        await expect(thresholdInput).toBeVisible();
+        await expect(thresholdInput).toHaveValue('80');
+    });
+
+    test('should show empty state when no records are flagged as daily great', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+        await page.waitForTimeout(1000);
+
+        // Either flagged records or an empty state message should appear
+        const rows = page.locator('tbody tr');
+        const emptyState = page.locator('text=/No daily great tasks flagged/i');
+
+        await expect(rows.first().or(emptyState.first())).toBeVisible({ timeout: 5000 });
+    });
+
+    test('Search button should be disabled when task key input is empty', async ({ page }) => {
+        await page.goto(`${FLEET_URL}/exemplar-tasks`);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator('button:has-text("Daily Great Tasks")').click();
+
+        const searchButton = page.locator('button:has-text("Search")');
+        await expect(searchButton).toBeDisabled();
+    });
+});
+
 test.describe('Exemplar Tasks - Navigation', () => {
     test('should navigate to other Fleet sidebar items', async ({ page }) => {
         await page.goto(`${FLEET_URL}/exemplar-tasks`);
