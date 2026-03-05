@@ -24,8 +24,9 @@
 
 -- pg_net is pre-installed on Supabase Cloud. For local dev, verify it is enabled:
 --   SELECT * FROM pg_extension WHERE extname = 'pg_net';
--- If missing: CREATE EXTENSION pg_net WITH SCHEMA net;
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA net;
+-- pg_net creates its own 'net' schema on install — do not specify WITH SCHEMA here
+-- or the statement will fail on fresh environments where the schema doesn't exist yet.
+CREATE EXTENSION IF NOT EXISTS pg_net;
 
 CREATE TABLE IF NOT EXISTS public.ingest_webhook_config (
     key   text PRIMARY KEY,
