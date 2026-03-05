@@ -112,9 +112,10 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { label: 'Activity Over Time', href: '/activity-over-time', icon: BarChart3, app: 'fleet' },
             { label: 'Bonus Windows', href: '/bonus-windows', icon: Target, app: 'fleet' },
-            { label: 'Time Reporting - Quick Screen', href: '/time-reporting-screening', icon: Clock, app: 'fleet' },
             { label: 'Time Reporting - Deep Analysis', href: '/time-reporting-analysis', icon: Clock, app: 'fleet' },
             { label: 'Time Reporting - Meetings', href: '/time-reporting-meetings', icon: CalendarCheck, app: 'fleet' },
+            { label: 'Time Reporting - Quick Screen', href: '/time-reporting-screening', icon: Clock, app: 'fleet' },
+            { label: 'Weekly Task Metrics', href: '/weekly-task-metrics', icon: BarChart3, app: 'fleet' },
         ],
     },
     {
