@@ -1,5 +1,8 @@
--- Webhook trigger: fires net.http_post (pg_net) when an ingest_job row is inserted.
--- This drives ingestion processing without polling or browser dependency.
+-- Webhook triggers: fire net.http_post (pg_net) to drive ingestion processing.
+-- Two triggers are used so Phase 1 and Phase 2 each get their own Vercel function
+-- invocation (and their own 300s timeout window):
+--   - on_ingest_job_created:        fires on INSERT (status = PENDING)   → starts Phase 1
+--   - on_ingest_job_queued_for_vec: fires on UPDATE to QUEUED_FOR_VEC    → starts Phase 2
 --
 -- Config is stored in public.ingest_webhook_config so no superuser permissions
 -- are needed (ALTER DATABASE SET is not available on Supabase Cloud).
@@ -12,7 +15,7 @@
 --         ('secret', 'your-secret')
 --     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 --
---   Local dev (Supabase in Docker, Next.js on host):
+--   Local dev (Supabase in Docker, Next.js on host — Fleet app runs on port 3004):
 --     INSERT INTO public.ingest_webhook_config (key, value) VALUES
 --         ('url',    'http://host.docker.internal:3004/api/ingest/process-job'),
 --         ('secret', 'dev-secret')
@@ -33,11 +36,13 @@ CREATE TABLE IF NOT EXISTS public.ingest_webhook_config (
     value text NOT NULL
 );
 
--- Restrict access: only the service role and postgres can read/write
+-- Restrict access: only the service_role JWT can read/write via RLS.
+-- The postgres superuser bypasses RLS by default (used when running setup SQL directly).
 ALTER TABLE public.ingest_webhook_config ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Service role only" ON public.ingest_webhook_config
-    USING (auth.role() = 'service_role');
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
 
 CREATE OR REPLACE FUNCTION public.trigger_ingest_job_webhook()
 RETURNS trigger
@@ -56,7 +61,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Fire async HTTP POST via pg_net — does not block the INSERT transaction
+    -- Fire async HTTP POST via pg_net — does not block the transaction
     PERFORM net.http_post(
         url     := _url,
         headers := jsonb_build_object(
@@ -74,7 +79,17 @@ BEGIN
 END;
 $$;
 
+-- Fires on INSERT (status = PENDING) to start Phase 1.
 CREATE TRIGGER on_ingest_job_created
     AFTER INSERT ON public.ingest_jobs
     FOR EACH ROW
+    EXECUTE FUNCTION public.trigger_ingest_job_webhook();
+
+-- Fires when status transitions to QUEUED_FOR_VEC to start Phase 2.
+-- This separates phases into independent webhook calls so each gets its own
+-- 300s Vercel function window instead of sharing one.
+CREATE TRIGGER on_ingest_job_queued_for_vec
+    AFTER UPDATE ON public.ingest_jobs
+    FOR EACH ROW
+    WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'QUEUED_FOR_VEC')
     EXECUTE FUNCTION public.trigger_ingest_job_webhook();
