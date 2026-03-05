@@ -20,22 +20,22 @@ export declare function cancelEvaluation(jobId: string): Promise<boolean>;
  */
 export declare function getEvaluationJobStatus(jobId: string): Promise<({
     modelConfig: {
-        modelId: string;
         name: string;
+        modelId: string;
     };
 } & {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    environment: string;
-    modelConfigId: string;
     status: import("@prisma/client").$Enums.JobStatus;
+    error: string | null;
+    environment: string;
     totalRecords: number;
     processedCount: number;
+    modelConfigId: string;
     errorCount: number;
     tokensUsed: number;
     cost: number;
-    error: string | null;
     startedAt: Date | null;
     completedAt: Date | null;
 }) | null>;
@@ -44,22 +44,22 @@ export declare function getEvaluationJobStatus(jobId: string): Promise<({
  */
 export declare function getEnvironmentEvaluationJobs(environment: string, limit?: number): Promise<({
     modelConfig: {
-        modelId: string;
         name: string;
+        modelId: string;
     };
 } & {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    environment: string;
-    modelConfigId: string;
     status: import("@prisma/client").$Enums.JobStatus;
+    error: string | null;
+    environment: string;
     totalRecords: number;
     processedCount: number;
+    modelConfigId: string;
     errorCount: number;
     tokensUsed: number;
     cost: number;
-    error: string | null;
     startedAt: Date | null;
     completedAt: Date | null;
 })[]>;

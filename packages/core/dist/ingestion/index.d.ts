@@ -16,7 +16,10 @@ export interface IngestOptions {
  *
  * Environment and type can be extracted from CSV data if not provided.
  */
-export declare function startBackgroundIngest(type: 'CSV' | 'API', payload: string, options: IngestOptions): Promise<string>;
+export declare function startBackgroundIngest(type: 'CSV' | 'API', payload: string, options: IngestOptions): Promise<{
+    jobId: string;
+    environment: string;
+}>;
 /**
  * ENTRY POINT: startBackgroundIngestFromSession
  *
@@ -26,7 +29,10 @@ export declare function startBackgroundIngest(type: 'CSV' | 'API', payload: stri
  *
  * The upload session is deleted by `streamChunksAndProcess` after ingestion completes.
  */
-export declare function startBackgroundIngestFromSession(sessionId: string, totalChunks: number, options: IngestOptions): Promise<string>;
+export declare function startBackgroundIngestFromSession(sessionId: string, totalChunks: number, options: IngestOptions): Promise<{
+    jobId: string;
+    environment: string;
+}>;
 /**
  * PUBLIC ENTRY POINT: processQueuedJobs
  * Triggers processing of both Phase 1 (Data Loading) and Phase 2 (Vectorization) jobs.
@@ -40,6 +46,18 @@ export declare function startBackgroundIngestFromSession(sessionId: string, tota
  * If not provided, processes jobs for all environments.
  */
 export declare function processQueuedJobs(environment?: string): Promise<void>;
+/**
+ * INNGEST ENTRY POINT: runPhase1
+ * Runs Phase 1 (data loading) for a specific job ID.
+ * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ */
+export declare function runPhase1(jobId: string): Promise<void>;
+/**
+ * INNGEST ENTRY POINT: runPhase2
+ * Runs Phase 2 (vectorization) for a specific job ID.
+ * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ */
+export declare function runPhase2(jobId: string, environment: string): Promise<void>;
 /**
  * Phase 1: Data Loading
  * Parses records, filters by content/keywords, detects categories, and prevents duplicates.
@@ -63,10 +81,10 @@ export declare function getIngestStatus(jobId: string): Promise<{
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    environment: string;
     status: string;
-    totalRecords: number;
     error: string | null;
+    environment: string;
+    totalRecords: number;
     type: import("@prisma/client").$Enums.RecordType;
     savedCount: number;
     skippedCount: number;

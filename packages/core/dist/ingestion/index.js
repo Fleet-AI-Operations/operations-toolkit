@@ -94,9 +94,7 @@ export async function startBackgroundIngest(type, payload, options) {
             },
         }
     });
-    // Trigger processing (will be killed in serverless, but status endpoint will re-trigger)
-    processQueuedJobs().catch(err => console.error('Queue Processor Error:', err));
-    return job.id;
+    return { jobId: job.id, environment: environment };
 }
 /**
  * ENTRY POINT: startBackgroundIngestFromSession
@@ -160,8 +158,7 @@ export async function startBackgroundIngestFromSession(sessionId, totalChunks, o
             },
         }
     });
-    processQueuedJobs().catch(err => console.error('Queue Processor Error:', err));
-    return job.id;
+    return { jobId: job.id, environment: environment };
 }
 /**
  * PUBLIC ENTRY POINT: processQueuedJobs
@@ -197,6 +194,125 @@ export async function processQueuedJobs(environment) {
             await processJobs(environment);
             await processVectorizationJobs(environment);
         }));
+    }
+}
+/**
+ * INNGEST ENTRY POINT: runPhase1
+ * Runs Phase 1 (data loading) for a specific job ID.
+ * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ */
+export async function runPhase1(jobId) {
+    const nextJob = await prisma.ingestJob.findUnique({
+        where: { id: jobId },
+        select: { id: true, environment: true, type: true, options: true, status: true }
+    });
+    if (!nextJob || nextJob.status === 'CANCELLED')
+        return;
+    if (!nextJob.options) {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { status: 'FAILED', error: 'Job options missing from database.' }
+        });
+        return;
+    }
+    const storedOptions = nextJob.options;
+    const jobOptions = {
+        environment: nextJob.environment,
+        source: storedOptions.source || 'csv',
+        type: nextJob.type,
+        filterKeywords: storedOptions.filterKeywords,
+        generateEmbeddings: storedOptions.generateEmbeddings ?? true,
+    };
+    const ingestionType = (storedOptions.ingestionType || 'CSV');
+    await prisma.ingestJob.update({
+        where: { id: jobId },
+        data: { status: 'PROCESSING' }
+    });
+    if (ingestionType === 'CSV_SESSION') {
+        const sessionId = storedOptions.sessionId;
+        const totalChunks = storedOptions.totalChunks;
+        if (!sessionId || !totalChunks) {
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { status: 'FAILED', error: 'Session ID or chunk count missing from job options.' }
+            });
+            return;
+        }
+        await streamChunksAndProcess(sessionId, totalChunks, jobOptions, jobId);
+    }
+    else {
+        const jobData = await prisma.ingestJob.findUnique({
+            where: { id: jobId },
+            select: { payload: true }
+        });
+        if (!jobData?.payload) {
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { status: 'FAILED', error: 'Job payload missing from database.' }
+            });
+            return;
+        }
+        if (ingestionType === 'CSV') {
+            await streamCsvAndProcess(jobData.payload, jobOptions, jobId);
+        }
+        else {
+            let data;
+            try {
+                data = JSON.parse(jobData.payload);
+            }
+            catch {
+                const response = await fetch(jobData.payload);
+                data = await response.json();
+            }
+            const records = Array.isArray(data) ? data : [data];
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { totalRecords: records.length }
+            });
+            await processAndStore(records, jobOptions, jobId);
+        }
+    }
+    if (jobOptions.generateEmbeddings) {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { status: 'QUEUED_FOR_VEC' }
+        });
+    }
+    else {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { status: 'COMPLETED', payload: null }
+        });
+    }
+}
+/**
+ * INNGEST ENTRY POINT: runPhase2
+ * Runs Phase 2 (vectorization) for a specific job ID.
+ * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ */
+export async function runPhase2(jobId, environment) {
+    const job = await prisma.ingestJob.findUnique({
+        where: { id: jobId },
+        select: { status: true }
+    });
+    // Already complete (embeddings not requested), cancelled, or failed — nothing to do
+    if (!job || ['COMPLETED', 'CANCELLED', 'FAILED'].includes(job.status))
+        return;
+    await prisma.ingestJob.update({
+        where: { id: jobId },
+        data: { status: 'VECTORIZING' }
+    });
+    await vectorizeJob(jobId, environment);
+    const finalJob = await prisma.ingestJob.findUnique({
+        where: { id: jobId },
+        select: { status: true }
+    });
+    if (finalJob?.status !== 'CANCELLED') {
+        await prisma.ingestJob.update({
+            where: { id: jobId },
+            data: { status: 'COMPLETED', payload: null }
+        });
+        startSimilarityDetection(jobId, environment).catch(err => console.error(`[SimilarityDetection] Failed for job ${jobId}:`, err));
     }
 }
 /**
