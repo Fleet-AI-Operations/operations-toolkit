@@ -47,7 +47,7 @@ model Profile {
 
 model SimilarityJob {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ingestJobId    String          @map("ingest_job_id")
+  ingestJobId    String?         @map("ingest_job_id")
   environment    String
   status         String          @default("PENDING")
   recordsChecked Int             @default(0) @map("records_checked")
@@ -74,10 +74,11 @@ model SimilarityFlag {
   claimedByEmail  String?       @map("claimed_by_email")
   claimedAt       DateTime?     @map("claimed_at") @db.Timestamptz(6)
   notifiedAt      DateTime?     @map("notified_at") @db.Timestamptz(6)
+  matchType       String        @default("USER_HISTORY") @map("match_type")
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   similarityJob   SimilarityJob @relation(fields: [similarityJobId], references: [id], onDelete: Cascade)
 
-  @@unique([sourceRecordId, matchedRecordId])
+  @@unique([sourceRecordId, matchedRecordId, matchType])
   @@map("similarity_flags")
   @@schema("public")
 }
@@ -123,6 +124,7 @@ model DataRecord {
   createdById       String?                @map("createdById")
   createdByName     String?                @map("createdByName")
   createdByEmail    String?                @map("createdByEmail")
+  isDailyGreat      Boolean                @default(false) @map("is_daily_great")
   likertScores      LikertScore[]
   assignments       AssignmentRecord[]
   qaFeedbackRatings QAFeedbackRating[]

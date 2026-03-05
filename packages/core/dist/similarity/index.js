@@ -196,6 +196,45 @@ async function runSimilarityDetection(jobId, ingestJobId, environment) {
                             userEmail,
                             userName: newRec.created_by_name ?? null,
                             environment,
+                            matchType: 'USER_HISTORY',
+                        });
+                    }
+                }
+            }
+        }
+        // Second pass: compare new records against daily great task records
+        const dailyGreatRecords = await prisma.$queryRaw `
+      SELECT id, content, embedding::text AS embedding
+      FROM public.data_records
+      WHERE is_daily_great = true
+      AND type = 'TASK'
+      AND embedding IS NOT NULL
+    `;
+        if (dailyGreatRecords.length > 0) {
+            const parsedGreat = dailyGreatRecords
+                .map(r => ({ id: r.id, content: r.content, vec: parseVector(r.embedding) }))
+                .filter(r => r.vec !== null);
+            for (const newRec of newRecords) {
+                const newVec = parseVector(newRec.embedding);
+                if (!newVec)
+                    continue;
+                for (const great of parsedGreat) {
+                    // Skip identical content
+                    if (newRec.content.trim() === great.content.trim())
+                        continue;
+                    const score = cosineSimilarity(newVec, great.vec);
+                    if (isNaN(score) || !isFinite(score))
+                        continue;
+                    if (score >= threshold) {
+                        allFlags.push({
+                            similarityJobId: jobId,
+                            sourceRecordId: newRec.id,
+                            matchedRecordId: great.id,
+                            similarityScore: score,
+                            userEmail: newRec.created_by_email,
+                            userName: newRec.created_by_name ?? null,
+                            environment,
+                            matchType: 'DAILY_GREAT',
                         });
                     }
                 }
@@ -209,11 +248,11 @@ async function runSimilarityDetection(jobId, ingestJobId, environment) {
             try {
                 await prisma.$executeRaw `
           INSERT INTO public.similarity_flags
-            (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment)
+            (similarity_job_id, source_record_id, matched_record_id, similarity_score, user_email, user_name, environment, match_type)
           VALUES
             (${flag.similarityJobId}::uuid, ${flag.sourceRecordId}, ${flag.matchedRecordId},
-             ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment})
-          ON CONFLICT (source_record_id, matched_record_id) DO NOTHING
+             ${flag.similarityScore}, ${flag.userEmail}, ${flag.userName}, ${flag.environment}, ${flag.matchType})
+          ON CONFLICT (source_record_id, matched_record_id, match_type) DO NOTHING
         `;
                 insertedCount++;
             }
@@ -236,6 +275,7 @@ async function runSimilarityDetection(jobId, ingestJobId, environment) {
                     userName: f.userName ?? undefined,
                     userEmail: f.userEmail,
                     similarityScore: f.similarityScore,
+                    matchType: f.matchType,
                 })),
             }).catch(err => console.error('[SimilarityDetection] Notification error:', err));
         }

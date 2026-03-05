@@ -23,6 +23,38 @@ interface CompareMatch {
     similarity: number;
 }
 
+interface DailyGreatRecord {
+    id: string;
+    environment: string;
+    createdByName: string | null;
+    createdByEmail: string | null;
+    createdAt: string;
+    taskKey: string | null;
+    snippet: string;
+}
+
+interface DailyGreatSearchResult {
+    id: string;
+    environment: string;
+    taskKey: string | null;
+    snippet: string;
+    isDailyGreat: boolean;
+    createdByName: string | null;
+    createdByEmail: string | null;
+    createdAt: string;
+}
+
+interface DailyGreatMatch {
+    taskId: string;
+    taskContent: string;
+    taskAuthor: string | null;
+    taskEmail: string | null;
+    exemplarId: string;
+    exemplarContent: string;
+    exemplarTaskKey: string | null;
+    similarity: number;
+}
+
 interface CsvPreview {
     file: File;
     totalRows: number;
@@ -456,11 +488,13 @@ function ExemplarCard({ exemplar, onEdit, onDelete, editingId, onSaveEdit, onCan
     );
 }
 
+const DG_LIMIT = 20;
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ExemplarTasksPage() {
     const [environment, setEnvironment] = useState('');
-    const [activeTab, setActiveTab] = useState<'manage' | 'compare'>('manage');
+    const [activeTab, setActiveTab] = useState<'manage' | 'compare' | 'daily-great'>('manage');
     const [filterKey, setFilterKey] = useState(0); // increment to re-fetch env list
 
     // Manage tab state
@@ -481,6 +515,30 @@ export default function ExemplarTasksPage() {
     // Embed-pending state
     const [embeddingPending, setEmbeddingPending] = useState(false);
     const [embedResult, setEmbedResult] = useState<{ processed: number; succeeded: number; failed: number } | null>(null);
+
+    // Daily Great Tasks tab state
+    const [dgSearchKey, setDgSearchKey] = useState('');
+    const [dgSearchResults, setDgSearchResults] = useState<DailyGreatSearchResult[]>([]);
+    const [dgSearching, setDgSearching] = useState(false);
+    const [dgSearchError, setDgSearchError] = useState('');
+    const [dgFlagged, setDgFlagged] = useState<DailyGreatRecord[]>([]);
+    const [dgFlaggedTotal, setDgFlaggedTotal] = useState(0);
+    const [dgFlaggedPage, setDgFlaggedPage] = useState(1);
+    const [dgLoadingFlagged, setDgLoadingFlagged] = useState(false);
+    const [dgFlaggedError, setDgFlaggedError] = useState('');
+    const [dgTogglingId, setDgTogglingId] = useState<string | null>(null);
+    const [dgCompareEnv, setDgCompareEnv] = useState('');
+    const [dgThreshold, setDgThreshold] = useState(80);
+    const [dgComparing, setDgComparing] = useState(false);
+    const [dgCompareResult, setDgCompareResult] = useState<{
+        matches: DailyGreatMatch[];
+        totalTasks: number;
+        totalDailyGreat: number;
+        missingEmbeddings: number;
+        tasksSkippedNoParse: number;
+    } | null>(null);
+    const [dgCompareError, setDgCompareError] = useState('');
+    const [dgExpandedId, setDgExpandedId] = useState<string | null>(null);
 
     // Compare tab state
     const [threshold, setThreshold] = useState(70);
@@ -695,6 +753,94 @@ export default function ExemplarTasksPage() {
         }
     };
 
+    // ── Daily Great Tasks: fetch flagged list ─────────────────────────────────
+
+    const fetchDgFlagged = useCallback(async (page: number = 1) => {
+        setDgLoadingFlagged(true);
+        setDgFlaggedError('');
+        try {
+            const res = await fetch(`/api/daily-great-tasks?page=${page}&limit=${DG_LIMIT}`);
+            const data = await res.json();
+            if (res.ok) {
+                setDgFlagged(data.records);
+                setDgFlaggedTotal(data.total);
+            } else {
+                setDgFlaggedError(data.error || 'Failed to load flagged records');
+            }
+        } catch {
+            setDgFlaggedError('Network error');
+        } finally {
+            setDgLoadingFlagged(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 'daily-great') fetchDgFlagged(dgFlaggedPage);
+    }, [activeTab, dgFlaggedPage, fetchDgFlagged]);
+
+    // ── Daily Great Tasks: search ─────────────────────────────────────────────
+
+    const handleDgSearch = async () => {
+        if (!dgSearchKey.trim()) return;
+        setDgSearching(true);
+        setDgSearchError('');
+        setDgSearchResults([]);
+        try {
+            const res = await fetch(`/api/daily-great-tasks/search?task_key=${encodeURIComponent(dgSearchKey.trim())}`);
+            const data = await res.json();
+            if (res.ok) setDgSearchResults(data.records);
+            else setDgSearchError(data.error || 'Search failed');
+        } catch {
+            setDgSearchError('Network error');
+        } finally {
+            setDgSearching(false);
+        }
+    };
+
+    // ── Daily Great Tasks: toggle flag ────────────────────────────────────────
+
+    const handleDgToggle = async (id: string, isDailyGreat: boolean) => {
+        setDgTogglingId(id);
+        try {
+            const res = await fetch(`/api/daily-great-tasks/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isDailyGreat }),
+            });
+            if (res.ok) {
+                // Update search results optimistically
+                setDgSearchResults(prev => prev.map(r => r.id === id ? { ...r, isDailyGreat } : r));
+                // Refresh flagged list (stay on current page)
+                await fetchDgFlagged(dgFlaggedPage);
+            }
+        } finally {
+            setDgTogglingId(null);
+        }
+    };
+
+    // ── Daily Great Tasks: compare ────────────────────────────────────────────
+
+    const handleDgCompare = async () => {
+        setDgComparing(true);
+        setDgCompareError('');
+        setDgCompareResult(null);
+        setDgExpandedId(null);
+        try {
+            const res = await fetch('/api/daily-great-tasks/compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ environment: dgCompareEnv, threshold: dgThreshold }),
+            });
+            const data = await res.json();
+            if (res.ok) setDgCompareResult(data);
+            else setDgCompareError(data.error || 'Comparison failed');
+        } catch {
+            setDgCompareError('Network error');
+        } finally {
+            setDgComparing(false);
+        }
+    };
+
     // ── Tab button styles ─────────────────────────────────────────────────────
 
     const tabStyle = (active: boolean) => ({
@@ -739,6 +885,12 @@ export default function ExemplarTasksPage() {
                         title={!environment ? 'Select a specific environment to compare' : undefined}
                     >
                         Compare
+                    </button>
+                    <button
+                        style={tabStyle(activeTab === 'daily-great')}
+                        onClick={() => setActiveTab('daily-great')}
+                    >
+                        Daily Great Tasks
                     </button>
                 </div>
             </div>
@@ -1049,6 +1201,468 @@ export default function ExemplarTasksPage() {
                     Select a specific environment to run a comparison.
                 </div>
             )}
+            {/* ── DAILY GREAT TASKS TAB ── */}
+            {activeTab === 'daily-great' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+
+                    {/* Section 1: Search & Flag */}
+                    <div>
+                        <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '12px' }}>Search & Flag by Task Key</h2>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                            <input
+                                type="text"
+                                value={dgSearchKey}
+                                onChange={e => setDgSearchKey(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') handleDgSearch(); }}
+                                placeholder="Enter task key…"
+                                style={{
+                                    flex: 1,
+                                    minWidth: '200px',
+                                    padding: '8px 12px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid var(--border)',
+                                    color: 'var(--text)',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                }}
+                            />
+                            <button
+                                onClick={handleDgSearch}
+                                disabled={dgSearching || !dgSearchKey.trim()}
+                                style={{
+                                    padding: '8px 18px',
+                                    borderRadius: '8px',
+                                    background: 'var(--accent)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    fontSize: '0.85rem',
+                                    border: 'none',
+                                    cursor: (dgSearching || !dgSearchKey.trim()) ? 'not-allowed' : 'pointer',
+                                    opacity: (dgSearching || !dgSearchKey.trim()) ? 0.5 : 1,
+                                }}
+                            >
+                                {dgSearching ? 'Searching…' : 'Search'}
+                            </button>
+                        </div>
+
+                        {dgSearchError && (
+                            <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '12px' }}>{dgSearchError}</div>
+                        )}
+
+                        {dgSearchResults.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {dgSearchResults.map(r => (
+                                    <div
+                                        key={r.id}
+                                        style={{
+                                            background: 'rgba(255,255,255,0.04)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: '10px',
+                                            padding: '12px 16px',
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '12px',
+                                        }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                                                {r.taskKey && (
+                                                    <span style={{
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.8rem',
+                                                        color: 'rgba(165,180,252,0.9)',
+                                                        background: 'rgba(99,102,241,0.12)',
+                                                        border: '1px solid rgba(99,102,241,0.3)',
+                                                        borderRadius: '5px',
+                                                        padding: '1px 7px',
+                                                    }}>
+                                                        {r.taskKey}
+                                                    </span>
+                                                )}
+                                                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>
+                                                    {r.environment} · {r.createdByName || r.createdByEmail || 'Unknown'}
+                                                </span>
+                                                {r.isDailyGreat && (
+                                                    <span style={{
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 600,
+                                                        color: '#d97706',
+                                                        background: 'rgba(217,119,6,0.12)',
+                                                        border: '1px solid rgba(217,119,6,0.3)',
+                                                        borderRadius: '5px',
+                                                        padding: '1px 7px',
+                                                    }}>
+                                                        Daily Great
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>
+                                                {r.snippet}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleDgToggle(r.id, !r.isDailyGreat)}
+                                            disabled={dgTogglingId === r.id}
+                                            style={{
+                                                flexShrink: 0,
+                                                padding: '5px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 600,
+                                                cursor: dgTogglingId === r.id ? 'not-allowed' : 'pointer',
+                                                opacity: dgTogglingId === r.id ? 0.5 : 1,
+                                                background: r.isDailyGreat ? 'rgba(239,68,68,0.08)' : 'rgba(217,119,6,0.12)',
+                                                border: r.isDailyGreat ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(217,119,6,0.3)',
+                                                color: r.isDailyGreat ? '#ef4444' : '#d97706',
+                                            }}
+                                        >
+                                            {r.isDailyGreat ? 'Unflag' : 'Flag'}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {dgSearchResults.length === 0 && !dgSearching && dgSearchKey && !dgSearchError && (
+                            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.85rem' }}>
+                                No records found with task key "{dgSearchKey}".
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Section 2: Currently Flagged */}
+                    <div>
+                        <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '12px' }}>
+                            Currently Flagged
+                            {!dgLoadingFlagged && dgFlaggedTotal > 0 && (
+                                <span style={{ marginLeft: '8px', fontSize: '0.8rem', fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>
+                                    ({dgFlaggedTotal})
+                                </span>
+                            )}
+                        </h2>
+
+                        {dgFlaggedError && (
+                            <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '12px' }}>{dgFlaggedError}</div>
+                        )}
+
+                        {dgLoadingFlagged ? (
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}>Loading…</div>
+                        ) : dgFlagged.length === 0 ? (
+                            <div style={{
+                                padding: '24px',
+                                textAlign: 'center',
+                                color: 'rgba(255,255,255,0.3)',
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px dashed var(--border)',
+                                borderRadius: '10px',
+                                fontSize: '0.9rem',
+                            }}>
+                                No daily great tasks flagged yet. Search above to flag records.
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                            {['Task Key', 'Snippet', 'Environment', 'Creator', 'Flagged', ''].map(h => (
+                                                <th key={h} style={{
+                                                    padding: '8px 12px',
+                                                    textAlign: 'left',
+                                                    color: 'rgba(255,255,255,0.45)',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.72rem',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.05em',
+                                                    whiteSpace: 'nowrap',
+                                                }}>
+                                                    {h}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {dgFlagged.map(r => (
+                                            <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                                                    {r.taskKey ? (
+                                                        <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'rgba(165,180,252,0.9)' }}>
+                                                            {r.taskKey}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.75rem' }}>—</span>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '10px 12px', maxWidth: '320px' }}>
+                                                    <div style={{
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: 'vertical',
+                                                        color: 'rgba(255,255,255,0.7)',
+                                                        lineHeight: 1.4,
+                                                    }}>
+                                                        {r.snippet}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.55)' }}>
+                                                    {r.environment}
+                                                </td>
+                                                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.55)' }}>
+                                                    {r.createdByName || r.createdByEmail || '—'}
+                                                </td>
+                                                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
+                                                    {new Date(r.createdAt).toLocaleDateString()}
+                                                </td>
+                                                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                                                    <button
+                                                        onClick={() => handleDgToggle(r.id, false)}
+                                                        disabled={dgTogglingId === r.id}
+                                                        style={{
+                                                            padding: '4px 10px',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.78rem',
+                                                            fontWeight: 600,
+                                                            cursor: dgTogglingId === r.id ? 'not-allowed' : 'pointer',
+                                                            opacity: dgTogglingId === r.id ? 0.5 : 1,
+                                                            background: 'rgba(239,68,68,0.08)',
+                                                            border: '1px solid rgba(239,68,68,0.3)',
+                                                            color: '#ef4444',
+                                                        }}
+                                                    >
+                                                        Unflag
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Pagination */}
+                        {dgFlaggedTotal > DG_LIMIT && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                                <button
+                                    onClick={() => setDgFlaggedPage(p => Math.max(1, p - 1))}
+                                    disabled={dgFlaggedPage === 1 || dgLoadingFlagged}
+                                    style={{
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid var(--border)',
+                                        color: dgFlaggedPage === 1 ? 'rgba(255,255,255,0.2)' : 'var(--text)',
+                                        cursor: dgFlaggedPage === 1 || dgLoadingFlagged ? 'not-allowed' : 'pointer',
+                                        fontSize: '0.85rem',
+                                    }}
+                                >
+                                    ← Prev
+                                </button>
+                                <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.45)' }}>
+                                    Page {dgFlaggedPage} of {Math.ceil(dgFlaggedTotal / DG_LIMIT)}
+                                </span>
+                                <button
+                                    onClick={() => setDgFlaggedPage(p => Math.min(Math.ceil(dgFlaggedTotal / DG_LIMIT), p + 1))}
+                                    disabled={dgFlaggedPage >= Math.ceil(dgFlaggedTotal / DG_LIMIT) || dgLoadingFlagged}
+                                    style={{
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid var(--border)',
+                                        color: dgFlaggedPage >= Math.ceil(dgFlaggedTotal / DG_LIMIT) ? 'rgba(255,255,255,0.2)' : 'var(--text)',
+                                        cursor: dgFlaggedPage >= Math.ceil(dgFlaggedTotal / DG_LIMIT) || dgLoadingFlagged ? 'not-allowed' : 'pointer',
+                                        fontSize: '0.85rem',
+                                    }}
+                                >
+                                    Next →
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Section 3: On-Demand Compare */}
+                    <div>
+                        <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '12px' }}>On-Demand Compare</h2>
+                        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', marginBottom: '16px' }}>
+                            Compare all tasks in an environment against the flagged daily great records.
+                        </p>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                            <select
+                                value={dgCompareEnv}
+                                onChange={e => { setDgCompareEnv(e.target.value); setDgCompareResult(null); setDgCompareError(''); }}
+                                style={{
+                                    padding: '8px 12px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid var(--border)',
+                                    color: 'var(--text)',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                    minWidth: '180px',
+                                }}
+                            >
+                                <option value="">Select environment…</option>
+                                {/* Populate from flagged environments */}
+                                {[...new Set(dgFlagged.map(r => r.environment))].sort().map(env => (
+                                    <option key={env} value={env}>{env}</option>
+                                ))}
+                            </select>
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>
+                                Threshold
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    value={dgThreshold}
+                                    onChange={e => setDgThreshold(Number(e.target.value))}
+                                    style={{
+                                        width: '60px',
+                                        padding: '6px 10px',
+                                        borderRadius: '6px',
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid var(--border)',
+                                        color: 'var(--text)',
+                                        fontSize: '0.9rem',
+                                        textAlign: 'center',
+                                        outline: 'none',
+                                    }}
+                                />
+                                <span style={{ color: 'rgba(255,255,255,0.5)' }}>%</span>
+                            </label>
+
+                            <button
+                                onClick={handleDgCompare}
+                                disabled={dgComparing || !dgCompareEnv || dgFlagged.length === 0}
+                                style={{
+                                    padding: '8px 20px',
+                                    borderRadius: '8px',
+                                    background: 'var(--accent)',
+                                    color: '#fff',
+                                    fontWeight: 600,
+                                    fontSize: '0.85rem',
+                                    border: 'none',
+                                    cursor: (dgComparing || !dgCompareEnv || dgFlagged.length === 0) ? 'not-allowed' : 'pointer',
+                                    opacity: (dgComparing || !dgCompareEnv || dgFlagged.length === 0) ? 0.5 : 1,
+                                }}
+                            >
+                                {dgComparing ? 'Running…' : 'Run Comparison'}
+                            </button>
+                        </div>
+
+                        {dgCompareError && (
+                            <div style={{
+                                padding: '12px 16px',
+                                borderRadius: '8px',
+                                background: 'rgba(239,68,68,0.1)',
+                                border: '1px solid rgba(239,68,68,0.25)',
+                                color: '#ef4444',
+                                fontSize: '0.85rem',
+                                marginBottom: '16px',
+                            }}>
+                                {dgCompareError}
+                            </div>
+                        )}
+
+                        {dgCompareResult && (
+                            <div>
+                                <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
+                                    Compared {dgCompareResult.totalTasks} task{dgCompareResult.totalTasks !== 1 ? 's' : ''} against {dgCompareResult.totalDailyGreat} daily great record{dgCompareResult.totalDailyGreat !== 1 ? 's' : ''}.
+                                    {dgCompareResult.missingEmbeddings > 0 && (
+                                        <span style={{ color: 'rgba(255,180,0,0.7)', marginLeft: '8px' }}>
+                                            {dgCompareResult.missingEmbeddings} daily great record{dgCompareResult.missingEmbeddings !== 1 ? 's' : ''} skipped (no embedding).
+                                        </span>
+                                    )}
+                                    {' '}Found <strong style={{ color: 'var(--text)' }}>{dgCompareResult.matches.length}</strong> match{dgCompareResult.matches.length !== 1 ? 'es' : ''} above {dgThreshold}%.
+                                </div>
+
+                                {dgCompareResult.matches.length === 0 ? (
+                                    <div style={{
+                                        padding: '32px',
+                                        textAlign: 'center',
+                                        color: 'rgba(255,255,255,0.3)',
+                                        background: 'rgba(255,255,255,0.03)',
+                                        border: '1px dashed var(--border)',
+                                        borderRadius: '10px',
+                                    }}>
+                                        {dgCompareResult.totalTasks === 0
+                                            ? 'No tasks with embeddings found in this environment.'
+                                            : `No tasks matched above ${dgThreshold}% threshold.`
+                                        }
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {dgCompareResult.matches.map((match, i) => {
+                                            const key = match.taskId + i;
+                                            const isExpanded = dgExpandedId === key;
+                                            return (
+                                                <div
+                                                    key={key}
+                                                    style={{
+                                                        background: 'rgba(255,255,255,0.04)',
+                                                        border: '1px solid var(--border)',
+                                                        borderRadius: '10px',
+                                                        padding: '14px 16px',
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                                        <ScoreBadge score={match.similarity} />
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '6px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>
+                                                                {(match.taskAuthor || match.taskEmail) && (
+                                                                    <span>
+                                                                        {match.taskAuthor || match.taskEmail}
+                                                                        {match.taskAuthor && match.taskEmail && (
+                                                                            <span style={{ marginLeft: '4px', opacity: 0.6 }}>({match.taskEmail})</span>
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                                <span style={{ fontFamily: 'monospace', opacity: 0.6 }}>
+                                                                    ID: {match.taskId.length > 16 ? match.taskId.slice(0, 16) + '…' : match.taskId}
+                                                                </span>
+                                                            </div>
+                                                            <div
+                                                                style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)', marginBottom: '8px', cursor: 'pointer', lineHeight: 1.5 }}
+                                                                onClick={() => setDgExpandedId(prev => prev === key ? null : key)}
+                                                            >
+                                                                {isExpanded ? match.taskContent : (
+                                                                    match.taskContent.length > 200
+                                                                        ? match.taskContent.slice(0, 200) + '…'
+                                                                        : match.taskContent
+                                                                )}
+                                                                {match.taskContent.length > 200 && (
+                                                                    <span style={{ color: 'var(--accent)', fontSize: '0.8rem', marginLeft: '6px', fontWeight: 600 }}>
+                                                                        {isExpanded ? 'Show less' : 'Show more'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.8rem' }}>
+                                                                <span style={{ color: '#d97706', fontWeight: 700, flexShrink: 0 }}>→ Daily Great</span>
+                                                                <div style={{ color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                                                                    {match.exemplarTaskKey && (
+                                                                        <span style={{ fontFamily: 'monospace', marginRight: '6px', color: 'rgba(165,180,252,0.7)' }}>
+                                                                            [{match.exemplarTaskKey}]
+                                                                        </span>
+                                                                    )}
+                                                                    {match.exemplarContent.length > 120
+                                                                        ? match.exemplarContent.slice(0, 120) + '…'
+                                                                        : match.exemplarContent}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'compare' && environment && (
                 <div>
                     {/* Controls */}

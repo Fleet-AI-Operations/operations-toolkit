@@ -16,12 +16,15 @@ interface SimilarityFlag {
     claimedByEmail: string | null;
     claimedAt: string | null;
     notifiedAt: string | null;
+    matchType: string;
     createdAt: string;
     sourceSnippet: string | null;
     matchedSnippet: string | null;
+    matchedTaskKey: string | null;
 }
 
 type StatusFilter = '' | 'OPEN' | 'CLAIMED';
+type MatchTypeFilter = '' | 'USER_HISTORY' | 'DAILY_GREAT';
 
 const LIMIT = 10;
 
@@ -34,6 +37,7 @@ export default function SimilarityFlagsPage() {
     const [environments, setEnvironments] = useState<string[]>([]);
     const [selectedEnv, setSelectedEnv] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+    const [matchTypeFilter, setMatchTypeFilter] = useState<MatchTypeFilter>('');
     const [mineOnly, setMineOnly] = useState(false);
     const [claimingId, setClaimingId] = useState<string | null>(null);
     const [modal, setModal] = useState<{ recordId: string; label: string } | null>(null);
@@ -47,7 +51,7 @@ export default function SimilarityFlagsPage() {
 
     const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
-    const fetchFlags = useCallback(async (p: number, env: string, status: StatusFilter, mine: boolean) => {
+    const fetchFlags = useCallback(async (p: number, env: string, status: StatusFilter, mine: boolean, matchType: MatchTypeFilter) => {
         setLoading(true);
         setError(null);
         try {
@@ -55,6 +59,7 @@ export default function SimilarityFlagsPage() {
             if (env) params.set('environment', env);
             if (status) params.set('status', status);
             if (status === 'CLAIMED' && mine) params.set('claimedBy', 'me');
+            if (matchType) params.set('matchType', matchType);
             const res = await fetch(`/api/similarity-flags?${params}`);
             if (!res.ok) {
                 const data = await res.json();
@@ -83,8 +88,8 @@ export default function SimilarityFlagsPage() {
     }, []);
 
     useEffect(() => {
-        fetchFlags(page, selectedEnv, statusFilter, mineOnly);
-    }, [page, selectedEnv, statusFilter, mineOnly, fetchFlags]);
+        fetchFlags(page, selectedEnv, statusFilter, mineOnly, matchTypeFilter);
+    }, [page, selectedEnv, statusFilter, mineOnly, matchTypeFilter, fetchFlags]);
 
     function handleEnvChange(env: string) {
         setSelectedEnv(env);
@@ -94,6 +99,11 @@ export default function SimilarityFlagsPage() {
     function handleStatusFilter(status: StatusFilter) {
         setStatusFilter(status);
         setMineOnly(false);
+        setPage(1);
+    }
+
+    function handleMatchTypeFilter(mt: MatchTypeFilter) {
+        setMatchTypeFilter(mt);
         setPage(1);
     }
 
@@ -223,8 +233,41 @@ export default function SimilarityFlagsPage() {
                     ))}
                 </select>
 
+                <div style={{ display: 'flex', gap: '4px' }}>
+                    {([
+                        { value: '', label: 'All types' },
+                        { value: 'USER_HISTORY', label: 'User History' },
+                        { value: 'DAILY_GREAT', label: 'Daily Great Task' },
+                    ] as { value: MatchTypeFilter; label: string }[]).map(({ value, label }) => (
+                        <button
+                            key={value || 'all'}
+                            onClick={() => handleMatchTypeFilter(value)}
+                            style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid',
+                                cursor: 'pointer',
+                                fontSize: '0.82rem',
+                                fontWeight: 500,
+                                transition: 'all 0.15s',
+                                borderColor: matchTypeFilter === value
+                                    ? (value === 'DAILY_GREAT' ? 'rgba(217,119,6,0.5)' : 'rgba(255,255,255,0.3)')
+                                    : 'rgba(255,255,255,0.1)',
+                                background: matchTypeFilter === value
+                                    ? (value === 'DAILY_GREAT' ? 'rgba(217,119,6,0.12)' : 'rgba(255,255,255,0.1)')
+                                    : 'transparent',
+                                color: matchTypeFilter === value
+                                    ? (value === 'DAILY_GREAT' ? '#d97706' : 'rgba(255,255,255,0.9)')
+                                    : 'rgba(255,255,255,0.5)',
+                            }}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
                 <button
-                    onClick={() => fetchFlags(page, selectedEnv, statusFilter, mineOnly)}
+                    onClick={() => fetchFlags(page, selectedEnv, statusFilter, mineOnly, matchTypeFilter)}
                     style={{
                         display: 'flex', alignItems: 'center', gap: '6px',
                         background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
@@ -359,6 +402,26 @@ export default function SimilarityFlagsPage() {
                                     {/* Match snippet */}
                                     <td style={{ padding: '12px 14px', maxWidth: '260px' }}>
                                         <button onClick={() => openModal(flag.matchedRecordId, 'Match')} style={snippetBtn}>
+                                            {flag.matchType === 'DAILY_GREAT' && (
+                                                <div style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span style={{
+                                                        fontSize: '0.72rem',
+                                                        fontWeight: 700,
+                                                        color: '#d97706',
+                                                        background: 'rgba(217,119,6,0.12)',
+                                                        border: '1px solid rgba(217,119,6,0.3)',
+                                                        borderRadius: '4px',
+                                                        padding: '1px 6px',
+                                                    }}>
+                                                        Daily Great Task
+                                                    </span>
+                                                    {flag.matchedTaskKey && (
+                                                        <span style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'rgba(165,180,252,0.8)' }}>
+                                                            {flag.matchedTaskKey}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                             <div style={snippetText}>
                                                 {flag.matchedSnippet || flag.matchedRecordId}
                                             </div>
