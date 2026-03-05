@@ -12,11 +12,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
+
+    if (profileError) {
+        console.error('[duplicate-records] Failed to fetch profile:', profileError);
+        return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 });
+    }
 
     if ((profile as any)?.role !== 'ADMIN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -28,8 +33,8 @@ export async function GET(req: NextRequest) {
         `;
         return NextResponse.json({ count: Number(result[0].count) });
     } catch (error: any) {
-        // Table may not exist yet if migration has not been applied
-        if (error.message?.includes('_duplicates_to_delete')) {
+        // PG error code 42P01 = relation does not exist (migration not yet applied)
+        if (error?.meta?.code === '42P01') {
             return NextResponse.json({ count: 0 });
         }
         console.error('[duplicate-records] Failed to query duplicate count:', error);

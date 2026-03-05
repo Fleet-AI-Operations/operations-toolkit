@@ -55,17 +55,30 @@ export default function AdminConsole() {
             while (true) {
                 const res = await fetch('/api/admin/duplicate-records/delete', { method: 'POST' });
                 if (!res.ok) {
-                    const data = await res.json();
-                    throw new Error(data.error || 'Deletion failed');
+                    let errorMessage = `Server error ${res.status}`;
+                    try {
+                        const data = await res.json();
+                        errorMessage = data.error || errorMessage;
+                    } catch {
+                        errorMessage = `Server returned a non-JSON error (HTTP ${res.status}). Check server logs.`;
+                    }
+                    throw new Error(errorMessage);
                 }
                 const data = await res.json();
                 totalDeleted += data.deleted;
                 setDeletionProgress({ deleted: totalDeleted, total });
                 setDuplicateCount(data.remaining);
                 if (data.done) break;
+                // Safety: if a batch made no progress and we're not done, something is stuck
+                if (data.deleted === 0) {
+                    throw new Error('Batch returned 0 deletions but is not complete. Aborting to prevent infinite loop.');
+                }
             }
         } catch (err: any) {
-            setStatus({ type: 'error', message: `Duplicate deletion failed: ${err.message}` });
+            const progressNote = totalDeleted > 0
+                ? ` (${totalDeleted.toLocaleString()} records deleted before failure — click Delete again to resume)`
+                : '';
+            setStatus({ type: 'error', message: `Duplicate deletion failed: ${err.message}${progressNote}` });
         } finally {
             setDeletingDuplicates(false);
             setDeletionProgress(null);
@@ -79,9 +92,16 @@ export default function AdminConsole() {
             if (res.ok) {
                 const data = await res.json();
                 setDuplicateCount(data.count);
+            } else if (res.status === 401 || res.status === 403) {
+                setStatus({ type: 'error', message: 'Session expired or insufficient permissions. Please refresh the page.' });
+                setDuplicateCount(0);
+            } else {
+                setStatus({ type: 'error', message: `Failed to load duplicate count (HTTP ${res.status}). Try refreshing.` });
+                setDuplicateCount(0);
             }
         } catch (err) {
             console.error('Failed to fetch duplicate count', err);
+            setDuplicateCount(0);
         } finally {
             setFetchingDuplicates(false);
         }
