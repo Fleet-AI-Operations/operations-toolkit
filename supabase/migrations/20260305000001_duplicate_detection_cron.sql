@@ -1,0 +1,5 @@
+-- Initial version of the duplicate detection migration, applied to preview environments
+-- before code review. Superseded by 20260305000002_duplicate_detection_cron.sql which adds:
+--   - DO $$ block for safe cron.unschedule (replaces fragile SELECT...WHERE EXISTS)
+--   - PRIMARY KEY on _duplicates_to_delete.id for efficient batch deletions
+--   - Corrected comments (timezone, "run immediately" example, removed dead reference)
