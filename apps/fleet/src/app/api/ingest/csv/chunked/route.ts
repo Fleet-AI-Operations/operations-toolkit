@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngestFromSession, processQueuedJobs } from '@repo/core/ingestion';
+import { startBackgroundIngestFromSession } from '@repo/core/ingestion';
 import { prisma } from '@repo/database';
 
 export const dynamic = 'force-dynamic';
@@ -183,16 +183,12 @@ export async function POST(req: NextRequest) {
                 // Pass a session reference to the ingestion pipeline — chunks are streamed
                 // directly from the database during processing, never assembled into a single string.
                 // The session is deleted by the processor after all chunks have been consumed.
-                const jobId = await startBackgroundIngestFromSession(id, session.total_chunks, {
+                // Processing is triggered by the Supabase DB webhook on ingest_jobs INSERT.
+                const { jobId } = await startBackgroundIngestFromSession(id, session.total_chunks, {
                     source: `csv:${session.file_name}`,
                     filterKeywords: undefined,
                     generateEmbeddings: session.generate_embeddings,
                 });
-
-                // IMPORTANT: In serverless, we must await initial processing or it gets killed
-                await processQueuedJobs().catch(err =>
-                    console.error('Initial Queue Processor Error:', err)
-                );
 
                 return NextResponse.json({
                     message: 'Ingestion started in the background.',

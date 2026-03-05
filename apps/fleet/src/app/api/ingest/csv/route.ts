@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest, processQueuedJobs } from '@repo/core/ingestion';
+import { startBackgroundIngest } from '@repo/core/ingestion';
 import { RecordType } from '@prisma/client';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
@@ -67,19 +67,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'CSV file is empty' }, { status: 400 });
         }
 
-        // Start background ingestion (environment and type extracted from CSV data)
-        const jobId = await startBackgroundIngest('CSV', csvContent, {
+        const { jobId } = await startBackgroundIngest('CSV', csvContent, {
             source: `csv:${file.name}`,
             filterKeywords,
             generateEmbeddings,
         });
 
-        // IMPORTANT: In serverless, we must await initial processing or it gets killed
-        // Status endpoint will continue processing on each poll
-        await processQueuedJobs().catch(err =>
-            console.error('Initial Queue Processor Error:', err)
-        );
-
+        // Processing is triggered by the Supabase DB webhook on ingest_jobs INSERT.
         return NextResponse.json({
             message: 'Ingestion started in the background.',
             jobId

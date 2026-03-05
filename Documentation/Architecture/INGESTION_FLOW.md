@@ -1,67 +1,66 @@
-# Ingestion & Queuing Flow
+# Ingestion & Processing Flow
 
-The tool implements a high-performance, asynchronous, and parallelized queuing system designed to handle large datasets while maintaining a responsive UI and preventing local AI server overload.
+The ingestion system uses a webhook-driven, two-phase architecture to handle large datasets without blocking Vercel serverless function timeouts.
 
-## Process Lifecycle (Decoupled Phases)
+## How It Works
 
-Ingestion is split into two distinct phases to optimize for immediate data availability.
+When a new `ingest_jobs` row is inserted, a Supabase DB trigger fires an async HTTP POST (via `pg_net`) to `/api/ingest/process-job`. That endpoint authenticates the request, responds immediately with `{ received: true }`, then uses Vercel's `waitUntil` to run Phase 1 and Phase 2 in the background — keeping the function alive up to `maxDuration = 300s` after the response is sent.
+
+No polling, no cron job, no third-party queue service required.
+
+## Process Lifecycle
 
 ### Standard CSV / API Upload
 
 ```mermaid
 sequenceDiagram
     participant UI as Frontend (Client)
-    participant API as API Route
+    participant API as Ingest API Route
+    participant DB as Postgres (Supabase)
+    participant TRIG as DB Trigger (pg_net)
+    participant WH as /api/ingest/process-job
     participant LIB as Ingestion Library
-    participant VEC as Vector Worker
-    participant SIM as Similarity Detector
-    participant NOTIFY as Notification Service
-    participant DB as Postgres (Prisma)
+    participant AI as AI Service
 
     UI->>API: POST /api/ingest/csv (File)
     API->>LIB: startBackgroundIngest()
-    LIB->>DB: Create Job (PENDING, payload stored)
-    LIB-->>UI: Return JobId
+    LIB->>DB: INSERT ingest_jobs (status: PENDING)
+    DB->>TRIG: on_ingest_job_created fires
+    TRIG->>WH: async HTTP POST { job_id, environment, status }
+    LIB-->>API: { jobId, environment }
+    API-->>UI: { jobId }
+
+    Note over WH: Authenticates x-webhook-secret, responds immediately
+    WH->>WH: waitUntil(runPhase1 → runPhase2)
 
     Note over LIB, DB: Phase 1: Data Loading (PROCESSING)
+    WH->>LIB: runPhase1(jobId)
+    LIB->>DB: CAS: PENDING → PROCESSING
     LIB->>DB: Stream records via async csv-parse (Batch: 100)
-    LIB->>DB: Update savedCount (HEARTBEAT)
+    LIB->>DB: Update savedCount (heartbeat)
+    LIB->>DB: CAS complete: PROCESSING → QUEUED_FOR_VEC
 
-    Note over LIB, VEC: Transition to Vector Queue
-    LIB->>DB: Update Job (QUEUED_FOR_VEC)
-    LIB->>VEC: Trigger processVectorQueues()
-
-    Note over VEC, DB: Phase 2: Vectorizing (VECTORIZING)
-    VEC->>DB: Fetch records without embeddings
-    VEC->>AI: Batch getEmbeddings (Batch: 25)
-    VEC->>DB: Update record embeddings
-    VEC->>DB: Update Job (COMPLETED)
-
-    Note over SIM, DB: Phase 3: Similarity Detection (background)
-    VEC->>SIM: startSimilarityDetection(jobId, environment)
-    SIM->>DB: Create similarity_jobs row (PENDING)
-    SIM->>DB: Fetch new TASK records with embeddings
-    SIM->>DB: Fetch historical TASK records per user
-    SIM->>SIM: Compute cosine similarity for each pair
-    SIM->>DB: Insert similarity_flags (ON CONFLICT DO NOTHING)
-    SIM->>DB: Update similarity_jobs (COMPLETED, flagsFound)
-    SIM->>NOTIFY: notifySimilarityDetected() if flags > 0
+    Note over LIB, AI: Phase 2: Vectorization (VECTORIZING)
+    WH->>LIB: runPhase2(jobId, environment)
+    LIB->>DB: CAS: QUEUED_FOR_VEC → VECTORIZING
+    LIB->>DB: Fetch records without embeddings
+    LIB->>AI: Batch getEmbeddings (Batch: 25)
+    LIB->>DB: Update record embeddings
+    LIB->>DB: Update Job (COMPLETED)
+    LIB->>LIB: startSimilarityDetection() [fire-and-forget]
 ```
-
-### Phase 3: Similarity Detection
-
-After vectorization completes, the system automatically runs a background similarity detection pass over the newly ingested records. This phase compares the cosine similarity of each new task's embedding against historical task embeddings from the same user. Any pair exceeding the configured threshold (default: 80%) is written to the `similarity_flags` table as an `OPEN` flag. Flags are surfaced in the **Similarity Flags** dashboard (Core app) for review by CORE, FLEET, MANAGER, and ADMIN users. The entire phase is non-blocking — ingestion completes regardless of similarity detection outcomes.
 
 ### Chunked Upload (Large Files)
 
-Large CSV files are uploaded in chunks to avoid request timeouts. The ingestion pipeline streams chunks directly from the database during processing — the full file is **never assembled as a single string** in memory, keeping peak memory usage to ~one chunk (~4 MB) regardless of file size.
+Large CSV files are uploaded in chunks to avoid request body size limits. The ingestion pipeline streams chunks directly from the database during Phase 1 — the full file is **never assembled in memory**, keeping peak memory usage to ~one chunk (~4 MB) regardless of file size.
 
 ```mermaid
 sequenceDiagram
     participant UI as Frontend (Client)
     participant API as Chunked Upload Route
+    participant DB as Postgres
+    participant WH as /api/ingest/process-job
     participant LIB as Ingestion Library
-    participant DB as Postgres (Prisma)
 
     UI->>API: start (uploadId, totalChunks)
     API->>DB: Create upload_sessions row
@@ -77,7 +76,8 @@ sequenceDiagram
     UI->>API: complete (uploadId)
     API->>DB: Validate chunk count + SUM(size)
     API->>LIB: startBackgroundIngestFromSession(sessionId, totalChunks)
-    LIB->>DB: Create Job (PENDING, payload: null, options: { sessionId })
+    LIB->>DB: INSERT ingest_jobs (status: PENDING)
+    DB->>WH: DB trigger fires (async HTTP POST)
     API-->>UI: { jobId }
 
     Note over LIB, DB: Phase 1: Data Loading (PROCESSING)
@@ -91,43 +91,90 @@ sequenceDiagram
     LIB->>DB: Update Job (QUEUED_FOR_VEC)
 ```
 
-## Internal Mechanics
+### Phase 3: Similarity Detection
 
-### 1. Parallel Execution
-Unlike typical sequential queues, this system allows **Phase 1 (Data Loading)** of Job B to run while **Phase 2 (Vectorizing)** of Job A is still active.
-- **Why?** Data loading is DB-bound and very fast. Vectorizing is GPU-bound and slow.
-- **Result**: Users see their new records in the dashboard almost instantly, while AI enrichment happens in the background.
+After Phase 2 completes, `startSimilarityDetection(jobId, environment)` is called as a fire-and-forget task (errors are logged but do not fail the job). It compares the cosine similarity of each new task's embedding against historical task embeddings from the same user. Any pair exceeding the configured threshold (default: 80%) is written to the `similarity_flags` table as an `OPEN` flag. Flags are surfaced in the **Similarity Flags** dashboard (Core app) for CORE, FLEET, MANAGER, and ADMIN users.
 
-### 2. Multi-Stage Status Lifecycle
+## Webhook Configuration
 
-**Ingestion job statuses:**
-- **PENDING**: Job is queued, waiting for its turn to load data.
-- **PROCESSING**: The system is currently parsing the source and saving records to PostgreSQL.
-- **QUEUED_FOR_VEC**: Data is safely stored, but the AI server is currently busy with another job.
-- **VECTORIZING**: The AI server is actively generating embeddings for this job.
-- **COMPLETED/FAILED/CANCELLED**: Terminal states.
+The trigger reads its URL and secret from `public.ingest_webhook_config`:
+
+```sql
+INSERT INTO public.ingest_webhook_config (key, value) VALUES
+    ('url',    'https://your-fleet-app.vercel.app/api/ingest/process-job'),
+    ('secret', 'your-secret')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+```
+
+The `WEBHOOK_SECRET` environment variable in Vercel must match the `secret` value. If `url` is not set or empty, the trigger is a safe no-op — no requests are sent.
+
+## Idempotency & Concurrency
+
+Both phase functions use **atomic Compare-And-Swap (CAS)** status transitions:
+
+```sql
+UPDATE public.ingest_jobs SET status = 'PROCESSING', "updatedAt" = NOW()
+WHERE id = $jobId AND status = 'PENDING'
+```
+
+`pg_net` delivers at-least-once, so a job may receive duplicate webhook calls. The CAS update returns 0 rows affected if the job has already been claimed, making all duplicate deliveries safe no-ops.
+
+## Status Lifecycle
+
+```
+PENDING → PROCESSING → QUEUED_FOR_VEC → VECTORIZING → COMPLETED
+                                                      → FAILED
+                                                      → CANCELLED
+```
+
+| Status | Meaning |
+|---|---|
+| `PENDING` | Job created; webhook not yet received or processed |
+| `PROCESSING` | Phase 1 running — parsing source and writing records to DB |
+| `QUEUED_FOR_VEC` | Data loaded; Phase 2 not yet started |
+| `VECTORIZING` | Phase 2 running — generating AI embeddings |
+| `COMPLETED` | Both phases complete; embeddings available |
+| `FAILED` | An error occurred; `error` column has details |
+| `CANCELLED` | Cancelled by user before completion |
 
 **Similarity job statuses** (tracked separately in `similarity_jobs`):
-- **PENDING**: Similarity detection has been queued but has not yet started scanning records.
-- **PROCESSING**: The detector is actively computing cosine similarity and writing flags.
-- **COMPLETED**: All pairs have been evaluated; `flagsFound` reflects the count of new flags inserted.
-- **FAILED**: An unrecoverable error occurred during detection; the ingestion job itself is unaffected.
 
-### 3. Queue Locking & Stability
-- **Data Lock**: Only one job per environment can be in `PROCESSING` at a time to ensure database write order and prevent primary key collisions.
-- **AI Lock**: Only one job per environment can be in `VECTORIZING` at a time to prevent overlapping requests from crashing local AI hosts (like LM Studio).
+| Status | Meaning |
+|---|---|
+| `PENDING` | Queued but not yet scanning |
+| `PROCESSING` | Actively computing cosine similarity and writing flags |
+| `COMPLETED` | All pairs evaluated; `flagsFound` reflects new flags inserted |
+| `FAILED` | Error during detection; ingestion job itself is unaffected |
 
-### 4. Recovery & Resumption
-- **Zombie Cleanup**: On server restart, any jobs left in `PROCESSING` are automatically failed. For `CSV_SESSION` jobs, the upload session rows remain in `upload_chunks` until either the processor completes successfully or the session TTL expires (10 minutes), at which point opportunistic cleanup removes them.
-- **Vector Resumption**: Any jobs in `QUEUED_FOR_VEC` or `VECTORIZING` can be resumed. The system scans for records missing embeddings and picks up exactly where it left off.
+## Error Handling & Recovery
 
-### 5. Performance Optimizations
-- **Initial Load**: Using a `CHUNK_SIZE` of 100 for database insertions.
-- **AI Batching**: We use a `BATCH_SIZE` of 25 for embeddings, significantly reducing network overhead to the local AI server.
-- **Deduplication**: Every record is checked for uniqueness using `task_id`, `task_key`, or `id` before insertion.
-- **Memory-Bounded Streaming**: Both standard and chunked CSV paths use the async `csv-parse` API. Records are processed in batches of 100 — only one batch is held in memory at a time regardless of total file size.
+### Errors During Processing
 
-### 6. Cost Considerations (OpenRouter)
+Both `runPhase1` and `runPhase2` wrap all processing in a try-catch. On any error:
+1. The job is updated to `FAILED` with the error message
+2. The payload is cleared (null) to free storage
+3. The error is re-thrown so it appears in Vercel logs
+
+### Zombie Detection
+
+The `GET /api/ingest/status` endpoint detects jobs stuck in `PROCESSING` or `VECTORIZING` for more than 10 minutes (2× the 300s `maxDuration`). These are assumed to have been killed by a Vercel timeout and are automatically marked `FAILED` with an actionable message:
+
+- `PROCESSING` → `FAILED`: "Ingestion timed out. Please re-upload the file."
+- `VECTORIZING` → `FAILED`: "Vectorization timed out. Use retroactive vectorization to resume."
+
+### Retroactive Vectorization
+
+Jobs that fail during Phase 2 can be resumed via `POST /api/ingest/retroactive-vectorization`. This creates a new `ingest_job` row with status `QUEUED_FOR_VEC`, which triggers the webhook and runs Phase 2 directly — Phase 1 is skipped since records are already in the database.
+
+## Performance
+
+- **Phase 1 batch size**: 100 records per DB insert
+- **Phase 2 batch size**: 25 records per AI embedding request
+- **Memory**: Only one batch held in memory at a time (both standard and chunked paths)
+- **Deduplication**: Records checked for uniqueness via `task_id`, `task_key`, or `id` before insertion
+- **Parallelism**: Multiple jobs can load data simultaneously; vectorization is per-environment to avoid overloading AI hosts
+
+## Cost Considerations (OpenRouter)
 
 When using OpenRouter for embeddings:
 - Each batch of 25 records incurs an API cost based on token count

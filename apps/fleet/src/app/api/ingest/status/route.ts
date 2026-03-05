@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
-import { processQueuedJobs } from '@repo/core/ingestion';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+
+// Must be > maxDuration of the process-job webhook handler (300s) to avoid false positives.
+const ZOMBIE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function GET(req: NextRequest) {
     try {
@@ -21,56 +22,30 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Job not found' }, { status: 404 });
         }
 
-        // SERVERLESS FIX: Trigger processing on status check
-        // This ensures jobs actually get processed even if the initial trigger was killed
-        // IMPORTANT: Must await in serverless - there is no "background" after response is sent
-        if (job.status === 'PENDING' || job.status === 'QUEUED_FOR_VEC') {
-            await processQueuedJobs(job.environment).catch(err =>
-                console.error('Queue Processor Error:', err)
-            );
-
-            // Refetch job to get updated status
-            const updatedJob = await prisma.ingestJob.findUnique({
-                where: { id: jobId },
-            });
-            return NextResponse.json(updatedJob || job);
-        }
-
-        // ZOMBIE DETECTION: If the job has been VECTORIZING for more than 3 minutes without
-        // a heartbeat update, the serverless function that was running it has timed out.
-        // Reset the job so the next status poll can re-trigger vectorization and pick up
-        // where the embedding loop left off (only records with NULL embedding are processed).
-        //
-        // Must be > maxDuration (60s) to avoid false positives on slow batches.
-        // Currently 3× maxDuration as a safety margin.
-        const ZOMBIE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
-        if (job.status === 'VECTORIZING') {
+        // ZOMBIE DETECTION: Jobs stuck in PROCESSING or VECTORIZING beyond the webhook
+        // handler's maxDuration are assumed to have been killed by a Vercel timeout.
+        // Mark them FAILED so the UI surfaces an error rather than spinning forever.
+        // Vectorization failures can be restarted via the retroactive-vectorization endpoint.
+        if (job.status === 'PROCESSING' || job.status === 'VECTORIZING') {
             const staleSinceMs = Date.now() - new Date(job.updatedAt).getTime();
             if (staleSinceMs > ZOMBIE_THRESHOLD_MS) {
-                // Atomic CAS: only reset if the job is still VECTORIZING.
-                // Prevents two concurrent polls from both resetting and both starting vectorization.
-                const rowsUpdated = await prisma.$executeRaw`
-                    UPDATE public.ingest_jobs
-                    SET status = 'QUEUED_FOR_VEC', "updatedAt" = NOW()
-                    WHERE id = ${jobId} AND status = 'VECTORIZING'
-                `;
+                const isVectorizing = job.status === 'VECTORIZING';
+                const { count } = await prisma.ingestJob.updateMany({
+                    where: { id: jobId, status: job.status },
+                    data: {
+                        status: 'FAILED',
+                        error: isVectorizing
+                            ? 'Vectorization timed out. Use retroactive vectorization to resume.'
+                            : 'Ingestion timed out. Please re-upload the file.',
+                    },
+                });
 
-                if (rowsUpdated === 0) {
-                    // Another request already handled recovery — just return current state
-                    const currentJob = await prisma.ingestJob.findUnique({ where: { id: jobId } });
-                    return NextResponse.json(currentJob || job);
+                if (count > 0) {
+                    console.warn(`[Status] Job ${jobId} zombie-failed after ${Math.round(staleSinceMs / 1000)}s stuck in ${job.status}`);
                 }
 
-                console.warn(`[Status] Job ${jobId} zombie-reset after ${Math.round(staleSinceMs / 1000)}s without a heartbeat`);
-                await processQueuedJobs(job.environment).catch(err =>
-                    console.error('Queue Processor Error (zombie recovery):', err)
-                );
-
-                const recoveredJob = await prisma.ingestJob.findUnique({ where: { id: jobId } });
-                if (!recoveredJob) {
-                    return NextResponse.json({ error: 'Job was deleted during recovery' }, { status: 404 });
-                }
-                return NextResponse.json(recoveredJob);
+                const updatedJob = await prisma.ingestJob.findUnique({ where: { id: jobId } });
+                return NextResponse.json(updatedJob || job);
             }
         }
 

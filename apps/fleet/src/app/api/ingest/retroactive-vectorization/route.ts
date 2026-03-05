@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
-import { processQueuedJobs } from '@repo/core/ingestion';
 import { createClient } from '@repo/auth/server';
 
 export const dynamic = 'force-dynamic';
@@ -107,9 +106,7 @@ export async function POST(req: NextRequest) {
         }
 
         console.log(`🚀 Starting vectorization for ${jobs.length} environments...`);
-
-        // Trigger vectorization for all environments
-        processQueuedJobs().catch(err => console.error('Vectorization Queue Error:', err));
+        // Processing is triggered by the Supabase DB webhook on ingest_jobs INSERT.
 
         return NextResponse.json({
             success: true,

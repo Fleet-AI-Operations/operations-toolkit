@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { startBackgroundIngest, processQueuedJobs } from '@repo/core/ingestion';
+import { startBackgroundIngest } from '@repo/core/ingestion';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
         }
 
-        const jobId = await startBackgroundIngest('API', url, {
+        const { jobId } = await startBackgroundIngest('API', url, {
             environment,
             source: `api:${url}`,
             type,
@@ -41,12 +41,7 @@ export async function POST(req: NextRequest) {
             generateEmbeddings,
         });
 
-        // IMPORTANT: In serverless, we must await initial processing or it gets killed
-        // Status endpoint will continue processing on each poll
-        await processQueuedJobs(environment).catch(err =>
-            console.error('Initial Queue Processor Error:', err)
-        );
-
+        // Processing is triggered by the Supabase DB webhook on ingest_jobs INSERT.
         return NextResponse.json({
             message: `Ingestion started in the background.`,
             jobId
