@@ -55,8 +55,17 @@ export default function WeeklyTaskMetricsPage() {
     useEffect(() => {
         fetchData(defaults.start, defaults.end);
         fetch('/api/environments')
-            .then(r => r.ok ? r.json() : { environments: [] })
-            .then(d => setEnvironments(d.environments ?? []));
+            .then(r => {
+                if (!r.ok) {
+                    console.warn('[WeeklyTaskMetrics] /api/environments returned non-ok status:', r.status)
+                    return { environments: [] }
+                }
+                return r.json()
+            })
+            .then(d => setEnvironments(d.environments ?? []))
+            .catch(err => {
+                console.error('[WeeklyTaskMetrics] Failed to fetch environments:', err instanceof Error ? err.message : String(err))
+            });
     }, []);
 
     // Close dropdown on outside click
@@ -79,6 +88,7 @@ export default function WeeklyTaskMetricsPage() {
             const res = await fetch(`/api/admin/weekly-task-metrics?${params}`);
 
             if (res.status === 403) {
+                console.warn('[WeeklyTaskMetrics] 403 Forbidden - user lacks required role')
                 setAuthorized(false);
                 setLoading(false);
                 setRefreshing(false);
@@ -86,6 +96,7 @@ export default function WeeklyTaskMetricsPage() {
             }
 
             if (res.status === 401) {
+                console.warn('[WeeklyTaskMetrics] Session expired, redirecting to login')
                 router.push('/auth/login');
                 return;
             }
@@ -109,7 +120,7 @@ export default function WeeklyTaskMetricsPage() {
         if (!startDate || !endDate) return;
         const s = new Date(startDate);
         const e = new Date(endDate);
-        if (s > e) { alert('Start date must be before end date'); return; }
+        if (s > e) { setError('Start date must be before end date.'); return; }
         fetchData(startDate, endDate, selectedEnvironments);
     };
 
@@ -153,6 +164,9 @@ export default function WeeklyTaskMetricsPage() {
         navigator.clipboard.writeText(lines.join('\n')).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }).catch(err => {
+            console.error('[WeeklyTaskMetrics] Clipboard write failed:', err instanceof Error ? err.message : String(err))
+            setError('Failed to copy to clipboard. Please select the text manually.')
         });
     };
 

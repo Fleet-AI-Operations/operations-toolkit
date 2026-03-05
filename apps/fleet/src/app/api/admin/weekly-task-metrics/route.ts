@@ -23,7 +23,18 @@ interface WeeklyMetrics {
 // GET weekly task metrics for the previous 7 days (defaulting to the 7 days ending yesterday)
 export async function GET(req: Request) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError) {
+        console.error('[Weekly Task Metrics API] Auth error:', {
+            errorId: ERROR_IDS.AUTH_SESSION_EXPIRED,
+            error: authError.message,
+        })
+        return NextResponse.json({
+            error: 'Authentication failed. Please try logging in again.',
+            errorId: ERROR_IDS.AUTH_SESSION_EXPIRED
+        }, { status: 401 })
+    }
 
     if (!user) {
         return NextResponse.json({
@@ -39,6 +50,13 @@ export async function GET(req: Request) {
         .single()
 
     if (profileError) {
+        console.error('[Weekly Task Metrics API] Profile query error:', {
+            errorId: ERROR_IDS.DB_QUERY_FAILED,
+            userId: user.id,
+            error: profileError.message,
+            code: profileError.code,
+            details: profileError.details,
+        })
         return NextResponse.json({
             error: 'Failed to verify permissions. Please try again.',
             errorId: ERROR_IDS.DB_QUERY_FAILED
@@ -46,6 +64,11 @@ export async function GET(req: Request) {
     }
 
     if (!profile || !['FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
+        console.warn('[Weekly Task Metrics API] Forbidden access attempt:', {
+            errorId: ERROR_IDS.AUTH_FORBIDDEN,
+            userId: user.id,
+            userRole: profile?.role ?? 'NONE',
+        })
         return NextResponse.json({
             error: 'Forbidden',
             errorId: ERROR_IDS.AUTH_FORBIDDEN
@@ -157,7 +180,16 @@ export async function GET(req: Request) {
             uniqueTasksCreatedByEnvironment,
             totalTasksApproved: totalTasksApprovedByEnvironment.reduce((sum, r) => sum + r.count, 0),
             totalTasksApprovedByEnvironment,
-            totalRevisions: Number(revisionsRow[0]?.count ?? 0),
+            totalRevisions: (() => {
+                if (!revisionsRow[0]) {
+                    console.warn('[Weekly Task Metrics API] COUNT query returned no rows — unexpected empty result:', {
+                        errorId: ERROR_IDS.DB_QUERY_FAILED,
+                        userId: user?.id,
+                        dateRange: { start: startDate.toISOString(), end: endDate.toISOString() },
+                    })
+                }
+                return Number(revisionsRow[0]?.count ?? 0)
+            })(),
             dateRange: {
                 start: startDate.toISOString().split('T')[0],
                 end: endDate.toISOString().split('T')[0],
@@ -167,9 +199,10 @@ export async function GET(req: Request) {
         return NextResponse.json(metrics)
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError) {
-            console.error('[Weekly Task Metrics API] Database error:', {
+            console.error('[Weekly Task Metrics API] Known database error:', {
                 errorId: ERROR_IDS.DB_QUERY_FAILED,
                 code: error.code,
+                meta: error.meta,
                 message: error.message,
                 userId: user?.id,
             })
@@ -179,10 +212,48 @@ export async function GET(req: Request) {
             }, { status: 500 })
         }
 
+        if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+            console.error('[Weekly Task Metrics API] Unknown database engine error:', {
+                errorId: ERROR_IDS.DB_QUERY_FAILED,
+                message: error.message,
+                userId: user?.id,
+            })
+            return NextResponse.json({
+                error: 'Database query failed. Please try again.',
+                errorId: ERROR_IDS.DB_QUERY_FAILED
+            }, { status: 500 })
+        }
+
+        if (error instanceof Prisma.PrismaClientInitializationError) {
+            console.error('[Weekly Task Metrics API] Database connection failed:', {
+                errorId: ERROR_IDS.DB_CONNECTION_FAILED,
+                message: error.message,
+                errorCode: error.errorCode,
+                userId: user?.id,
+            })
+            return NextResponse.json({
+                error: 'Database connection failed. Please try again later.',
+                errorId: ERROR_IDS.DB_CONNECTION_FAILED
+            }, { status: 503 })
+        }
+
+        if (error instanceof Prisma.PrismaClientValidationError) {
+            console.error('[Weekly Task Metrics API] Query validation error:', {
+                errorId: ERROR_IDS.DB_QUERY_FAILED,
+                message: error.message,
+                userId: user?.id,
+            })
+            return NextResponse.json({
+                error: 'An internal error occurred with the query.',
+                errorId: ERROR_IDS.DB_QUERY_FAILED
+            }, { status: 500 })
+        }
+
         console.error('[Weekly Task Metrics API] Unexpected error:', {
             errorId: ERROR_IDS.SYSTEM_ERROR,
             userId: user?.id,
             error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
         })
         return NextResponse.json({
             error: 'An unexpected error occurred. Please try again.',
