@@ -398,4 +398,194 @@ describe('runSimilarityDetection (via startSimilarityDetection)', () => {
 
     consoleSpy.mockRestore();
   });
+
+  it('creates DAILY_GREAT flags when new records match daily great task records', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(0.92); // above default 0.80 threshold
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-dg' }]);      // INSERT similarity_job
+    // newRecords: one record
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'worker prompt text',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'worker@example.com',
+      created_by_name: 'Worker One',
+    }]);
+    // historicalRecords for worker@example.com → empty (no USER_HISTORY flags)
+    $queryRaw.mockResolvedValueOnce([]);
+    // dailyGreatRecords → one flagged record
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'great-1',
+      content: 'featured great task',
+      embedding: '[0.1,0.2,0.3]',
+    }]);
+
+    await startSimilarityDetection('ingest-dg', 'env-f');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    // Should insert a similarity flag and mark job COMPLETED
+    expect(execCalls.some(s => s.includes('similarity_flags'))).toBe(true);
+    expect(execCalls.some(s => s.includes('COMPLETED'))).toBe(true);
+
+    // The flag insert should include 'DAILY_GREAT' as an interpolated parameter
+    const flagInsertCall = ($executeRaw.mock.calls as unknown[][]).find(c => {
+      const tmpl = (c[0] as TemplateStringsArray).join('?');
+      return tmpl.includes('similarity_flags');
+    });
+    expect(flagInsertCall).toBeTruthy();
+    expect(flagInsertCall).toContain('DAILY_GREAT');
+  });
+
+  it('DAILY_GREAT pass skips records with identical content', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(1.0);
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-dg-skip' }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'exact same content',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'worker@example.com',
+      created_by_name: null,
+    }]);
+    $queryRaw.mockResolvedValueOnce([]); // no historical records
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'great-1',
+      content: 'exact same content', // identical — must be skipped
+      embedding: '[0.1,0.2,0.3]',
+    }]);
+
+    await startSimilarityDetection('ingest-dg-skip', 'env-g');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('similarity_flags'))).toBe(false);
+  });
+
+  it('DAILY_GREAT pass does not create flags when similarity is below threshold', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(0.50); // below 0.80
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-dg-low' }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'different content',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'worker@example.com',
+      created_by_name: null,
+    }]);
+    $queryRaw.mockResolvedValueOnce([]); // no historical records
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'great-1',
+      content: 'great task content',
+      embedding: '[0.9,0.8,0.7]',
+    }]);
+
+    await startSimilarityDetection('ingest-dg-low', 'env-h');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('similarity_flags'))).toBe(false);
+    expect(execCalls.some(s => s.includes('COMPLETED'))).toBe(true);
+  });
+
+  it('totalChecked includes DAILY_GREAT pass comparisons in the COMPLETED update', async () => {
+    vi.mocked(cosineSimilarity).mockReturnValue(0.50); // below threshold — no flags, but counter increments
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-count' }]);
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'new-rec-1',
+      content: 'worker task',
+      embedding: '[0.1,0.2,0.3]',
+      created_by_email: 'worker@example.com',
+      created_by_name: null,
+    }]);
+    $queryRaw.mockResolvedValueOnce([]); // no historical — USER_HISTORY pass does not increment totalChecked
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'great-1',
+      content: 'great task',
+      embedding: '[0.4,0.5,0.6]',
+    }]);
+
+    await startSimilarityDetection('ingest-count', 'env-i');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Find the COMPLETED $executeRaw call and verify records_checked = 1
+    const completedCall = ($executeRaw.mock.calls as unknown[][]).find(c => {
+      const tmpl = (c[0] as TemplateStringsArray).join('?');
+      return tmpl.includes('COMPLETED');
+    });
+    expect(completedCall).toBeTruthy();
+    // records_checked is passed as an interpolated value — the number 1 should appear in the call args
+    expect(completedCall).toContain(1);
+  });
+
+  it('marks job FAILED when SIMILARITY_THRESHOLD env var is invalid', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const originalThreshold = process.env.SIMILARITY_THRESHOLD;
+    process.env.SIMILARITY_THRESHOLD = 'not-a-number';
+
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-bad-thresh' }]);
+
+    await startSimilarityDetection('ingest-bad-thresh', 'env-j');
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const execCalls = ($executeRaw.mock.calls as unknown[][]).map(c => {
+      const tmpl = c[0] as TemplateStringsArray;
+      return tmpl.join('?');
+    });
+    expect(execCalls.some(s => s.includes('FAILED'))).toBe(true);
+
+    // Restore
+    if (originalThreshold === undefined) {
+      delete process.env.SIMILARITY_THRESHOLD;
+    } else {
+      process.env.SIMILARITY_THRESHOLD = originalThreshold;
+    }
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('parseVector (via findSimilarRecords)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    $executeRaw.mockResolvedValue(undefined);
+  });
+
+  it('returns null for a partially corrupt vector string (contains non-numeric values)', async () => {
+    // With the fix, "[0.1,abc,0.3]" should return null, not a truncated [0.1, 0.3]
+    // When the target record has a corrupt embedding, findSimilarRecords should throw
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'target-corrupt',
+      content: 'content',
+      environment: 'env-a',
+      type: 'TASK',
+      embedding: '[0.1,abc,0.3]', // partially corrupt
+    }]);
+
+    await expect(findSimilarRecords('target-corrupt')).rejects.toThrow(
+      'Target record has no valid embedding'
+    );
+  });
+
+  it('accepts a well-formed vector with all numeric values', async () => {
+    $queryRaw.mockResolvedValueOnce([{
+      id: 'target-valid',
+      content: 'content',
+      environment: 'env-a',
+      type: 'TASK',
+      embedding: '[0.1,0.2,0.3]',
+    }]);
+    $queryRaw.mockResolvedValueOnce([]);
+
+    await expect(findSimilarRecords('target-valid')).resolves.toEqual([]);
+  });
 });

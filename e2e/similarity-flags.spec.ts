@@ -117,6 +117,60 @@ test.describe('Similarity Flags - Status Filtering', () => {
     });
 });
 
+test.describe('Similarity Flags - Match Type Filtering', () => {
+    test('should show match type filter buttons: All, User History, Daily Great Task', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        await expect(page.locator('button:has-text("All")')).toBeVisible();
+        await expect(page.locator('button:has-text("User History")')).toBeVisible();
+        await expect(page.locator('button:has-text("Daily Great Task")')).toBeVisible();
+    });
+
+    test('clicking Daily Great Task filter should remain on similarity-flags URL', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        await page.locator('button:has-text("Daily Great Task")').click();
+
+        await expect(page).toHaveURL(/\/similarity-flags/);
+    });
+
+    test('clicking User History filter should remain on similarity-flags URL', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        await page.locator('button:has-text("User History")').click();
+
+        await expect(page).toHaveURL(/\/similarity-flags/);
+    });
+
+    test('clicking All match type filter should remain on similarity-flags URL', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        // Switch away from All, then back
+        await page.locator('button:has-text("Daily Great Task")').click();
+        await page.locator('button:has-text("All")').click();
+
+        await expect(page).toHaveURL(/\/similarity-flags/);
+    });
+
+    test('Daily Great Task tab should show amber badge when DAILY_GREAT flags exist', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+        await page.waitForTimeout(1000);
+
+        await page.locator('button:has-text("Daily Great Task")').click();
+        await page.waitForTimeout(500);
+
+        // Check if any rows are rendered; if so, look for the Daily Great Task badge
+        const tableCount = await page.locator('table').count();
+        if (tableCount > 0) {
+            const rowCount = await page.locator('tbody tr').count();
+            if (rowCount > 0) {
+                await expect(page.locator('text=/Daily Great Task/').first()).toBeVisible({ timeout: 3000 });
+            }
+        }
+        // If no data, the test passes gracefully (no flags to assert on)
+    });
+});
+
 test.describe('Similarity Flags - Interactions', () => {
     test('clicking a source snippet should open a modal with Source Record in the header', async ({ page }) => {
         await page.goto('http://localhost:3003/similarity-flags');

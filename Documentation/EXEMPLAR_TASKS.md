@@ -13,6 +13,7 @@ A fleet management tool for maintaining a library of "golden standard" reference
   - [Deleting an Exemplar](#deleting-an-exemplar)
   - [Generating Missing Embeddings](#generating-missing-embeddings)
 - [Using the Compare Tab](#using-the-compare-tab)
+- [Using the Daily Great Tasks Tab](#using-the-daily-great-tasks-tab)
 - [Technical Reference](#technical-reference)
   - [Database Schema](#database-schema)
   - [API Endpoints](#api-endpoints)
@@ -150,6 +151,35 @@ A summary line shows how many tasks were scanned, how many exemplars were used, 
 
 ---
 
+## Using the Daily Great Tasks Tab
+
+The **Daily Great Tasks** tab is the third tab on the Exemplar Tasks page. It provides tools to flag existing `data_records` as high-quality reference tasks and compare incoming submissions against them.
+
+### Searching and Flagging by Task Key
+
+1. Enter a `task_key` in the **Search by task key** input (e.g. `T-1234`).
+2. Click **Search**.
+3. The most recent submission per worker for that task key is returned.
+4. Click **Flag** or **Unflag** on any row to mark the record as a daily great task.
+
+Flagged records are automatically included in the similarity detection pipeline: every ingest job compares new tasks against them and creates `DAILY_GREAT` similarity flags visible in the Core app.
+
+### Managing the Flagged List
+
+The **Currently Flagged** section shows all currently flagged records, paginated at 20 per page. Click **Unflag** on any row to remove it from the daily great set.
+
+### Running an On-Demand Comparison
+
+1. Select a specific environment (required).
+2. Set the similarity threshold (default: 80%).
+3. Click **Run Comparison**.
+
+Results are shown inline — tasks above the threshold are listed alongside the matching daily great record and similarity score. This comparison is not persisted; it is for exploratory review only.
+
+> For full documentation including automatic ingestion integration and the Core app flags view, see [Daily Great Tasks](./DAILY_GREAT_TASKS.md).
+
+---
+
 ## Technical Reference
 
 ### Database Schema
@@ -282,6 +312,7 @@ The comparison is O(tasks × exemplars) and is capped at 2,000 tasks per run. Fo
 
 ## Related Documentation
 
+- [Daily Great Tasks](./DAILY_GREAT_TASKS.md) — flagging existing data_records as reference tasks with automatic ingestion detection
 - [Fleet Guide](./UserGuides/FLEET_GUIDE.md)
 - Full Similarity Check (`/full-similarity-check`) — a complementary tool for per-task similarity scanning across all records, without a curated exemplar library
 - [Database Schema](./Reference/DATABASE_SCHEMA.md)
@@ -289,4 +320,4 @@ The comparison is O(tasks × exemplars) and is capped at 2,000 tasks per run. Fo
 
 ---
 
-*Last Updated: 2026-02-27*
+*Last Updated: 2026-03-04*
