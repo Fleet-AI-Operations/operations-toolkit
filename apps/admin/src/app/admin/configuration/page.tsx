@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, Database, RefreshCcw, Sparkles, AlertTriangle, Loader2, XCircle, CheckCircle2, Cloud, Server, ArrowRight, Link2, Save } from 'lucide-react';
+import { Trash2, Database, RefreshCcw, Sparkles, AlertTriangle, Loader2, XCircle, CheckCircle2, Cloud, Server, ArrowRight, Link2, Save, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { EnvironmentFilter } from '@repo/ui/components';
 
@@ -38,6 +38,54 @@ export default function AdminConsole() {
     const [webhookUrl, setWebhookUrl] = useState('');
     const [savingLinear, setSavingLinear] = useState(false);
     const [linearStatus, setLinearStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+    const [duplicateCount, setDuplicateCount] = useState<number | null>(null);
+    const [fetchingDuplicates, setFetchingDuplicates] = useState(false);
+    const [deletingDuplicates, setDeletingDuplicates] = useState(false);
+    const [deletionProgress, setDeletionProgress] = useState<{ deleted: number; total: number } | null>(null);
+
+    const handleDeleteDuplicates = async () => {
+        if (!confirm(`Delete all ${duplicateCount?.toLocaleString()} duplicate records? This is irreversible.`)) return;
+
+        setDeletingDuplicates(true);
+        const total = duplicateCount ?? 0;
+        let totalDeleted = 0;
+        setDeletionProgress({ deleted: 0, total });
+
+        try {
+            while (true) {
+                const res = await fetch('/api/admin/duplicate-records/delete', { method: 'POST' });
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || 'Deletion failed');
+                }
+                const data = await res.json();
+                totalDeleted += data.deleted;
+                setDeletionProgress({ deleted: totalDeleted, total });
+                setDuplicateCount(data.remaining);
+                if (data.done) break;
+            }
+        } catch (err: any) {
+            setStatus({ type: 'error', message: `Duplicate deletion failed: ${err.message}` });
+        } finally {
+            setDeletingDuplicates(false);
+            setDeletionProgress(null);
+        }
+    };
+
+    const fetchDuplicateCount = async () => {
+        setFetchingDuplicates(true);
+        try {
+            const res = await fetch('/api/admin/duplicate-records');
+            if (res.ok) {
+                const data = await res.json();
+                setDuplicateCount(data.count);
+            }
+        } catch (err) {
+            console.error('Failed to fetch duplicate count', err);
+        } finally {
+            setFetchingDuplicates(false);
+        }
+    };
 
     const fetchSystemInfo = async () => {
         try {
@@ -92,6 +140,7 @@ export default function AdminConsole() {
     useEffect(() => {
         fetchSystemInfo();
         loadLinearSettings();
+        fetchDuplicateCount();
         setWebhookUrl(`${window.location.origin}/api/webhooks/linear`);
     }, []);
 
@@ -481,6 +530,103 @@ export default function AdminConsole() {
                             Save Linear Config
                         </button>
                     </div>
+                </div>
+
+                {/* Duplicate Records */}
+                <div className="glass-card" style={{ padding: '32px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                        <Copy size={24} color="var(--accent)" />
+                        <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Duplicate Records</h2>
+                    </div>
+                    <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', marginBottom: '24px' }}>
+                        Records flagged for removal by the nightly duplicate detection job (runs daily at midnight EST).
+                        Duplicates are identified by matching environment and content — the oldest record is kept.
+                    </p>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px', padding: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+                                Pending deletion
+                            </div>
+                            {duplicateCount === null ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
+                                    <Loader2 size={18} className="animate-spin" />
+                                    <span>Loading…</span>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                    <span style={{
+                                        fontSize: '2.5rem',
+                                        fontWeight: 700,
+                                        color: duplicateCount > 0 ? '#ffaa00' : '#00ff88',
+                                        lineHeight: 1
+                                    }}>
+                                        {duplicateCount.toLocaleString()}
+                                    </span>
+                                    <span style={{ opacity: 0.5, fontSize: '0.9rem' }}>records</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={fetchDuplicateCount}
+                            disabled={fetchingDuplicates}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '10px 16px', borderRadius: '8px',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                background: 'rgba(255,255,255,0.05)',
+                                color: 'var(--foreground)', cursor: 'pointer',
+                                fontSize: '0.85rem', opacity: fetchingDuplicates ? 0.5 : 1
+                            }}
+                        >
+                            {fetchingDuplicates ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                            Refresh
+                        </button>
+                    </div>
+
+                    {duplicateCount !== null && duplicateCount > 0 && (
+                        <div style={{ marginTop: '20px' }}>
+                            {deletingDuplicates && deletionProgress ? (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px', opacity: 0.8 }}>
+                                        <span>Deleting… {deletionProgress.deleted.toLocaleString()} / {deletionProgress.total.toLocaleString()}</span>
+                                        <span>{deletionProgress.total > 0 ? Math.round((deletionProgress.deleted / deletionProgress.total) * 100) : 0}%</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${deletionProgress.total > 0 ? (deletionProgress.deleted / deletionProgress.total) * 100 : 0}%`,
+                                            background: 'var(--accent-gradient)',
+                                            transition: 'width 0.2s ease'
+                                        }} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleDeleteDuplicates}
+                                    disabled={deletingDuplicates}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        padding: '10px 20px', borderRadius: '8px',
+                                        border: '1px solid rgba(255,77,77,0.3)',
+                                        background: 'rgba(255,77,77,0.1)',
+                                        color: '#ff4d4d', fontWeight: 600,
+                                        cursor: 'pointer', fontSize: '0.9rem'
+                                    }}
+                                >
+                                    <Trash2 size={16} />
+                                    Delete {duplicateCount.toLocaleString()} Duplicate Records
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {duplicateCount === 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', color: '#00ff88', fontSize: '0.85rem' }}>
+                            <CheckCircle2 size={16} /> No duplicate records pending deletion.
+                        </div>
+                    )}
                 </div>
 
                 {/* Danger Zone */}
