@@ -22,6 +22,11 @@
 -- If 'url' is not set or empty, the trigger is a safe no-op.
 -- The WEBHOOK_SECRET env var in Vercel must match the 'secret' value here.
 
+-- pg_net is pre-installed on Supabase Cloud. For local dev, verify it is enabled:
+--   SELECT * FROM pg_extension WHERE extname = 'pg_net';
+-- If missing: CREATE EXTENSION pg_net WITH SCHEMA net;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA net;
+
 CREATE TABLE IF NOT EXISTS public.ingest_webhook_config (
     key   text PRIMARY KEY,
     value text NOT NULL

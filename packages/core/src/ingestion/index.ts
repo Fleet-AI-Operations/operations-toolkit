@@ -8,14 +8,13 @@
  * - Parallel processing with chunking for large datasets
  * - Serverless-compatible: Payload stored in database, cleared after completion
  *
- * SERVERLESS ARCHITECTURE:
+ * PROCESSING ARCHITECTURE:
  * - Jobs are created with PENDING status
- * - Processing is triggered on job creation AND on each status check
- * - This "double trigger" pattern ensures jobs actually get processed:
- *   1. Initial trigger may be killed when serverless function terminates
- *   2. Status endpoint re-triggers processing on each poll
- * - Internal locking prevents concurrent processing of the same job
- * - This approach works without external queue services or cron jobs
+ * - A Supabase DB trigger (pg_net) fires an HTTP POST to /api/ingest/process-job on INSERT
+ * - That endpoint uses Vercel waitUntil to run Phase 1 then Phase 2 after responding
+ * - Concurrency is enforced by atomic CAS status transitions (PENDING→PROCESSING,
+ *   QUEUED_FOR_VEC→VECTORIZING) so duplicate webhook deliveries are safe no-ops
+ * - No external queue service or cron job required
  *
  * SECURITY NOTE:
  * - CSV payloads may contain PII and are stored temporarily in the database
@@ -188,9 +187,8 @@ export async function startBackgroundIngestFromSession(
  * Triggers processing of both Phase 1 (Data Loading) and Phase 2 (Vectorization) jobs.
  * Safe to call repeatedly - internal locking prevents concurrent processing.
  *
- * SERVERLESS COMPATIBILITY: This function is called by the status endpoint on each poll
- * to ensure jobs actually get processed (since background triggers get killed when the
- * serverless function terminates after returning the HTTP response).
+ * Used by the retroactive-vectorization script and any offline tooling that needs to
+ * manually kick off processing outside the normal webhook-driven flow.
  *
  * If environment is provided, only processes jobs for that environment.
  * If not provided, processes jobs for all environments.
@@ -223,19 +221,27 @@ export async function processQueuedJobs(environment?: string) {
 }
 
 /**
- * INNGEST ENTRY POINT: runPhase1
+ * WEBHOOK ENTRY POINT: runPhase1
  * Runs Phase 1 (data loading) for a specific job ID.
- * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ * Called from POST /api/ingest/process-job via Vercel waitUntil.
+ * There is no automatic retry — if this throws, the job is marked FAILED.
  */
 export async function runPhase1(jobId: string): Promise<void> {
+    // Atomically claim the job: PENDING → PROCESSING.
+    // Returns 0 if the job is in any other state (already processing, cancelled, etc.)
+    // making duplicate webhook deliveries safe no-ops.
+    const claimed = await prisma.$executeRaw`
+        UPDATE public.ingest_jobs SET status = 'PROCESSING', "updatedAt" = NOW()
+        WHERE id = ${jobId} AND status = 'PENDING'
+    `;
+    if (claimed === 0) return;
+
     const nextJob = await prisma.ingestJob.findUnique({
         where: { id: jobId },
-        select: { id: true, environment: true, type: true, options: true, status: true }
+        select: { environment: true, type: true, options: true }
     });
 
-    if (!nextJob || nextJob.status === 'CANCELLED') return;
-
-    if (!nextJob.options) {
+    if (!nextJob?.options) {
         await prisma.ingestJob.update({
             where: { id: jobId },
             data: { status: 'FAILED', error: 'Job options missing from database.' }
@@ -253,104 +259,119 @@ export async function runPhase1(jobId: string): Promise<void> {
     };
     const ingestionType = (storedOptions.ingestionType || 'CSV') as 'CSV' | 'API' | 'CSV_SESSION';
 
-    await prisma.ingestJob.update({
-        where: { id: jobId },
-        data: { status: 'PROCESSING' }
-    });
+    try {
+        if (ingestionType === 'CSV_SESSION') {
+            const sessionId = storedOptions.sessionId as string;
+            const totalChunks = storedOptions.totalChunks as number;
 
-    if (ingestionType === 'CSV_SESSION') {
-        const sessionId = storedOptions.sessionId as string;
-        const totalChunks = storedOptions.totalChunks as number;
-
-        if (!sessionId || !totalChunks) {
-            await prisma.ingestJob.update({
-                where: { id: jobId },
-                data: { status: 'FAILED', error: 'Session ID or chunk count missing from job options.' }
-            });
-            return;
-        }
-
-        await streamChunksAndProcess(sessionId, totalChunks, jobOptions, jobId);
-    } else {
-        const jobData = await prisma.ingestJob.findUnique({
-            where: { id: jobId },
-            select: { payload: true }
-        });
-
-        if (!jobData?.payload) {
-            await prisma.ingestJob.update({
-                where: { id: jobId },
-                data: { status: 'FAILED', error: 'Job payload missing from database.' }
-            });
-            return;
-        }
-
-        if (ingestionType === 'CSV') {
-            await streamCsvAndProcess(jobData.payload, jobOptions, jobId);
-        } else {
-            let data: any;
-            try {
-                data = JSON.parse(jobData.payload);
-            } catch {
-                const response = await fetch(jobData.payload);
-                data = await response.json();
+            if (!sessionId || !totalChunks) {
+                await prisma.ingestJob.update({
+                    where: { id: jobId },
+                    data: { status: 'FAILED', error: 'Session ID or chunk count missing from job options.' }
+                });
+                return;
             }
-            const records = Array.isArray(data) ? data : [data];
+
+            await streamChunksAndProcess(sessionId, totalChunks, jobOptions, jobId);
+        } else {
+            const jobData = await prisma.ingestJob.findUnique({
+                where: { id: jobId },
+                select: { payload: true }
+            });
+
+            if (!jobData?.payload) {
+                await prisma.ingestJob.update({
+                    where: { id: jobId },
+                    data: { status: 'FAILED', error: 'Job payload missing from database.' }
+                });
+                return;
+            }
+
+            if (ingestionType === 'CSV') {
+                await streamCsvAndProcess(jobData.payload, jobOptions, jobId);
+            } else {
+                let data: unknown;
+                try {
+                    data = JSON.parse(jobData.payload);
+                } catch (e) {
+                    if (!(e instanceof SyntaxError)) throw e;
+                    const response = await fetch(jobData.payload);
+                    if (!response.ok) {
+                        throw new Error(`API fetch failed: ${response.status} ${response.statusText}`);
+                    }
+                    data = await response.json();
+                }
+                const records = Array.isArray(data) ? data : [data];
+                await prisma.ingestJob.update({
+                    where: { id: jobId },
+                    data: { totalRecords: records.length }
+                });
+                await processAndStore(records, jobOptions, jobId);
+            }
+        }
+
+        if (jobOptions.generateEmbeddings) {
             await prisma.ingestJob.update({
                 where: { id: jobId },
-                data: { totalRecords: records.length }
+                data: { status: 'QUEUED_FOR_VEC' }
             });
-            await processAndStore(records, jobOptions, jobId);
+        } else {
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { status: 'COMPLETED', payload: null }
+            });
         }
-    }
-
-    if (jobOptions.generateEmbeddings) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error during Phase 1';
+        console.error(`[Phase1] Job ${jobId} failed:`, error);
         await prisma.ingestJob.update({
             where: { id: jobId },
-            data: { status: 'QUEUED_FOR_VEC' }
-        });
-    } else {
-        await prisma.ingestJob.update({
-            where: { id: jobId },
-            data: { status: 'COMPLETED', payload: null }
-        });
+            data: { status: 'FAILED', error: message, payload: null }
+        }).catch(() => {});
+        throw error;
     }
 }
 
 /**
- * INNGEST ENTRY POINT: runPhase2
+ * WEBHOOK ENTRY POINT: runPhase2
  * Runs Phase 2 (vectorization) for a specific job ID.
- * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ * Called from POST /api/ingest/process-job via Vercel waitUntil.
+ * There is no automatic retry — if this throws, the job is marked FAILED.
  */
 export async function runPhase2(jobId: string, environment: string): Promise<void> {
-    const job = await prisma.ingestJob.findUnique({
-        where: { id: jobId },
-        select: { status: true }
-    });
+    // Atomically claim the job: QUEUED_FOR_VEC → VECTORIZING.
+    // Returns 0 if the job is in any other state, making duplicate webhook deliveries safe no-ops.
+    const claimed = await prisma.$executeRaw`
+        UPDATE public.ingest_jobs SET status = 'VECTORIZING', "updatedAt" = NOW()
+        WHERE id = ${jobId} AND status = 'QUEUED_FOR_VEC'
+    `;
+    if (claimed === 0) return;
 
-    // Already complete (embeddings not requested), cancelled, or failed — nothing to do
-    if (!job || ['COMPLETED', 'CANCELLED', 'FAILED'].includes(job.status)) return;
+    try {
+        await vectorizeJob(jobId, environment);
 
-    await prisma.ingestJob.update({
-        where: { id: jobId },
-        data: { status: 'VECTORIZING' }
-    });
+        const finalJob = await prisma.ingestJob.findUnique({
+            where: { id: jobId },
+            select: { status: true }
+        });
 
-    await vectorizeJob(jobId, environment);
-
-    const finalJob = await prisma.ingestJob.findUnique({
-        where: { id: jobId },
-        select: { status: true }
-    });
-
-    if (finalJob?.status !== 'CANCELLED') {
+        if (finalJob?.status !== 'CANCELLED') {
+            await prisma.ingestJob.update({
+                where: { id: jobId },
+                data: { status: 'COMPLETED', payload: null }
+            });
+            startSimilarityDetection(jobId, environment).catch(err =>
+                console.error(`[SimilarityDetection] Failed for job ${jobId}:`, err)
+            );
+        }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error during Phase 2';
+        console.error(`[Phase2] Job ${jobId} failed:`, error);
         await prisma.ingestJob.update({
             where: { id: jobId },
-            data: { status: 'COMPLETED', payload: null }
-        });
-        startSimilarityDetection(jobId, environment).catch(err =>
-            console.error(`[SimilarityDetection] Failed for job ${jobId}:`, err)
-        );
+            data: { status: 'FAILED', error: message, payload: null }
+        }).catch(() => {});
+        throw error;
     }
 }
 

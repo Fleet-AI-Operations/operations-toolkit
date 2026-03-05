@@ -38,24 +38,25 @@ export declare function startBackgroundIngestFromSession(sessionId: string, tota
  * Triggers processing of both Phase 1 (Data Loading) and Phase 2 (Vectorization) jobs.
  * Safe to call repeatedly - internal locking prevents concurrent processing.
  *
- * SERVERLESS COMPATIBILITY: This function is called by the status endpoint on each poll
- * to ensure jobs actually get processed (since background triggers get killed when the
- * serverless function terminates after returning the HTTP response).
+ * Used by the retroactive-vectorization script and any offline tooling that needs to
+ * manually kick off processing outside the normal webhook-driven flow.
  *
  * If environment is provided, only processes jobs for that environment.
  * If not provided, processes jobs for all environments.
  */
 export declare function processQueuedJobs(environment?: string): Promise<void>;
 /**
- * INNGEST ENTRY POINT: runPhase1
+ * WEBHOOK ENTRY POINT: runPhase1
  * Runs Phase 1 (data loading) for a specific job ID.
- * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ * Called from POST /api/ingest/process-job via Vercel waitUntil.
+ * There is no automatic retry — if this throws, the job is marked FAILED.
  */
 export declare function runPhase1(jobId: string): Promise<void>;
 /**
- * INNGEST ENTRY POINT: runPhase2
+ * WEBHOOK ENTRY POINT: runPhase2
  * Runs Phase 2 (vectorization) for a specific job ID.
- * Called as an Inngest step — concurrency and retries are handled by Inngest.
+ * Called from POST /api/ingest/process-job via Vercel waitUntil.
+ * There is no automatic retry — if this throws, the job is marked FAILED.
  */
 export declare function runPhase2(jobId: string, environment: string): Promise<void>;
 /**

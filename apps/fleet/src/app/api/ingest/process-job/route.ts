@@ -29,7 +29,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
+    let body: { job_id?: string; environment?: string; status?: string };
+    try {
+        body = await req.json();
+    } catch {
+        console.error('[process-job] Failed to parse webhook body — malformed JSON from pg_net');
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
     const { job_id, environment, status } = body;
 
     if (!job_id || !environment) {
@@ -39,11 +46,18 @@ export async function POST(req: NextRequest) {
     if (status === 'PENDING') {
         // Normal ingestion: Phase 1 (data loading) then Phase 2 (vectorization)
         waitUntil(
-            runPhase1(job_id).then(() => runPhase2(job_id, environment))
+            runPhase1(job_id)
+                .then(() => runPhase2(job_id, environment))
+                .catch(err => console.error(`[process-job] Job ${job_id} failed:`, err))
         );
     } else if (status === 'QUEUED_FOR_VEC') {
         // Retroactive vectorization: job was created directly in QUEUED_FOR_VEC, skip Phase 1
-        waitUntil(runPhase2(job_id, environment));
+        waitUntil(
+            runPhase2(job_id, environment)
+                .catch(err => console.error(`[process-job] Job ${job_id} failed:`, err))
+        );
+    } else {
+        console.warn(`[process-job] Unexpected status '${status}' for job ${job_id} — no action taken`);
     }
 
     // Respond immediately — processing continues in the background via waitUntil
