@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-// Must be set before importing the route (read at module load time in some paths)
+// Must be set before importing the route — the module throws at load time if missing.
 process.env.WEBHOOK_SECRET = 'test-secret';
 
 vi.mock('@vercel/functions', () => ({
@@ -37,6 +37,17 @@ beforeEach(() => {
 });
 
 describe('POST /api/ingest/process-job', () => {
+    it('returns 500 when WEBHOOK_SECRET env var is not set', async () => {
+        const original = process.env.WEBHOOK_SECRET;
+        delete process.env.WEBHOOK_SECRET;
+
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'any-value');
+        const res = await POST(req);
+        expect(res.status).toBe(500);
+
+        process.env.WEBHOOK_SECRET = original;
+    });
+
     it('returns 401 when webhook secret is missing', async () => {
         const req = new NextRequest('http://localhost/api/ingest/process-job', {
             method: 'POST',
@@ -86,7 +97,14 @@ describe('POST /api/ingest/process-job', () => {
         expect(res.status).toBe(400);
     });
 
-    it('dispatches runPhase1 then runPhase2 via waitUntil for PENDING status', async () => {
+    it('returns 400 when status is missing', async () => {
+        const req = makeRequest({ job_id: 'j1', environment: 'prod' });
+
+        const res = await POST(req);
+        expect(res.status).toBe(400);
+    });
+
+    it('dispatches only runPhase1 via waitUntil for PENDING status', async () => {
         const req = makeRequest({ job_id: 'job-abc', environment: 'prod', status: 'PENDING' });
 
         const res = await POST(req);
@@ -96,11 +114,12 @@ describe('POST /api/ingest/process-job', () => {
         expect(json.received).toBe(true);
 
         expect(mockedWaitUntil).toHaveBeenCalledTimes(1);
-        // Trigger the promise passed to waitUntil so we can verify runPhase1/2 are called
         const promise = mockedWaitUntil.mock.calls[0][0] as Promise<void>;
         await promise;
         expect(mockedRunPhase1).toHaveBeenCalledWith('job-abc');
-        expect(mockedRunPhase2).toHaveBeenCalledWith('job-abc', 'prod');
+        // Phase 2 is triggered by a separate DB trigger on QUEUED_FOR_VEC update,
+        // not chained here — each phase gets its own 300s Vercel window.
+        expect(mockedRunPhase2).not.toHaveBeenCalled();
     });
 
     it('dispatches only runPhase2 via waitUntil for QUEUED_FOR_VEC status', async () => {
@@ -126,6 +145,44 @@ describe('POST /api/ingest/process-job', () => {
         expect(mockedWaitUntil).not.toHaveBeenCalled();
     });
 
+    it('logs Phase 1 errors without throwing — response is still 200', async () => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockedRunPhase1.mockRejectedValueOnce(new Error('AI timeout'));
+
+        const req = makeRequest({ job_id: 'job-err', environment: 'prod', status: 'PENDING' });
+        const res = await POST(req);
+
+        expect(res.status).toBe(200);
+
+        const promise = mockedWaitUntil.mock.calls[0][0] as Promise<void>;
+        await promise;
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Phase 1 failed'),
+            expect.any(Error)
+        );
+        consoleSpy.mockRestore();
+    });
+
+    it('logs Phase 2 errors without throwing — response is still 200', async () => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        mockedRunPhase2.mockRejectedValueOnce(new Error('Embedding service down'));
+
+        const req = makeRequest({ job_id: 'job-err2', environment: 'prod', status: 'QUEUED_FOR_VEC' });
+        const res = await POST(req);
+
+        expect(res.status).toBe(200);
+
+        const promise = mockedWaitUntil.mock.calls[0][0] as Promise<void>;
+        await promise;
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Phase 2 failed'),
+            expect.any(Error)
+        );
+        consoleSpy.mockRestore();
+    });
+
     it('responds immediately without waiting for processing to complete', async () => {
         let phase1Resolved = false;
         mockedRunPhase1.mockImplementationOnce(
@@ -134,7 +191,6 @@ describe('POST /api/ingest/process-job', () => {
 
         const req = makeRequest({ job_id: 'job-xyz', environment: 'prod', status: 'PENDING' });
 
-        // Response should arrive before phase1Resolved becomes true
         const res = await POST(req);
         expect(res.status).toBe(200);
         expect(phase1Resolved).toBe(false);
