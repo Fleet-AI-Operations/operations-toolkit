@@ -1,18 +1,37 @@
 -- Webhook trigger: fires net.http_post (pg_net) when an ingest_job row is inserted.
 -- This drives ingestion processing without polling or browser dependency.
 --
--- SETUP REQUIRED — run these once per environment after applying this migration:
+-- Config is stored in public.ingest_webhook_config so no superuser permissions
+-- are needed (ALTER DATABASE SET is not available on Supabase Cloud).
 --
---   Production (Supabase dashboard SQL editor or CLI):
---     ALTER DATABASE postgres SET app.ingest_webhook_url = 'https://your-fleet-app.vercel.app/api/ingest/process-job';
---     ALTER DATABASE postgres SET app.ingest_webhook_secret = 'your-secret';
+-- SETUP REQUIRED — run this once per environment after applying this migration:
 --
---   Local dev (Supabase in Docker, Next.js on host machine):
---     ALTER DATABASE postgres SET app.ingest_webhook_url = 'http://host.docker.internal:3004/api/ingest/process-job';
---     ALTER DATABASE postgres SET app.ingest_webhook_secret = 'dev-secret';
+--   Production:
+--     INSERT INTO public.ingest_webhook_config (key, value) VALUES
+--         ('url',    'https://your-fleet-app.vercel.app/api/ingest/process-job'),
+--         ('secret', 'your-secret')
+--     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 --
--- If app.ingest_webhook_url is not set, the trigger is a safe no-op.
--- The WEBHOOK_SECRET env var in Vercel must match app.ingest_webhook_secret in the DB.
+--   Local dev (Supabase in Docker, Next.js on host):
+--     INSERT INTO public.ingest_webhook_config (key, value) VALUES
+--         ('url',    'http://host.docker.internal:3004/api/ingest/process-job'),
+--         ('secret', 'dev-secret')
+--     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+--
+-- To update values later, re-run the same INSERT ... ON CONFLICT statement.
+-- If 'url' is not set or empty, the trigger is a safe no-op.
+-- The WEBHOOK_SECRET env var in Vercel must match the 'secret' value here.
+
+CREATE TABLE IF NOT EXISTS public.ingest_webhook_config (
+    key   text PRIMARY KEY,
+    value text NOT NULL
+);
+
+-- Restrict access: only the service role and postgres can read/write
+ALTER TABLE public.ingest_webhook_config ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role only" ON public.ingest_webhook_config
+    USING (auth.role() = 'service_role');
 
 CREATE OR REPLACE FUNCTION public.trigger_ingest_job_webhook()
 RETURNS trigger
@@ -20,9 +39,12 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    _url    text := current_setting('app.ingest_webhook_url', true);
-    _secret text := current_setting('app.ingest_webhook_secret', true);
+    _url    text;
+    _secret text;
 BEGIN
+    SELECT value INTO _url    FROM public.ingest_webhook_config WHERE key = 'url';
+    SELECT value INTO _secret FROM public.ingest_webhook_config WHERE key = 'secret';
+
     -- Skip if webhook URL is not configured
     IF _url IS NULL OR _url = '' THEN
         RETURN NEW;
