@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw } from 'lucide-react';
+import type { MatchType } from '@repo/types';
 
 interface SimilarityFlag {
     id: string;
@@ -12,11 +13,11 @@ interface SimilarityFlag {
     userEmail: string | null;
     userName: string | null;
     environment: string;
-    status: string;
+    status: 'OPEN' | 'CLAIMED';
     claimedByEmail: string | null;
     claimedAt: string | null;
     notifiedAt: string | null;
-    matchType: string;
+    matchType: MatchType;
     createdAt: string;
     sourceSnippet: string | null;
     matchedSnippet: string | null;
@@ -24,7 +25,7 @@ interface SimilarityFlag {
 }
 
 type StatusFilter = '' | 'OPEN' | 'CLAIMED';
-type MatchTypeFilter = '' | 'USER_HISTORY' | 'DAILY_GREAT';
+type MatchTypeFilter = '' | MatchType;
 
 const LIMIT = 10;
 

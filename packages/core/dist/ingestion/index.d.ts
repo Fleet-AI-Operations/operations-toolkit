@@ -63,10 +63,10 @@ export declare function getIngestStatus(jobId: string): Promise<{
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    status: string;
-    error: string | null;
     environment: string;
+    status: string;
     totalRecords: number;
+    error: string | null;
     type: import("@prisma/client").$Enums.RecordType;
     savedCount: number;
     skippedCount: number;

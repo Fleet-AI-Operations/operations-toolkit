@@ -1,4 +1,5 @@
 import { prisma } from '@repo/database';
+import type { MatchType } from '@repo/types';
 import { cosineSimilarity } from '../ai';
 import { notifySimilarityDetected } from '../notifications/email-service';
 
@@ -20,7 +21,8 @@ function parseVector(vectorStr: any): number[] | null {
     const inner = vectorStr.slice(1, -1);
     if (!inner) return null;
     const values = inner.split(',').map(Number);
-    return values.filter(v => !isNaN(v));
+    if (values.some(v => isNaN(v))) return null;
+    return values;
   }
 
   return null;
@@ -91,8 +93,17 @@ export async function startSimilarityDetection(
   const jobId = job[0].id;
 
   // Fire and forget — detection runs in background after ingest completes
-  runSimilarityDetection(jobId, ingestJobId, environment).catch(err => {
+  runSimilarityDetection(jobId, ingestJobId, environment).catch(async (err) => {
     console.error(`[SimilarityDetection] Unhandled error in runSimilarityDetection for job ${jobId} (ingestJob=${ingestJobId}, env=${environment}):`, err);
+    try {
+      await prisma.$executeRaw`
+        UPDATE public.similarity_jobs
+        SET status = 'FAILED', error = ${err.message ?? String(err)}, updated_at = NOW()
+        WHERE id = ${jobId}::uuid
+      `;
+    } catch (updateErr) {
+      console.error(`[SimilarityDetection] CRITICAL: Failed to mark job ${jobId} as FAILED after pre-try error:`, updateErr);
+    }
   });
 
   return jobId;
@@ -180,7 +191,7 @@ async function runSimilarityDetection(
       userEmail: string;
       userName: string | null;
       environment: string;
-      matchType: string;
+      matchType: MatchType;
     }> = [];
 
     let totalChecked = 0;
@@ -280,6 +291,8 @@ async function runSimilarityDetection(
       for (const newRec of newRecords) {
         const newVec = parseVector(newRec.embedding);
         if (!newVec) continue;
+
+        totalChecked++;
 
         for (const great of parsedGreat) {
           // Skip identical content

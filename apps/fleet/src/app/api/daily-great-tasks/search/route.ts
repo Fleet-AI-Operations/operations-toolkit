@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ records });
     } catch (err) {
-        console.error('[DailyGreatTasks/Search] GET error:', err);
+        console.error('[DailyGreatTasks/Search] GET error for task_key:', taskKey, err);
         return NextResponse.json({ error: 'Failed to search records' }, { status: 500 });
     }
 }

@@ -45,8 +45,14 @@ export async function PATCH(
 
     const { id } = await params;
 
+    let body: { isDailyGreat?: unknown };
     try {
-        const body = await request.json();
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 });
+    }
+
+    try {
         const { isDailyGreat } = body;
 
         if (typeof isDailyGreat !== 'boolean') {

@@ -42,7 +42,8 @@ function parseVector(embedding: any): number[] | null {
             const values = cleaned.split(',').map((v: string) => parseFloat(v.trim()));
             if (values.some((v: number) => isNaN(v))) return null;
             return values;
-        } catch {
+        } catch (err) {
+            console.error('[DailyGreatCompare] parseVector unexpected error:', err, 'Input:', String(embedding).slice(0, 100));
             return null;
         }
     }
@@ -60,8 +61,14 @@ export async function POST(request: NextRequest) {
     const authResult = await requireFleetAuth(request);
     if (authResult.error) return authResult.error;
 
+    let body: { environment?: unknown; threshold?: unknown };
     try {
-        const body = await request.json();
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 });
+    }
+
+    try {
         const { environment, threshold } = body;
 
         if (!environment) {
@@ -104,9 +111,16 @@ export async function POST(request: NextRequest) {
             FROM public.data_records
             WHERE LOWER(environment) = LOWER(${environment})
             AND type = 'TASK'
+            AND is_daily_great = false
             AND embedding IS NOT NULL
             LIMIT 2000
         `;
+
+        if (tasks.length === 0) {
+            return NextResponse.json({
+                error: `No task records with embeddings found in environment "${environment}". Check that the environment name is correct and that records have been vectorized.`,
+            }, { status: 400 });
+        }
 
         const totalTasks = tasks.length;
         const totalDailyGreat = dailyGreats.length;

@@ -767,7 +767,8 @@ export default function ExemplarTasksPage() {
             } else {
                 setDgFlaggedError(data.error || 'Failed to load flagged records');
             }
-        } catch {
+        } catch (err) {
+            console.error('[DailyGreatTasks] fetchDgFlagged failed:', err);
             setDgFlaggedError('Network error');
         } finally {
             setDgLoadingFlagged(false);
@@ -790,7 +791,8 @@ export default function ExemplarTasksPage() {
             const data = await res.json();
             if (res.ok) setDgSearchResults(data.records);
             else setDgSearchError(data.error || 'Search failed');
-        } catch {
+        } catch (err) {
+            console.error('[DailyGreatTasks] handleDgSearch failed:', err);
             setDgSearchError('Network error');
         } finally {
             setDgSearching(false);
@@ -812,7 +814,15 @@ export default function ExemplarTasksPage() {
                 setDgSearchResults(prev => prev.map(r => r.id === id ? { ...r, isDailyGreat } : r));
                 // Refresh flagged list (stay on current page)
                 await fetchDgFlagged(dgFlaggedPage);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                const msg = (data as any).error || `Server error (${res.status})`;
+                console.error('[DailyGreatTasks] handleDgToggle failed for record', id, msg);
+                setDgFlaggedError(msg);
             }
+        } catch (err) {
+            console.error('[DailyGreatTasks] handleDgToggle network error for record', id, err);
+            setDgFlaggedError('Network error — could not update flag. Please try again.');
         } finally {
             setDgTogglingId(null);
         }
@@ -834,7 +844,8 @@ export default function ExemplarTasksPage() {
             const data = await res.json();
             if (res.ok) setDgCompareResult(data);
             else setDgCompareError(data.error || 'Comparison failed');
-        } catch {
+        } catch (err) {
+            console.error('[DailyGreatTasks] handleDgCompare failed:', err);
             setDgCompareError('Network error');
         } finally {
             setDgComparing(false);

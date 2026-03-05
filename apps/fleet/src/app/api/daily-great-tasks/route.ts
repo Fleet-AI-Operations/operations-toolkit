@@ -56,10 +56,6 @@ export async function GET(request: NextRequest) {
             snippet: string;
         };
 
-        const baseWhere = environment
-            ? `WHERE is_daily_great = true AND type = 'TASK' AND environment = $1`
-            : `WHERE is_daily_great = true AND type = 'TASK'`;
-
         let rows: DailyGreatRow[];
         let countResult: [{ count: bigint }];
 
@@ -103,7 +99,7 @@ export async function GET(request: NextRequest) {
             `;
         }
 
-        const total = Number(countResult[0].count);
+        const total = countResult.length > 0 ? Number(countResult[0].count) : 0;
         const records = rows.map(r => ({
             id: r.id,
             environment: r.environment,
