@@ -12,6 +12,10 @@ After logging in, you'll see a sidebar on the left with the following sections:
 
 Some items open in the same tab; others (marked with a small external link icon) navigate to a different part of the platform. Either way, your session stays active and you won't need to log in again.
 
+**Searching the sidebar:** Type in the **Search tools...** input at the top of the sidebar to filter all navigation items by name. Matching results appear in a flat list with their section shown beneath each label. Clear the search or press the collapse button to return to the normal view.
+
+**Similarity Flags badge:** A warning icon (⚠) in the header shows the count of open similarity flags. Click it to go directly to the Similarity Flags dashboard. The badge is visible from any app while you are logged in with a CORE or higher role.
+
 ## Table of Contents
 
 ### Core Tools

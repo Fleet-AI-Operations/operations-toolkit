@@ -169,7 +169,7 @@ This document outlines the new user roles, permissions hierarchy, and navigation
 
 ### Phase 2: Backend Changes
 - [ ] Update `checkUserRole()` helper to support new roles
-- [ ] Create role hierarchy utility (`hasPermission(userRole, requiredRole)`)
+- [x] Create role hierarchy utility — `hasMinRole(userRole, minRole)` in `packages/auth/src/app-access.ts`, exported from `@repo/auth`. Uses `ROLE_WEIGHTS` for hierarchical comparison.
 - [ ] Update all API route role checks:
   - [ ] User Tools endpoints (accessible to all authenticated users)
   - [ ] QA Tools endpoints (QA, Core, Fleet, Admin)
