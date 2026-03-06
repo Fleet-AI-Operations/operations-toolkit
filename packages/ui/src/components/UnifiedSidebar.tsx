@@ -200,12 +200,15 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
         });
     };
 
-    const visibleSections = NAV_SECTIONS.filter(section => {
-        const minWeight = ROLE_WEIGHTS[section.minRole] ?? 0;
-        if (userWeight < minWeight) return false;
-        if (section.hideInApps?.includes(currentApp)) return false;
-        return true;
-    });
+    const visibleSections = useMemo(() =>
+        NAV_SECTIONS.filter(section => {
+            const minWeight = ROLE_WEIGHTS[section.minRole] ?? 0;
+            if (userWeight < minWeight) return false;
+            if (section.hideInApps?.includes(currentApp)) return false;
+            return true;
+        }),
+        [userWeight, currentApp]
+    );
 
     const searchResults = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
