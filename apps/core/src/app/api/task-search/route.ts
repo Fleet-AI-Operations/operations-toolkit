@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    if (authError) {
+        console.error('[TaskSearch] Auth check failed', { message: authError.message });
+    }
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -33,6 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     const q = request.nextUrl.searchParams.get('q')?.trim() ?? '';
+    const latestOnly = request.nextUrl.searchParams.get('latestOnly') === 'true';
 
     if (!q) {
         return NextResponse.json({ tasks: [] });
@@ -52,15 +57,35 @@ export async function GET(request: NextRequest) {
             SELECT id, content, environment, "createdByName", "createdByEmail", "createdAt",
                    metadata->>'task_key' AS "taskKey",
                    metadata->>'task_version' AS "taskVersion"
-            FROM data_records
-            WHERE type = 'TASK'
-            AND (
-                id = ${q}
-                OR metadata->>'task_key' = ${q}
-                OR metadata->>'task_id' = ${q}
-                OR "createdByName" ILIKE ${'%' + q + '%'}
-                OR "createdByEmail" ILIKE ${'%' + q + '%'}
-            )
+            FROM (
+                ${latestOnly ? Prisma.sql`
+                SELECT DISTINCT ON (COALESCE(metadata->>'task_key', id))
+                    id, content, environment, "createdByName", "createdByEmail", "createdAt", metadata
+                FROM data_records
+                WHERE type = 'TASK'
+                AND (
+                    id = ${q}
+                    OR metadata->>'task_key' = ${q}
+                    OR metadata->>'task_id' = ${q}
+                    OR "createdByName" ILIKE ${'%' + q + '%'}
+                    OR "createdByEmail" ILIKE ${'%' + q + '%'}
+                )
+                ORDER BY COALESCE(metadata->>'task_key', id),
+                         CAST(COALESCE(NULLIF(metadata->>'task_version', ''), NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
+                         "createdAt" DESC
+                ` : Prisma.sql`
+                SELECT id, content, environment, "createdByName", "createdByEmail", "createdAt", metadata
+                FROM data_records
+                WHERE type = 'TASK'
+                AND (
+                    id = ${q}
+                    OR metadata->>'task_key' = ${q}
+                    OR metadata->>'task_id' = ${q}
+                    OR "createdByName" ILIKE ${'%' + q + '%'}
+                    OR "createdByEmail" ILIKE ${'%' + q + '%'}
+                )
+                `}
+            ) sub
             ORDER BY "createdAt" DESC
             LIMIT 25
         `;

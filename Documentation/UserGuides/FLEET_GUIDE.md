@@ -25,6 +25,7 @@ As a FLEET team member, you have access to **four applications**:
 7. [Time Analytics](#time-analytics)
 8. [Bug Reports Management](#bug-reports-management)
 9. [Prompt Authenticity Checker](#prompt-authenticity-checker)
+10. [Full Similarity Check](#full-similarity-check)
 
 ---
 
@@ -175,6 +176,12 @@ The ingestion job has two phases:
 - Vectorization continues in background
 - Similarity search works after vectorization completes
 - Job status shown in Ingestion History
+
+> **Local development only**: The Ingestion page shows two additional amber buttons when running outside production:
+> - **Trigger Pending Ingestion Jobs** — manually kicks off Phase 1 (data loading) for all jobs currently in `PENDING` status. Useful when the DB webhook trigger is not configured locally.
+> - **Trigger Queued Vectorization Jobs** — manually kicks off Phase 2 (vectorization) for all jobs in `QUEUED_FOR_VEC` status. Useful when the AI server is running but Phase 2 has not started.
+>
+> These buttons are hidden in production and are only visible in the development environment.
 
 ---
 
@@ -956,6 +963,74 @@ Each category produces a **confidence score (0–100%)** and a list of specific 
 - The **Patterns tab** environment filter loads automatically — no need to visit Import first.
 - **Cross-Prompt AI** analysis is on-demand and incurs an AI cost (shown after completion).
 - The **View Prompts** modal deduplicates by task — only the most recent version of each prompt is shown.
+
+---
+
+## Full Similarity Check
+
+Detect duplicate and near-duplicate tasks across environments using vector embeddings and cosine similarity.
+
+**Access**: FLEET or ADMIN role required. Navigate to **Fleet App → Full Similarity Check** (`/full-similarity-check`).
+
+### What is the Full Similarity Check?
+
+The Full Similarity Check lets you browse all vectorized tasks in the database, select one or more, and compare them against the rest of the dataset using their AI-generated embeddings. It is designed for auditing prompt quality and flagging submitted work that is suspiciously similar to other tasks.
+
+### Browsing Tasks
+
+The main page displays all tasks that have been vectorized (i.e., have an embedding). Tasks are paginated — 25 per page.
+
+**Filters available**:
+
+| Filter | Description |
+|--------|-------------|
+| **Environment** | Scope the list to a single environment |
+| **User** | Show only tasks submitted by a specific name or email |
+| **Latest versions only** | When enabled, shows only the highest-versioned task per unique `task_key`, deduplicating re-submitted versions (off by default) |
+
+Use the **Previous / Next** page controls (or First / Last) to navigate large datasets.
+
+### Comparing Tasks
+
+1. Tick the checkbox on one or more task rows.
+2. Click **Compare Selected**.
+3. The results panel shows each selected task alongside its most similar matches, sorted by similarity (highest first).
+
+**Comparison options (set before comparing)**:
+
+| Option | Description |
+|--------|-------------|
+| **Scope** | `Same environment` — only compares within the same environment. `All environments` — compares across the entire dataset. |
+| **Latest versions only** | When on, the comparison pool is also deduplicated to the highest version per task key, preventing older versions from inflating match counts. |
+| **Threshold** | Minimum cosine similarity percentage to include in results (default 50%). Raise to 70–80% to focus on near-duplicates. |
+
+> **Duplicate detection**: Tasks with identical content are automatically excluded from match results regardless of their ID. This prevents re-ingested records from showing as 100% matches.
+
+### Similarity Score
+
+Scores are expressed as a percentage (0–100%):
+
+| Range | Interpretation |
+|-------|---------------|
+| 90–100% | Near-identical — almost certainly a duplicate or copy |
+| 70–89% | Highly similar — strong candidate for review |
+| 50–69% | Moderately similar — worth investigating if many workers hit this range |
+| < 50% | Not shown (below default threshold) |
+
+### Viewing a Side-by-Side Comparison
+
+Click **View** on a match row to open the side-by-side panel. This shows:
+- Full content of both tasks
+- Metadata (environment, created by, date)
+- Similarity score
+- **AI Analysis** (generated automatically): key similarities, key differences, duplicate assessment, and overall evaluation using the configured AI provider (LM Studio or OpenRouter). OpenRouter costs are shown after the analysis completes.
+
+### Tips
+
+- Enable **Latest versions only** when your dataset contains re-submitted task versions — without it, version 2 and version 3 of the same task may appear as high-similarity matches.
+- Use a threshold of **80%+** to find likely copy-paste submissions; drop to **60%** for template detection.
+- The comparison pool is capped at 2000 records for performance — use the environment scope when working with large datasets to keep results focused.
+- Tasks without embeddings are excluded from both the browse list and the comparison pool. Run vectorization first if records are missing.
 
 ---
 

@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { Prisma } from '@prisma/client';
 import { createClient } from '@repo/auth/server';
 
 interface SimilarPrompt {
@@ -21,10 +22,21 @@ interface SimilarPrompt {
 
 export async function GET(req: NextRequest) {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (authError) {
+        console.error('[PromptSimilarity] Auth check failed', { message: authError.message });
+    }
+    if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true },
+    });
+    if (!profile || !['QA', 'CORE', 'FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const environment = req.nextUrl.searchParams.get('environment');
@@ -36,8 +48,8 @@ export async function GET(req: NextRequest) {
 
     try {
         // 1. Check if target prompt exists and has embedding using raw SQL
-        const targetCheck: { id: string; createdById: string | null; has_embedding: boolean }[] = await prisma.$queryRaw`
-            SELECT id, "createdById", embedding IS NOT NULL as has_embedding
+        const targetCheck: { id: string; createdById: string | null; createdByName: string | null; createdByEmail: string | null; has_embedding: boolean }[] = await prisma.$queryRaw`
+            SELECT id, "createdById", "createdByName", "createdByEmail", embedding IS NOT NULL as has_embedding
             FROM public.data_records
             WHERE id = ${recordId}
         `;
@@ -49,7 +61,7 @@ export async function GET(req: NextRequest) {
         const targetPrompt = targetCheck[0];
 
         if (!targetPrompt.has_embedding) {
-            console.error('Similarity API Error: Target prompt missing embedding', {
+            console.warn('[PromptSimilarity] Target prompt missing embedding', {
                 recordId,
                 environment
             });
@@ -61,6 +73,21 @@ export async function GET(req: NextRequest) {
         // 2. Get similar prompts from the same user using pgvector's cosine distance
         // Also exclude prompts with identical content (handles duplicate records)
         // Filter by environment if provided
+        //
+        // createdById may be null for CSV-ingested records. SQL `column = NULL` is always false,
+        // so we fall back to matching by createdByName / createdByEmail when createdById is null.
+        if (targetPrompt.createdById === null && targetPrompt.createdByName === null && targetPrompt.createdByEmail === null) {
+            return NextResponse.json({
+                error: 'No user identity on this record — cannot scope similarity to a single user.'
+            }, { status: 422 });
+        }
+
+        const userFilter = targetPrompt.createdById !== null
+            ? Prisma.sql`"createdById" = ${targetPrompt.createdById}`
+            : targetPrompt.createdByName !== null
+                ? Prisma.sql`"createdById" IS NULL AND "createdByName" = ${targetPrompt.createdByName}`
+                : Prisma.sql`"createdById" IS NULL AND "createdByEmail" = ${targetPrompt.createdByEmail}`;
+
         const similarPrompts: SimilarPrompt[] = environment
             ? await prisma.$queryRaw`
                 SELECT
@@ -73,7 +100,7 @@ export async function GET(req: NextRequest) {
                 FROM public.data_records
                 WHERE "environment" = ${environment}
                 AND type = 'TASK'
-                AND "createdById" = ${targetPrompt.createdById}
+                AND ${userFilter}
                 AND id != ${recordId}
                 AND embedding IS NOT NULL
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
@@ -90,7 +117,7 @@ export async function GET(req: NextRequest) {
                     ROUND((1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId}))) * 100) as similarity
                 FROM public.data_records
                 WHERE type = 'TASK'
-                AND "createdById" = ${targetPrompt.createdById}
+                AND ${userFilter}
                 AND id != ${recordId}
                 AND embedding IS NOT NULL
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
@@ -117,11 +144,9 @@ export async function GET(req: NextRequest) {
             }))
         });
     } catch (error: unknown) {
-        console.error('Similarity API Error:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[PromptSimilarity] Query failed', error);
         return NextResponse.json({
-            error: 'Error calculating similarities. Please try again or contact support.',
-            details: message
+            error: 'Error calculating similarities. Please try again or contact support.'
         }, { status: 500 });
     }
 }

@@ -85,17 +85,18 @@ export default function TaskSearchPage() {
     const [error, setError] = useState<string | null>(null);
     const [cardStates, setCardStates] = useState<Record<string, TaskCardState>>({});
     const [selectedEnvironment, setSelectedEnvironment] = useState<string>('');
+    const [latestOnly, setLatestOnly] = useState(true);
 
     useEffect(() => {
         const q = searchParams.get('q');
         if (q) {
             setQuery(q);
-            search(q);
+            search(q, latestOnly);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const search = async (q: string) => {
+    const search = async (q: string, latest = latestOnly) => {
         if (!q.trim()) return;
         setLoading(true);
         setError(null);
@@ -103,7 +104,9 @@ export default function TaskSearchPage() {
         setCardStates({});
         setSelectedEnvironment('');
         try {
-            const res = await fetch(`/api/task-search?q=${encodeURIComponent(q.trim())}`);
+            const params = new URLSearchParams({ q: q.trim() });
+            if (latest) params.set('latestOnly', 'true');
+            const res = await fetch(`/api/task-search?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Search failed');
             setResults(data.tasks);
@@ -164,7 +167,7 @@ export default function TaskSearchPage() {
             const res = await fetch('/api/task-search/user-similarity', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recordId: task.id }),
+                body: JSON.stringify({ recordId: task.id, latestOnly }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Similarity check failed');
@@ -192,7 +195,7 @@ export default function TaskSearchPage() {
             </div>
 
             {/* Search bar */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                     <Search size={16} style={{
                         position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)',
@@ -242,6 +245,45 @@ export default function TaskSearchPage() {
                     {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}
                     Search
                 </button>
+            </div>
+
+            {/* Latest only toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+                <button
+                    role="switch"
+                    aria-checked={latestOnly}
+                    onClick={() => {
+                        const next = !latestOnly;
+                        setLatestOnly(next);
+                        if (results !== null) search(query, next);
+                    }}
+                    style={{
+                        width: '36px',
+                        height: '20px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        position: 'relative',
+                        background: latestOnly ? 'rgba(245,158,11,0.7)' : 'rgba(255,255,255,0.12)',
+                        transition: 'background 0.2s',
+                        flexShrink: 0,
+                    }}
+                >
+                    <span style={{
+                        position: 'absolute',
+                        top: '3px',
+                        left: latestOnly ? '19px' : '3px',
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '50%',
+                        background: 'white',
+                        transition: 'left 0.2s',
+                    }} />
+                </button>
+                <span style={{ fontSize: '0.85rem', color: latestOnly ? 'rgba(245,158,11,0.9)' : 'rgba(255,255,255,0.4)' }}>
+                    Latest version only
+                </span>
             </div>
 
             {/* Error */}

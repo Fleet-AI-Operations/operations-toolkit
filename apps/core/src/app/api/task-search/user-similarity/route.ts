@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    if (authError) {
+        console.error('[UserSimilarity] Auth check failed', { message: authError.message });
+    }
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -37,8 +41,9 @@ export async function POST(request: NextRequest) {
     }
 
     let recordId: string;
+    let latestOnly = false;
     try {
-        ({ recordId } = await request.json());
+        ({ recordId, latestOnly = false } = await request.json());
     } catch {
         return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
     }
@@ -48,17 +53,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the source record to get user identity and confirm it has an embedding
-    const [source] = await prisma.$queryRaw<Array<{
+    let sourceRows: Array<{
         id: string;
         createdByEmail: string | null;
         createdById: string | null;
         environment: string;
         has_embedding: boolean;
-    }>>`
-        SELECT id, "createdByEmail", "createdById", environment, embedding IS NOT NULL AS has_embedding
-        FROM public.data_records
-        WHERE id = ${recordId}
-    `;
+    }>;
+    try {
+        sourceRows = await prisma.$queryRaw`
+            SELECT id, "createdByEmail", "createdById", environment, embedding IS NOT NULL AS has_embedding
+            FROM public.data_records
+            WHERE id = ${recordId}
+        `;
+    } catch (dbErr) {
+        console.error('[UserSimilarity] Failed to fetch source record', { recordId, userId: user.id }, dbErr);
+        return NextResponse.json({ error: 'Failed to look up source record. Please try again.' }, { status: 500 });
+    }
+    const [source] = sourceRows;
 
     if (!source) {
         return NextResponse.json({ error: 'Record not found' }, { status: 404 });
@@ -94,103 +106,80 @@ export async function POST(request: NextRequest) {
         similarity: number;
     };
 
-    // Check if this user has any version 1 tasks — if not, fall back to all versions.
-    const [{ v1_count }] = source.createdByEmail
-        ? await prisma.$queryRaw<[{ v1_count: bigint }]>`
+    const userFilter = source.createdByEmail
+        ? Prisma.sql`("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})`
+        : Prisma.sql`"createdById" = ${source.createdById}`;
+
+    let matches: SimilarityRow[];
+    let versionFiltered = false;
+
+    try {
+    if (latestOnly) {
+        // DISTINCT ON: keep only the highest version per task_key for this user.
+        matches = await prisma.$queryRaw`
+            SELECT
+                id, content, environment, "createdByName", "createdByEmail", "createdAt",
+                metadata->>'task_key' AS "taskKey",
+                metadata->>'task_version' AS "taskVersion",
+                ROUND((1 - (embedding <=> (
+                    SELECT embedding FROM public.data_records WHERE id = ${recordId}
+                ))) * 100) AS similarity
+            FROM (
+                SELECT DISTINCT ON (COALESCE(metadata->>'task_key', id))
+                    id, content, environment, "createdByName", "createdByEmail", "createdAt", metadata, embedding
+                FROM public.data_records
+                WHERE type = 'TASK'
+                AND id != ${recordId}
+                AND embedding IS NOT NULL
+                AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
+                AND ${userFilter}
+                AND environment = ${source.environment}
+                ORDER BY COALESCE(metadata->>'task_key', id),
+                         CAST(COALESCE(NULLIF(metadata->>'task_version', ''), NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
+                         "createdAt" DESC
+            ) latest
+            ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
+            LIMIT 20
+        `;
+        versionFiltered = true;
+    } else {
+        // Check if this user has any version 1 tasks — if not, fall back to all versions.
+        const [{ v1_count }] = await prisma.$queryRaw<[{ v1_count: bigint }]>`
             SELECT COUNT(*) AS v1_count FROM public.data_records
             WHERE type = 'TASK' AND id != ${recordId}
-            AND ("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})
+            AND ${userFilter}
             AND metadata->>'task_version' = '1'
             AND environment = ${source.environment}
-          `
-        : await prisma.$queryRaw<[{ v1_count: bigint }]>`
-            SELECT COUNT(*) AS v1_count FROM public.data_records
-            WHERE type = 'TASK' AND id != ${recordId}
-            AND "createdById" = ${source.createdById}
-            AND metadata->>'task_version' = '1'
+        `;
+
+        const hasV1 = Number(v1_count) > 0;
+        versionFiltered = hasV1;
+
+        matches = await prisma.$queryRaw`
+            SELECT
+                id, content, environment, "createdByName", "createdByEmail", "createdAt",
+                metadata->>'task_key' AS "taskKey",
+                metadata->>'task_version' AS "taskVersion",
+                ROUND((1 - (embedding <=> (
+                    SELECT embedding FROM public.data_records WHERE id = ${recordId}
+                ))) * 100) AS similarity
+            FROM public.data_records
+            WHERE type = 'TASK'
+            AND id != ${recordId}
+            AND embedding IS NOT NULL
+            AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
+            AND ${userFilter}
+            ${hasV1 ? Prisma.sql`AND metadata->>'task_version' = '1'` : Prisma.sql``}
             AND environment = ${source.environment}
-          `;
+            ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
+            LIMIT 20
+        `;
+    }
 
-    const hasV1 = Number(v1_count) > 0;
-
-    // Four branches: email vs id × v1 filter vs no filter.
-    const matches: SimilarityRow[] = source.createdByEmail
-        ? hasV1
-            ? await prisma.$queryRaw`
-                SELECT
-                    id, content, environment, "createdByName", "createdByEmail", "createdAt",
-                    metadata->>'task_key' AS "taskKey",
-                    metadata->>'task_version' AS "taskVersion",
-                    ROUND((1 - (embedding <=> (
-                        SELECT embedding FROM public.data_records WHERE id = ${recordId}
-                    ))) * 100) AS similarity
-                FROM public.data_records
-                WHERE type = 'TASK'
-                AND id != ${recordId}
-                AND embedding IS NOT NULL
-                AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
-                AND ("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})
-                AND metadata->>'task_version' = '1'
-                AND environment = ${source.environment}
-                ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
-                LIMIT 20
-              `
-            : await prisma.$queryRaw`
-                SELECT
-                    id, content, environment, "createdByName", "createdByEmail", "createdAt",
-                    metadata->>'task_key' AS "taskKey",
-                    metadata->>'task_version' AS "taskVersion",
-                    ROUND((1 - (embedding <=> (
-                        SELECT embedding FROM public.data_records WHERE id = ${recordId}
-                    ))) * 100) AS similarity
-                FROM public.data_records
-                WHERE type = 'TASK'
-                AND id != ${recordId}
-                AND embedding IS NOT NULL
-                AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
-                AND ("createdByEmail" = ${source.createdByEmail} OR metadata->>'author_email' = ${source.createdByEmail})
-                AND environment = ${source.environment}
-                ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
-                LIMIT 20
-              `
-        : hasV1
-            ? await prisma.$queryRaw`
-                SELECT
-                    id, content, environment, "createdByName", "createdByEmail", "createdAt",
-                    metadata->>'task_key' AS "taskKey",
-                    metadata->>'task_version' AS "taskVersion",
-                    ROUND((1 - (embedding <=> (
-                        SELECT embedding FROM public.data_records WHERE id = ${recordId}
-                    ))) * 100) AS similarity
-                FROM public.data_records
-                WHERE type = 'TASK'
-                AND id != ${recordId}
-                AND embedding IS NOT NULL
-                AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
-                AND "createdById" = ${source.createdById}
-                AND metadata->>'task_version' = '1'
-                AND environment = ${source.environment}
-                ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
-                LIMIT 20
-              `
-            : await prisma.$queryRaw`
-                SELECT
-                    id, content, environment, "createdByName", "createdByEmail", "createdAt",
-                    metadata->>'task_key' AS "taskKey",
-                    metadata->>'task_version' AS "taskVersion",
-                    ROUND((1 - (embedding <=> (
-                        SELECT embedding FROM public.data_records WHERE id = ${recordId}
-                    ))) * 100) AS similarity
-                FROM public.data_records
-                WHERE type = 'TASK'
-                AND id != ${recordId}
-                AND embedding IS NOT NULL
-                AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
-                AND "createdById" = ${source.createdById}
-                AND environment = ${source.environment}
-                ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
-                LIMIT 20
-              `;
+    } catch (dbErr) {
+        console.error('[UserSimilarity] Similarity query failed', { recordId, userId: user.id }, dbErr);
+        return NextResponse.json({ error: 'Failed to calculate similarity. Please try again.' }, { status: 500 });
+    }
 
     return NextResponse.json({
         matches: matches.map(m => ({
@@ -198,6 +187,6 @@ export async function POST(request: NextRequest) {
             similarity: Number(m.similarity),
             createdAt: new Date(m.createdAt).toISOString(),
         })),
-        versionFiltered: hasV1,
+        versionFiltered,
     });
 }

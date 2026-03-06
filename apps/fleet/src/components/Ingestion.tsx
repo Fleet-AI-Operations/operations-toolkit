@@ -37,6 +37,8 @@ export default function IngestionPage() {
 
     // Retroactive vectorization state
     const [vectorizing, setVectorizing] = useState(false);
+    const [triggeringQueued, setTriggeringQueued] = useState(false);
+    const [triggeringPending, setTriggeringPending] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -270,6 +272,46 @@ export default function IngestionPage() {
             setStatus({ type: 'error', message: 'Failed to trigger vectorization. Check console for details.' });
         } finally {
             setVectorizing(false);
+        }
+    };
+
+    const triggerPendingJobs = async () => {
+        setTriggeringPending(true);
+        try {
+            const res = await fetch('/api/ingest/dev-trigger-pending', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                const hasErrors = data.results?.some((r: any) => r.status === 'error');
+                setStatus({ type: hasErrors && data.triggered === 0 ? 'error' : 'success', message: data.message });
+                fetchRecentJobs();
+            } else {
+                setStatus({ type: 'error', message: data.error || 'Failed to trigger pending jobs' });
+            }
+        } catch (error) {
+            console.error('Failed to trigger pending jobs:', error);
+            setStatus({ type: 'error', message: 'Failed to trigger pending jobs. Check console for details.' });
+        } finally {
+            setTriggeringPending(false);
+        }
+    };
+
+    const triggerQueuedJobs = async () => {
+        setTriggeringQueued(true);
+        try {
+            const res = await fetch('/api/ingest/dev-trigger-queued', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                const hasErrors = data.results?.some((r: any) => r.status === 'error');
+                setStatus({ type: hasErrors && data.triggered === 0 ? 'error' : 'success', message: data.message });
+                fetchRecentJobs();
+            } else {
+                setStatus({ type: 'error', message: data.error || 'Failed to trigger queued jobs' });
+            }
+        } catch (error) {
+            console.error('Failed to trigger queued jobs:', error);
+            setStatus({ type: 'error', message: 'Failed to trigger queued jobs. Check console for details.' });
+        } finally {
+            setTriggeringQueued(false);
         }
     };
 
@@ -530,7 +572,7 @@ export default function IngestionPage() {
                     <AlertCircle size={24} color="var(--accent)" />
                     Maintenance Tools
                 </h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <div>
                         <p style={{ fontSize: '0.95rem', opacity: 0.8, marginBottom: '16px', lineHeight: '1.6' }}>
                             Generate embeddings for records that were imported directly into the database and are missing vector embeddings.
@@ -564,6 +606,76 @@ export default function IngestionPage() {
                             )}
                         </button>
                     </div>
+
+                    {process.env.NODE_ENV !== 'production' && (
+                        <div style={{ borderTop: '1px solid rgba(139, 92, 246, 0.2)', paddingTop: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#f59e0b', background: 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+                                    Dev Only
+                                </span>
+                            </div>
+                            <p style={{ fontSize: '0.9rem', opacity: 0.7, marginBottom: '12px', lineHeight: '1.5' }}>
+                                Directly trigger Phase 1 (ingestion) for all <code>PENDING</code> jobs, or Phase 2 (vectorization) for all <code>QUEUED_FOR_VEC</code> jobs.
+                                Use these locally since the Supabase webhook can't reach localhost.
+                            </p>
+                            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={triggerPendingJobs}
+                                    disabled={triggeringPending}
+                                    className="btn-outline"
+                                    style={{
+                                        padding: '12px 24px',
+                                        fontSize: '0.95rem',
+                                        fontWeight: 600,
+                                        borderColor: '#f59e0b',
+                                        color: '#f59e0b',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    {triggeringPending ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={18} />
+                                            Triggering...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 size={18} />
+                                            Trigger Pending Ingestion Jobs
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={triggerQueuedJobs}
+                                    disabled={triggeringQueued}
+                                    className="btn-outline"
+                                    style={{
+                                        padding: '12px 24px',
+                                        fontSize: '0.95rem',
+                                        fontWeight: 600,
+                                        borderColor: '#f59e0b',
+                                        color: '#f59e0b',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    {triggeringQueued ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={18} />
+                                            Triggering...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 size={18} />
+                                            Trigger Queued Vectorization Jobs
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

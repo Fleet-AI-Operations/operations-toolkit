@@ -50,6 +50,7 @@ export default function FullSimilarityCheckPage() {
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 25;
   const [similarityThreshold, setSimilarityThreshold] = useState(50);
+  const [latestOnly, setLatestOnly] = useState(false);
   const [comparisonView, setComparisonView] = useState<{
     source: { id: string; content: string; environment: string; createdBy: string; createdAt: string };
     target: { id: string; content: string; environment: string; createdBy: string; createdAt: string; similarity: number };
@@ -58,15 +59,15 @@ export default function FullSimilarityCheckPage() {
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
   const [aiAnalysisCost, setAiAnalysisCost] = useState<string | null>(null);
 
-  // Fetch tasks when environment, page, or user filter changes
+  // Fetch tasks when environment, page, user filter, or latestOnly changes
   useEffect(() => {
     fetchTasks();
-  }, [environment, currentPage, userFilter]);
+  }, [environment, currentPage, userFilter, latestOnly]);
 
   // Reset to page 1 when filters change (but not page itself)
   useEffect(() => {
     setCurrentPage(1);
-  }, [environment, userFilter]);
+  }, [environment, userFilter, latestOnly]);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -83,6 +84,10 @@ export default function FullSimilarityCheckPage() {
 
       if (userFilter) {
         params.append('user', userFilter);
+      }
+
+      if (latestOnly) {
+        params.append('latestOnly', 'true');
       }
 
       const res = await fetch(`/api/full-similarity-check?${params.toString()}`);
@@ -140,7 +145,8 @@ export default function FullSimilarityCheckPage() {
           environment: selectedTask.environment,
           taskIds: [selectedTaskIdForComparison],
           scope,
-          threshold: similarityThreshold
+          threshold: similarityThreshold,
+          latestOnly,
         })
       });
       const data = await res.json();
@@ -241,6 +247,46 @@ export default function FullSimilarityCheckPage() {
           </div>
         </div>
 
+        {/* Latest Versions Only */}
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Version Filter:
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+            <div
+              onClick={() => setLatestOnly(v => !v)}
+              style={{
+                position: 'relative',
+                width: '44px',
+                height: '24px',
+                borderRadius: '12px',
+                backgroundColor: latestOnly ? 'rgba(100, 200, 255, 0.5)' : 'rgba(255, 255, 255, 0.15)',
+                border: latestOnly ? '1px solid rgba(100, 200, 255, 0.8)' : '1px solid rgba(255, 255, 255, 0.2)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '3px',
+                left: latestOnly ? '22px' : '3px',
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                backgroundColor: latestOnly ? 'rgba(100, 200, 255, 1)' : 'rgba(255, 255, 255, 0.6)',
+                transition: 'left 0.2s',
+              }} />
+            </div>
+            <span style={{ fontSize: '0.9rem' }}>Latest versions only</span>
+          </label>
+          <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+            {latestOnly
+              ? 'Showing only the highest version of each task'
+              : 'Showing all versions of each task'}
+          </div>
+        </div>
+
         {/* Similarity Threshold */}
         <div>
           <label htmlFor="similarity-threshold" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
@@ -278,13 +324,14 @@ export default function FullSimilarityCheckPage() {
       </div>
 
       {/* Clear Filters Button */}
-      {(environment || userFilter || similarityThreshold !== 50) && (
+      {(environment || userFilter || similarityThreshold !== 50 || latestOnly) && (
         <div style={{ marginBottom: '2rem' }}>
           <button
             onClick={() => {
               setEnvironment('');
               setUserFilter('');
               setSimilarityThreshold(50);
+              setLatestOnly(false);
             }}
             style={{
               padding: '0.5rem 1rem',
