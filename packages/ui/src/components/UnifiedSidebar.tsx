@@ -32,7 +32,7 @@ import {
     ExternalLink,
     LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 type AppName = 'user' | 'qa' | 'core' | 'fleet' | 'admin';
 
@@ -178,6 +178,7 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
     const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+    const [searchQuery, setSearchQuery] = useState('');
 
     const userWeight = userRole ? (ROLE_WEIGHTS[userRole] ?? -1) : -1;
 
@@ -206,6 +207,16 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
         return true;
     });
 
+    const searchResults = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return null;
+        return visibleSections.flatMap(section =>
+            section.items
+                .filter(item => item.label.toLowerCase().includes(q))
+                .map(item => ({ ...item, sectionTitle: section.title }))
+        );
+    }, [searchQuery, visibleSections]);
+
     return (
         <aside style={{
             width: collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)',
@@ -233,7 +244,7 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
                     </span>
                 )}
                 <button
-                    onClick={() => setCollapsed(!collapsed)}
+                    onClick={() => { setCollapsed(!collapsed); setSearchQuery(''); }}
                     style={{
                         color: 'rgba(255, 255, 255, 0.4)',
                         padding: '4px',
@@ -245,94 +256,177 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
                 </button>
             </div>
 
+            {!collapsed && (
+                <div style={{ padding: '0 12px 16px' }}>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={14} style={{
+                            position: 'absolute',
+                            left: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: 'rgba(255,255,255,0.3)',
+                            pointerEvents: 'none',
+                        }} />
+                        <input
+                            type="text"
+                            placeholder="Search tools..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '8px',
+                                padding: '7px 10px 7px 32px',
+                                color: 'rgba(255,255,255,0.85)',
+                                fontSize: '0.8rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                            }}
+                            onFocus={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                        />
+                    </div>
+                </div>
+            )}
+
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px' }}>
-                {visibleSections.map((section) => {
-                    const isSectionCollapsed = collapsedSections.has(section.title);
+                {searchResults !== null ? (
+                    searchResults.length === 0 ? (
+                        <div style={{
+                            padding: '12px',
+                            fontSize: '0.8rem',
+                            color: 'rgba(255,255,255,0.35)',
+                            textAlign: 'center',
+                        }}>
+                            No tools found
+                        </div>
+                    ) : (
+                        searchResults.map((item) => {
+                            const isInternal = item.app === currentApp;
+                            const active = isInternal && pathname === item.href;
 
-                    return (
-                        <div key={section.title} style={{ marginBottom: '24px' }}>
-                            {!collapsed && (
-                                <button
-                                    onClick={() => toggleSection(section.title)}
-                                    className="sidebar-section-title"
-                                    style={{
-                                        all: 'unset',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        width: '100%',
-                                        cursor: 'pointer',
-                                        padding: '8px 12px',
-                                        marginBottom: '4px',
-                                        borderRadius: '6px',
-                                        transition: 'background 0.2s',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = 'transparent';
-                                    }}
+                            if (isInternal) {
+                                return (
+                                    <Link
+                                        key={`${item.app}:${item.href}`}
+                                        href={item.href}
+                                        className={`sidebar-link ${active ? 'active' : ''}`}
+                                    >
+                                        <item.icon size={20} />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+                                            <span>{item.label}</span>
+                                            <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.sectionTitle}</span>
+                                        </div>
+                                    </Link>
+                                );
+                            }
+
+                            return (
+                                <a
+                                    key={`${item.app}:${item.href}`}
+                                    href={`${getBaseUrl(item.app)}${item.href}`}
+                                    className="sidebar-link"
                                 >
-                                    <span style={{
-                                        fontSize: '0.7rem',
-                                        fontWeight: 800,
-                                        letterSpacing: '0.1em',
-                                        textTransform: 'uppercase',
-                                        color: 'rgba(255, 255, 255, 0.5)',
-                                    }}>
-                                        {section.title}
-                                    </span>
-                                    <ChevronDown
-                                        size={14}
-                                        style={{
-                                            color: 'rgba(255, 255, 255, 0.4)',
-                                            transform: isSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                                            transition: 'transform 0.2s',
-                                        }}
-                                    />
-                                </button>
-                            )}
-                            {!isSectionCollapsed && section.items.map((item) => {
-                                const isInternal = item.app === currentApp;
-                                const active = isInternal && pathname === item.href;
+                                    <item.icon size={20} />
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', flex: 1, minWidth: 0 }}>
+                                        <span style={{ flex: 1 }}>{item.label}</span>
+                                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.sectionTitle}</span>
+                                    </div>
+                                    <ExternalLink size={12} style={{ opacity: 0.4, flexShrink: 0 }} />
+                                </a>
+                            );
+                        })
+                    )
+                ) : (
+                    visibleSections.map((section) => {
+                        const isSectionCollapsed = collapsedSections.has(section.title);
 
-                                if (isInternal) {
+                        return (
+                            <div key={section.title} style={{ marginBottom: '24px' }}>
+                                {!collapsed && (
+                                    <button
+                                        onClick={() => toggleSection(section.title)}
+                                        className="sidebar-section-title"
+                                        style={{
+                                            all: 'unset',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            width: '100%',
+                                            cursor: 'pointer',
+                                            padding: '8px 12px',
+                                            marginBottom: '4px',
+                                            borderRadius: '6px',
+                                            transition: 'background 0.2s',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = 'transparent';
+                                        }}
+                                    >
+                                        <span style={{
+                                            fontSize: '0.7rem',
+                                            fontWeight: 800,
+                                            letterSpacing: '0.1em',
+                                            textTransform: 'uppercase',
+                                            color: 'rgba(255, 255, 255, 0.5)',
+                                        }}>
+                                            {section.title}
+                                        </span>
+                                        <ChevronDown
+                                            size={14}
+                                            style={{
+                                                color: 'rgba(255, 255, 255, 0.4)',
+                                                transform: isSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                                                transition: 'transform 0.2s',
+                                            }}
+                                        />
+                                    </button>
+                                )}
+                                {!isSectionCollapsed && section.items.map((item) => {
+                                    const isInternal = item.app === currentApp;
+                                    const active = isInternal && pathname === item.href;
+
+                                    if (isInternal) {
+                                        return (
+                                            <Link
+                                                key={`${item.app}:${item.href}`}
+                                                href={item.href}
+                                                className={`sidebar-link ${active ? 'active' : ''}`}
+                                                title={collapsed ? item.label : ''}
+                                                style={{ justifyContent: collapsed ? 'center' : undefined }}
+                                            >
+                                                <item.icon size={20} />
+                                                {!collapsed && <span>{item.label}</span>}
+                                            </Link>
+                                        );
+                                    }
+
                                     return (
-                                        <Link
+                                        <a
                                             key={`${item.app}:${item.href}`}
-                                            href={item.href}
-                                            className={`sidebar-link ${active ? 'active' : ''}`}
+                                            href={`${getBaseUrl(item.app)}${item.href}`}
+                                            className="sidebar-link"
                                             title={collapsed ? item.label : ''}
                                             style={{ justifyContent: collapsed ? 'center' : undefined }}
                                         >
                                             <item.icon size={20} />
-                                            {!collapsed && <span>{item.label}</span>}
-                                        </Link>
+                                            {!collapsed && (
+                                                <>
+                                                    <span style={{ flex: 1 }}>{item.label}</span>
+                                                    <ExternalLink size={12} style={{ opacity: 0.4, flexShrink: 0 }} />
+                                                </>
+                                            )}
+                                        </a>
                                     );
-                                }
-
-                                return (
-                                    <a
-                                        key={`${item.app}:${item.href}`}
-                                        href={`${getBaseUrl(item.app)}${item.href}`}
-                                        className="sidebar-link"
-                                        title={collapsed ? item.label : ''}
-                                        style={{ justifyContent: collapsed ? 'center' : undefined }}
-                                    >
-                                        <item.icon size={20} />
-                                        {!collapsed && (
-                                            <>
-                                                <span style={{ flex: 1 }}>{item.label}</span>
-                                                <ExternalLink size={12} style={{ opacity: 0.4, flexShrink: 0 }} />
-                                            </>
-                                        )}
-                                    </a>
-                                );
-                            })}
-                        </div>
-                    );
-                })}
+                                })}
+                            </div>
+                        );
+                    })
+                )}
             </div>
         </aside>
     );

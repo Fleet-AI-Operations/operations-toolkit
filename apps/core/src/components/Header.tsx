@@ -1,11 +1,14 @@
 import { createClient } from '@repo/auth/server'
+import { prisma } from '@repo/database'
 import Link from 'next/link'
 import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'
 import BugReportNotification from './BugReportNotification'
 import UserBugReportTracker from './UserBugReportTracker'
-import SimilarityFlagsButton from './SimilarityFlagsButton'
+import { SimilarityFlagsButton } from './SimilarityFlagsButton'
 import TimeEntryButton from './TimeEntryButton'
+
+const SIMILARITY_FLAG_ROLES = ['CORE', 'FLEET', 'MANAGER', 'ADMIN']
 
 export default async function Header() {
     const supabase = await createClient()
@@ -27,6 +30,16 @@ export default async function Header() {
             role: profileData?.role || user.user_metadata?.role || 'USER'
         }
     }
+
+    let openFlagCount = 0
+    if (profile && SIMILARITY_FLAG_ROLES.includes(profile.role)) {
+        const result = await prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*) as count FROM public.similarity_flags WHERE status = 'OPEN'
+        `
+        openFlagCount = Number(result[0]?.count ?? 0)
+    }
+
+    const coreBaseUrl = process.env.NEXT_PUBLIC_CORE_APP_URL || 'http://localhost:3003'
 
     return (
         <header style={{
@@ -50,7 +63,9 @@ export default async function Header() {
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}
-                    <SimilarityFlagsButton userRole={profile?.role || 'USER'} />
+                    {profile && SIMILARITY_FLAG_ROLES.includes(profile.role) && (
+                        <SimilarityFlagsButton openCount={openFlagCount} flagsUrl={`${coreBaseUrl}/similarity-flags`} />
+                    )}
                     <TimeEntryButton />
                     <UserBugReportTracker />
                     <BugReportNotification userRole={profile?.role || 'USER'} />
