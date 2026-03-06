@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    if (authError) {
+        console.error('[UserSimilarity] Auth check failed', { message: authError.message });
+    }
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -50,17 +53,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the source record to get user identity and confirm it has an embedding
-    const [source] = await prisma.$queryRaw<Array<{
+    let sourceRows: Array<{
         id: string;
         createdByEmail: string | null;
         createdById: string | null;
         environment: string;
         has_embedding: boolean;
-    }>>`
-        SELECT id, "createdByEmail", "createdById", environment, embedding IS NOT NULL AS has_embedding
-        FROM public.data_records
-        WHERE id = ${recordId}
-    `;
+    }>;
+    try {
+        sourceRows = await prisma.$queryRaw`
+            SELECT id, "createdByEmail", "createdById", environment, embedding IS NOT NULL AS has_embedding
+            FROM public.data_records
+            WHERE id = ${recordId}
+        `;
+    } catch (dbErr) {
+        console.error('[UserSimilarity] Failed to fetch source record', { recordId, userId: user.id }, dbErr);
+        return NextResponse.json({ error: 'Failed to look up source record. Please try again.' }, { status: 500 });
+    }
+    const [source] = sourceRows;
 
     if (!source) {
         return NextResponse.json({ error: 'Record not found' }, { status: 404 });
@@ -103,6 +113,7 @@ export async function POST(request: NextRequest) {
     let matches: SimilarityRow[];
     let versionFiltered = false;
 
+    try {
     if (latestOnly) {
         // DISTINCT ON: keep only the highest version per task_key for this user.
         matches = await prisma.$queryRaw`
@@ -163,6 +174,11 @@ export async function POST(request: NextRequest) {
             ORDER BY embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId})
             LIMIT 20
         `;
+    }
+
+    } catch (dbErr) {
+        console.error('[UserSimilarity] Similarity query failed', { recordId, userId: user.id }, dbErr);
+        return NextResponse.json({ error: 'Failed to calculate similarity. Please try again.' }, { status: 500 });
     }
 
     return NextResponse.json({

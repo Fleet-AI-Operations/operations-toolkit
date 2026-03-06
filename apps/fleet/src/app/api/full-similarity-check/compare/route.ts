@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
                             AND id != ${sourceTask.id}
                             AND embedding IS NOT NULL
                             ORDER BY COALESCE(metadata->>'task_key', id),
-                                     CAST(COALESCE(NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
+                                     CAST(COALESCE(NULLIF(metadata->>'task_version', ''), NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
                                      "createdAt" DESC
                         ) latest
                         ORDER BY "createdAt" DESC
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
                             AND id != ${sourceTask.id}
                             AND embedding IS NOT NULL
                             ORDER BY COALESCE(metadata->>'task_key', id),
-                                     CAST(COALESCE(NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
+                                     CAST(COALESCE(NULLIF(metadata->>'task_version', ''), NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
                                      "createdAt" DESC
                         ) latest
                         ORDER BY "createdAt" DESC

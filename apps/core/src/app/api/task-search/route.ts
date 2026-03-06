@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    if (authError) {
+        console.error('[TaskSearch] Auth check failed', { message: authError.message });
+    }
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

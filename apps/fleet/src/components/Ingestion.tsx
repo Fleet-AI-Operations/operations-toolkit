@@ -281,12 +281,14 @@ export default function IngestionPage() {
             const res = await fetch('/api/ingest/dev-trigger-pending', { method: 'POST' });
             const data = await res.json();
             if (res.ok) {
-                setStatus({ type: 'success', message: data.message });
+                const hasErrors = data.results?.some((r: any) => r.status === 'error');
+                setStatus({ type: hasErrors && data.triggered === 0 ? 'error' : 'success', message: data.message });
                 fetchRecentJobs();
             } else {
                 setStatus({ type: 'error', message: data.error || 'Failed to trigger pending jobs' });
             }
         } catch (error) {
+            console.error('Failed to trigger pending jobs:', error);
             setStatus({ type: 'error', message: 'Failed to trigger pending jobs. Check console for details.' });
         } finally {
             setTriggeringPending(false);
@@ -299,12 +301,14 @@ export default function IngestionPage() {
             const res = await fetch('/api/ingest/dev-trigger-queued', { method: 'POST' });
             const data = await res.json();
             if (res.ok) {
-                setStatus({ type: 'success', message: data.message });
+                const hasErrors = data.results?.some((r: any) => r.status === 'error');
+                setStatus({ type: hasErrors && data.triggered === 0 ? 'error' : 'success', message: data.message });
                 fetchRecentJobs();
             } else {
                 setStatus({ type: 'error', message: data.error || 'Failed to trigger queued jobs' });
             }
         } catch (error) {
+            console.error('Failed to trigger queued jobs:', error);
             setStatus({ type: 'error', message: 'Failed to trigger queued jobs. Check console for details.' });
         } finally {
             setTriggeringQueued(false);

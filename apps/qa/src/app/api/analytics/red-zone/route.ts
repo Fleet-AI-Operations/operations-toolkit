@@ -14,16 +14,28 @@ const MAX_TASKS = 500;
 
 export async function GET(req: NextRequest) {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (authError) {
+        console.error('[RedZone] Auth check failed', { message: authError.message });
+    }
+    if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const threshold = Math.min(
-        100,
-        Math.max(0, Number(req.nextUrl.searchParams.get('threshold') ?? '70'))
-    );
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true },
+    });
+    if (!profile || !['QA', 'CORE', 'FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const rawThreshold = Number(req.nextUrl.searchParams.get('threshold') ?? '70');
+    if (!Number.isFinite(rawThreshold)) {
+        return NextResponse.json({ error: 'Invalid threshold: must be a number between 0 and 100' }, { status: 400 });
+    }
+    const threshold = Math.min(100, Math.max(0, rawThreshold));
     const environment = req.nextUrl.searchParams.get('environment') || null;
 
     try {
@@ -156,8 +168,7 @@ export async function GET(req: NextRequest) {
             })),
         });
     } catch (error: unknown) {
-        console.error('Red Zone API Error:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        return NextResponse.json({ error: 'Failed to compute red zone pairs', details: message }, { status: 500 });
+        console.error('[RedZone] Query failed', error);
+        return NextResponse.json({ error: 'Failed to compute red zone pairs' }, { status: 500 });
     }
 }

@@ -20,42 +20,66 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+        console.error('[DevTriggerQueued] Auth check failed', { message: authError.message });
+    }
     if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const profile = await prisma.profile.findUnique({
-        where: { id: user.id },
-        select: { role: true }
-    });
+    let profile;
+    try {
+        profile = await prisma.profile.findUnique({
+            where: { id: user.id },
+            select: { role: true }
+        });
+    } catch (dbErr) {
+        console.error('[DevTriggerQueued] Failed to fetch profile', { userId: user.id }, dbErr);
+        return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 });
+    }
     if (!profile || !['FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const queuedJobs = await prisma.ingestJob.findMany({
-        where: { status: 'QUEUED_FOR_VEC' },
-        select: { id: true, environment: true },
-        orderBy: { createdAt: 'asc' },
-    });
+    let queuedJobs;
+    try {
+        queuedJobs = await prisma.ingestJob.findMany({
+            where: { status: 'QUEUED_FOR_VEC' },
+            select: { id: true, environment: true },
+            orderBy: { createdAt: 'asc' },
+        });
+    } catch (dbErr) {
+        console.error('[DevTriggerQueued] Failed to fetch queued jobs', dbErr);
+        return NextResponse.json({ error: 'Failed to query queued jobs' }, { status: 500 });
+    }
 
     if (queuedJobs.length === 0) {
         return NextResponse.json({ message: 'No QUEUED_FOR_VEC jobs found.', triggered: 0 });
     }
 
     // Run Phase 2 for each job sequentially to avoid overloading the local AI server
-    const results = [];
+    const results: { jobId: string; environment: string; status: string; error?: string }[] = [];
     for (const job of queuedJobs) {
         try {
             await runPhase2(job.id, job.environment);
             results.push({ jobId: job.id, environment: job.environment, status: 'triggered' });
-        } catch (err: any) {
-            results.push({ jobId: job.id, environment: job.environment, status: 'error', error: err.message });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[DevTriggerQueued] runPhase2 failed for job', job.id, err);
+            results.push({ jobId: job.id, environment: job.environment, status: 'error', error: message });
         }
     }
 
+    const succeeded = results.filter(r => r.status === 'triggered').length;
+    const failed = results.filter(r => r.status === 'error').length;
+    const messageParts = [];
+    if (succeeded > 0) messageParts.push(`${succeeded} triggered`);
+    if (failed > 0) messageParts.push(`${failed} failed`);
+
     return NextResponse.json({
-        message: `Triggered ${results.length} job(s).`,
-        triggered: results.length,
+        message: messageParts.join(', ') + '.',
+        triggered: succeeded,
+        failed,
         results,
     });
 }

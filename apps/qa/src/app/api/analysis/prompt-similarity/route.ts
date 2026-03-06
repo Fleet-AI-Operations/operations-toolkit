@@ -22,10 +22,21 @@ interface SimilarPrompt {
 
 export async function GET(req: NextRequest) {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (authError) {
+        console.error('[PromptSimilarity] Auth check failed', { message: authError.message });
+    }
+    if (authError || !user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true },
+    });
+    if (!profile || !['QA', 'CORE', 'FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const environment = req.nextUrl.searchParams.get('environment');
@@ -50,7 +61,7 @@ export async function GET(req: NextRequest) {
         const targetPrompt = targetCheck[0];
 
         if (!targetPrompt.has_embedding) {
-            console.error('Similarity API Error: Target prompt missing embedding', {
+            console.warn('[PromptSimilarity] Target prompt missing embedding', {
                 recordId,
                 environment
             });
@@ -65,13 +76,17 @@ export async function GET(req: NextRequest) {
         //
         // createdById may be null for CSV-ingested records. SQL `column = NULL` is always false,
         // so we fall back to matching by createdByName / createdByEmail when createdById is null.
+        if (targetPrompt.createdById === null && targetPrompt.createdByName === null && targetPrompt.createdByEmail === null) {
+            return NextResponse.json({
+                error: 'No user identity on this record — cannot scope similarity to a single user.'
+            }, { status: 422 });
+        }
+
         const userFilter = targetPrompt.createdById !== null
             ? Prisma.sql`"createdById" = ${targetPrompt.createdById}`
             : targetPrompt.createdByName !== null
                 ? Prisma.sql`"createdById" IS NULL AND "createdByName" = ${targetPrompt.createdByName}`
-                : targetPrompt.createdByEmail !== null
-                    ? Prisma.sql`"createdById" IS NULL AND "createdByEmail" = ${targetPrompt.createdByEmail}`
-                    : Prisma.sql`"createdById" IS NULL`;
+                : Prisma.sql`"createdById" IS NULL AND "createdByEmail" = ${targetPrompt.createdByEmail}`;
 
         const similarPrompts: SimilarPrompt[] = environment
             ? await prisma.$queryRaw`
@@ -129,11 +144,9 @@ export async function GET(req: NextRequest) {
             }))
         });
     } catch (error: unknown) {
-        console.error('Similarity API Error:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[PromptSimilarity] Query failed', error);
         return NextResponse.json({
-            error: 'Error calculating similarities. Please try again or contact support.',
-            details: message
+            error: 'Error calculating similarities. Please try again or contact support.'
         }, { status: 500 });
     }
 }
