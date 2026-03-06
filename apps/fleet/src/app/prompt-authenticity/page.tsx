@@ -49,7 +49,6 @@ export default function PromptAuthenticityPage() {
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [currentJob, setCurrentJob] = useState<Job | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [recordLimit, setRecordLimit] = useState<string>('');
@@ -169,8 +168,6 @@ export default function PromptAuthenticityPage() {
           console.error('Poll error:', error);
         }
       }, 2000);
-      setPollingInterval(interval);
-
       return () => clearInterval(interval);
     }
   }, [currentJob?.id, currentJob?.status]);
@@ -393,14 +390,17 @@ export default function PromptAuthenticityPage() {
   };
 
   useEffect(() => {
+    if (dbEnvironments.length === 0) {
+      fetch('/api/environments')
+        .then(r => r.json())
+        .then(d => { if (d.environments) setDbEnvironments(d.environments); })
+        .catch(console.error);
+    }
+  }, []);
+
+  useEffect(() => {
     if (activeTab === 'import') {
       loadTableStats();
-      if (dbEnvironments.length === 0) {
-        fetch('/api/environments')
-          .then(r => r.json())
-          .then(d => { if (d.environments) setDbEnvironments(d.environments); })
-          .catch(console.error);
-      }
     }
   }, [activeTab]);
 
@@ -470,7 +470,7 @@ export default function PromptAuthenticityPage() {
     setPromptModalRecords([]);
     setPromptModalLoading(true);
     try {
-      const params = new URLSearchParams({ search: email, limit: '200', filter: 'all' });
+      const params = new URLSearchParams({ search: email, limit: '200', filter: 'completed' });
       if (patternEnvFilter) params.set('envKey', patternEnvFilter);
       const response = await fetch(`/api/prompt-authenticity/results?${params}`);
       const data = await response.json();
@@ -1627,7 +1627,7 @@ version_id, task_key, prompt, version_no, is_active, created_by_name, created_by
                           </tr>
                           {expandedPrompts.has(result.id) && (
                             <tr key={`${result.id}-details`}>
-                              <td colSpan={8} style={{ padding: '24px', backgroundColor: 'var(--bg-secondary)' }}>
+                              <td colSpan={7} style={{ padding: '24px', backgroundColor: 'var(--bg-secondary)' }}>
                                 <div style={{ display: 'grid', gap: '16px' }}>
                                   <div>
                                     <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Full Prompt:</h4>
