@@ -24,6 +24,7 @@ As a FLEET team member, you have access to **four applications**:
 6. [Activity Over Time](#activity-over-time)
 7. [Time Analytics](#time-analytics)
 8. [Bug Reports Management](#bug-reports-management)
+9. [Prompt Authenticity Checker](#prompt-authenticity-checker)
 
 ---
 
@@ -840,6 +841,124 @@ Navigate to Fleet App → **Bug Reports**
 
 ---
 
+## Prompt Authenticity Checker
+
+Analyze prompts to detect non-native speaker patterns, AI-generated content, and templated/formulaic writing — on a per-prompt and per-user basis.
+
+**Access**: Fleet App → Prompt Authenticity Checker (FLEET/ADMIN roles only)
+
+---
+
+### Overview
+
+The tool has four tabs:
+
+| Tab | Purpose |
+|-----|---------|
+| **Import** | Load prompts into the analysis queue |
+| **Analyze** | Run AI analysis jobs over queued prompts |
+| **Results** | Browse and filter individual prompt analysis results |
+| **Patterns** | Per-user aggregated stats and cross-prompt template analysis |
+
+---
+
+### Import Tab
+
+Two modes for adding prompts to the analysis queue:
+
+#### CSV Import
+Upload a CSV file with columns: `version_id`, `task_key`, `prompt`, `version_no`, `is_active`, `created_by_name`, `created_by_email`, `created_at`. Duplicate records (matching `version_id`) are automatically skipped.
+
+#### From Database
+Pull records directly from the `data_records` table — no CSV needed.
+
+**Filter options**:
+- **Environment** — restrict to a specific environment (dropdown auto-populates on page load)
+- **Record Type** — Tasks only, Feedback only, or All types
+- **Start / End Date** — filter by record creation date
+- **Limit** — cap the number of records synced (useful for testing)
+- **Filter by User** — restrict to records from a specific user (partial name or email match)
+
+Use **Preview Count** to see how many records match before committing. Click **Sync to Queue** to import them. Already-queued records are automatically skipped.
+
+---
+
+### Analyze Tab
+
+Start a background analysis job that processes queued prompts using AI.
+
+**Configuration**:
+- **Date Range** (optional) — restrict which queued prompts get analyzed based on when they were created
+- **Record Limit** (optional) — cap how many prompts to process (useful for testing)
+
+Jobs can be paused, resumed, and cancelled. Live progress is displayed (analyzed / total, cost, flagged counts). Job history is shown below the active job panel.
+
+---
+
+### Results Tab
+
+Browse all analyzed prompts with filter and search controls.
+
+**Stat cards** (top of page):
+- Total Analyzed
+- Non-Native flagged count
+- AI-Generated flagged count
+- Templated flagged count
+
+**Filters**:
+- Search by author name or email
+- Filter dropdown: All Results, Completed, Flagged (Any), Non-Native Only, AI-Generated Only, Templated Only
+
+**Table columns**: Author, Email, Prompt (click to expand), Non-Native %, AI Generated %, Templated %, Details
+
+Click **Details** on any row to expand the full analysis: indicators for each detection category, detected template pattern (if any), and the overall assessment.
+
+Use **Export to CSV** to download the current filtered view.
+
+---
+
+### Patterns Tab
+
+Per-user breakdown of analysis results across all their prompts.
+
+**Filters**:
+- **Environment** — scope stats to a single environment
+- **Min Prompts** — hide users with fewer than N analyzed prompts (default: 2)
+
+Click **Load Users** to populate the table. Columns show each user's total prompts analyzed and the count + percentage flagged for Non-Native, AI-Generated, and Templated patterns.
+
+**Actions per user**:
+
+| Button | What it does |
+|--------|-------------|
+| **View Prompts** | Opens a modal showing that user's analyzed prompts (latest version per task only), with environment badge, template confidence badge, and detected template pattern. Filter to "Templated Only" to focus review. |
+| **Expand** | Shows any previously run cross-prompt AI analysis inline |
+| **Cross-Prompt AI** | Sends up to 20 of the user's prompts as a group to the AI for deeper template pattern detection — returns an inferred template, evidence, and confidence score |
+
+---
+
+### Detection Categories
+
+| Category | What it detects |
+|----------|----------------|
+| **Non-Native** | Grammar patterns, phrasing, word choice suggesting non-native English speaker |
+| **AI-Generated** | Structural markers, vocabulary, and style consistent with AI-written text |
+| **Templated** | Repeated structural formulas across a single prompt or (via cross-prompt analysis) across multiple prompts by the same user |
+
+Each category produces a **confidence score (0–100%)** and a list of specific indicators.
+
+---
+
+### Tips
+
+- Run **From Database** sync first, then start an **Analyze** job — no CSV export needed.
+- Use **Preview Count** before syncing large date ranges to avoid queueing more than needed.
+- The **Patterns tab** environment filter loads automatically — no need to visit Import first.
+- **Cross-Prompt AI** analysis is on-demand and incurs an AI cost (shown after completion).
+- The **View Prompts** modal deduplicates by task — only the most recent version of each prompt is shown.
+
+---
+
 ## Advanced Topics
 
 ### Bulk Operations
@@ -892,7 +1011,7 @@ Contact your administrator or IT if you need admin access.
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: February 2026
+**Document Version**: 1.1
+**Last Updated**: March 2026
 **Role**: FLEET
 **Access Level**: User App + QA App + Core App + Fleet App (Full Access)
