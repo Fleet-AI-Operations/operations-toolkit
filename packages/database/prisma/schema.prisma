@@ -1426,6 +1426,10 @@ model PromptAuthenticityRecord {
   isLikelyAIGenerated    Boolean?  @map("is_likely_ai_generated")
   aiGeneratedConfidence  Decimal?  @map("ai_generated_confidence") @db.Decimal(5, 2)
   aiGeneratedIndicators  Json?     @map("ai_generated_indicators")
+  isLikelyTemplated      Boolean?  @map("is_likely_templated")
+  templateConfidence     Decimal?  @map("template_confidence") @db.Decimal(5, 2)
+  templateIndicators     Json?     @map("template_indicators")
+  detectedTemplate       String?   @map("detected_template") @db.Text
   overallAssessment      String?   @map("overall_assessment") @db.Text
   recommendations        Json?
 
@@ -1446,6 +1450,7 @@ model PromptAuthenticityRecord {
   @@index([createdByEmail])
   @@index([isLikelyNonNative])
   @@index([isLikelyAIGenerated])
+  @@index([isLikelyTemplated])
   @@map("prompt_authenticity_records")
   @@schema("public")
 }
