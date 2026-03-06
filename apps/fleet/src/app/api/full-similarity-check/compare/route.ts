@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const { environment, taskIds, scope, threshold } = await req.json();
+        const { environment, taskIds, scope, threshold, latestOnly } = await req.json();
 
         if (!environment || !taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
             return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400 });
@@ -94,30 +94,69 @@ export async function POST(req: NextRequest) {
             // Build query to fetch comparison tasks
             let comparisonQuery;
             if (scope === 'environment') {
-                // Compare within same environment (case-insensitive).
-                // ORDER BY ensures the 2000-record window is deterministic (most recent first).
-                comparisonQuery = Prisma.sql`
-                    SELECT id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
-                    FROM data_records
-                    WHERE LOWER(environment) = LOWER(${environment})
-                    AND type = 'TASK'
-                    AND id != ${sourceTask.id}
-                    AND embedding IS NOT NULL
-                    ORDER BY "createdAt" DESC
-                    LIMIT 2000
-                `;
+                if (latestOnly) {
+                    comparisonQuery = Prisma.sql`
+                        SELECT id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
+                        FROM (
+                            SELECT DISTINCT ON (COALESCE(metadata->>'task_key', id))
+                                id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
+                            FROM data_records
+                            WHERE LOWER(environment) = LOWER(${environment})
+                            AND type = 'TASK'
+                            AND id != ${sourceTask.id}
+                            AND embedding IS NOT NULL
+                            ORDER BY COALESCE(metadata->>'task_key', id),
+                                     CAST(COALESCE(NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
+                                     "createdAt" DESC
+                        ) latest
+                        ORDER BY "createdAt" DESC
+                        LIMIT 2000
+                    `;
+                } else {
+                    // Compare within same environment (case-insensitive).
+                    // ORDER BY ensures the 2000-record window is deterministic (most recent first).
+                    comparisonQuery = Prisma.sql`
+                        SELECT id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
+                        FROM data_records
+                        WHERE LOWER(environment) = LOWER(${environment})
+                        AND type = 'TASK'
+                        AND id != ${sourceTask.id}
+                        AND embedding IS NOT NULL
+                        ORDER BY "createdAt" DESC
+                        LIMIT 2000
+                    `;
+                }
             } else {
-                // Compare with all tasks (across all environments).
-                // ORDER BY ensures the 2000-record window is deterministic (most recent first).
-                comparisonQuery = Prisma.sql`
-                    SELECT id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
-                    FROM data_records
-                    WHERE type = 'TASK'
-                    AND id != ${sourceTask.id}
-                    AND embedding IS NOT NULL
-                    ORDER BY "createdAt" DESC
-                    LIMIT 2000
-                `;
+                if (latestOnly) {
+                    comparisonQuery = Prisma.sql`
+                        SELECT id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
+                        FROM (
+                            SELECT DISTINCT ON (COALESCE(metadata->>'task_key', id))
+                                id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
+                            FROM data_records
+                            WHERE type = 'TASK'
+                            AND id != ${sourceTask.id}
+                            AND embedding IS NOT NULL
+                            ORDER BY COALESCE(metadata->>'task_key', id),
+                                     CAST(COALESCE(NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
+                                     "createdAt" DESC
+                        ) latest
+                        ORDER BY "createdAt" DESC
+                        LIMIT 2000
+                    `;
+                } else {
+                    // Compare with all tasks (across all environments).
+                    // ORDER BY ensures the 2000-record window is deterministic (most recent first).
+                    comparisonQuery = Prisma.sql`
+                        SELECT id, content, metadata, environment, embedding, "createdByName", "createdByEmail", "createdAt"
+                        FROM data_records
+                        WHERE type = 'TASK'
+                        AND id != ${sourceTask.id}
+                        AND embedding IS NOT NULL
+                        ORDER BY "createdAt" DESC
+                        LIMIT 2000
+                    `;
+                }
             }
 
             const comparisonTasks = await prisma.$queryRaw<Array<{

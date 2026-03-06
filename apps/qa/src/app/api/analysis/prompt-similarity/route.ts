@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { Prisma } from '@prisma/client';
 import { createClient } from '@repo/auth/server';
 
 interface SimilarPrompt {
@@ -36,8 +37,8 @@ export async function GET(req: NextRequest) {
 
     try {
         // 1. Check if target prompt exists and has embedding using raw SQL
-        const targetCheck: { id: string; createdById: string | null; has_embedding: boolean }[] = await prisma.$queryRaw`
-            SELECT id, "createdById", embedding IS NOT NULL as has_embedding
+        const targetCheck: { id: string; createdById: string | null; createdByName: string | null; createdByEmail: string | null; has_embedding: boolean }[] = await prisma.$queryRaw`
+            SELECT id, "createdById", "createdByName", "createdByEmail", embedding IS NOT NULL as has_embedding
             FROM public.data_records
             WHERE id = ${recordId}
         `;
@@ -61,6 +62,17 @@ export async function GET(req: NextRequest) {
         // 2. Get similar prompts from the same user using pgvector's cosine distance
         // Also exclude prompts with identical content (handles duplicate records)
         // Filter by environment if provided
+        //
+        // createdById may be null for CSV-ingested records. SQL `column = NULL` is always false,
+        // so we fall back to matching by createdByName / createdByEmail when createdById is null.
+        const userFilter = targetPrompt.createdById !== null
+            ? Prisma.sql`"createdById" = ${targetPrompt.createdById}`
+            : targetPrompt.createdByName !== null
+                ? Prisma.sql`"createdById" IS NULL AND "createdByName" = ${targetPrompt.createdByName}`
+                : targetPrompt.createdByEmail !== null
+                    ? Prisma.sql`"createdById" IS NULL AND "createdByEmail" = ${targetPrompt.createdByEmail}`
+                    : Prisma.sql`"createdById" IS NULL`;
+
         const similarPrompts: SimilarPrompt[] = environment
             ? await prisma.$queryRaw`
                 SELECT
@@ -73,7 +85,7 @@ export async function GET(req: NextRequest) {
                 FROM public.data_records
                 WHERE "environment" = ${environment}
                 AND type = 'TASK'
-                AND "createdById" = ${targetPrompt.createdById}
+                AND ${userFilter}
                 AND id != ${recordId}
                 AND embedding IS NOT NULL
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
@@ -90,7 +102,7 @@ export async function GET(req: NextRequest) {
                     ROUND((1 - (embedding <=> (SELECT embedding FROM public.data_records WHERE id = ${recordId}))) * 100) as similarity
                 FROM public.data_records
                 WHERE type = 'TASK'
-                AND "createdById" = ${targetPrompt.createdById}
+                AND ${userFilter}
                 AND id != ${recordId}
                 AND embedding IS NOT NULL
                 AND TRIM(content) != (SELECT TRIM(content) FROM public.data_records WHERE id = ${recordId})
