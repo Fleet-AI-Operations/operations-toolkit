@@ -272,6 +272,139 @@ describe('POST /api/full-similarity-check/compare', () => {
         expect(data.results).toHaveLength(1);
     });
 
+    it('returns matches for scope=environment with latestOnly=true', async () => {
+        const { prisma } = await import('@repo/database');
+
+        const sourceTask = {
+            id: 'task-1',
+            content: 'Source content',
+            metadata: {},
+            embedding: '[0.5,0.5,0.5]',
+            createdByName: 'User',
+            createdByEmail: 'user@example.com',
+            createdAt: new Date('2026-01-15'),
+        };
+        const comparisonTask = {
+            id: 'task-2',
+            content: 'Similar content',
+            metadata: {},
+            environment: 'Production',
+            embedding: '[0.6,0.6,0.6]',
+            createdByName: 'User Two',
+            createdByEmail: 'user2@example.com',
+            createdAt: new Date('2026-01-16'),
+        };
+
+        vi.mocked(prisma.$queryRaw)
+            .mockResolvedValueOnce([sourceTask])
+            .mockResolvedValueOnce([comparisonTask]);
+
+        const request = new NextRequest('http://localhost:3004/api/full-similarity-check/compare', {
+            method: 'POST',
+            body: JSON.stringify({
+                environment: 'Production',
+                taskIds: ['task-1'],
+                scope: 'environment',
+                latestOnly: true,
+            })
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.results).toHaveLength(1);
+        expect(data.results[0].sourceTaskId).toBe('task-1');
+    });
+
+    it('returns matches for scope=all with latestOnly=true', async () => {
+        const { prisma } = await import('@repo/database');
+
+        const sourceTask = {
+            id: 'task-1',
+            content: 'Source content',
+            metadata: {},
+            embedding: '[0.5,0.5,0.5]',
+            createdByName: 'User',
+            createdByEmail: 'user@example.com',
+            createdAt: new Date('2026-01-15'),
+        };
+        const comparisonTask = {
+            id: 'task-2',
+            content: 'Similar across envs',
+            metadata: {},
+            environment: 'Staging',
+            embedding: '[0.6,0.6,0.6]',
+            createdByName: 'User Two',
+            createdByEmail: 'user2@example.com',
+            createdAt: new Date('2026-01-16'),
+        };
+
+        vi.mocked(prisma.$queryRaw)
+            .mockResolvedValueOnce([sourceTask])
+            .mockResolvedValueOnce([comparisonTask]);
+
+        const request = new NextRequest('http://localhost:3004/api/full-similarity-check/compare', {
+            method: 'POST',
+            body: JSON.stringify({
+                environment: 'Production',
+                taskIds: ['task-1'],
+                scope: 'all',
+                latestOnly: true,
+            })
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.results[0].sourceTaskId).toBe('task-1');
+    });
+
+    it('returns matches for scope=environment with latestOnly=false (default)', async () => {
+        const { prisma } = await import('@repo/database');
+
+        const sourceTask = {
+            id: 'task-1',
+            content: 'Source content',
+            metadata: {},
+            embedding: '[0.5,0.5,0.5]',
+            createdByName: 'User',
+            createdByEmail: 'user@example.com',
+            createdAt: new Date('2026-01-15'),
+        };
+        const comparisonTask = {
+            id: 'task-2',
+            content: 'Similar content env',
+            metadata: {},
+            environment: 'Production',
+            embedding: '[0.6,0.6,0.6]',
+            createdByName: 'User Two',
+            createdByEmail: 'user2@example.com',
+            createdAt: new Date('2026-01-16'),
+        };
+
+        vi.mocked(prisma.$queryRaw)
+            .mockResolvedValueOnce([sourceTask])
+            .mockResolvedValueOnce([comparisonTask]);
+
+        const request = new NextRequest('http://localhost:3004/api/full-similarity-check/compare', {
+            method: 'POST',
+            body: JSON.stringify({
+                environment: 'Production',
+                taskIds: ['task-1'],
+                scope: 'environment',
+                latestOnly: false,
+            })
+        });
+
+        const response = await POST(request);
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.results[0].sourceTaskId).toBe('task-1');
+    });
+
     it('should filter results by 50% similarity threshold', async () => {
         const { prisma } = await import('@repo/database');
 

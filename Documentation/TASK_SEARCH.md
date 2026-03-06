@@ -55,6 +55,19 @@ The search matches against:
 
 Up to 25 results are returned, ordered by most recently created first.
 
+### Latest Version Only
+
+An amber toggle labelled **Latest version only** appears below the search bar. When enabled (default: **on**), only the highest-versioned task for each unique `task_key` is returned, deduplicating re-submitted prompts.
+
+| Toggle state | Behaviour |
+|---|---|
+| **On** (default) | One result per `task_key`, keeping the highest version (`task_version` or `version_no`). Tasks without a `task_key` are treated as unique. |
+| **Off** | All versions are returned (up to 25 total), ordered by most recently created first. |
+
+If you are investigating whether a worker resubmitted the same prompt across multiple versions, turn this toggle **off** to see every version in the results.
+
+Toggling this control immediately re-runs the search when results are already showing — no need to press Search again.
+
 ### Environment Filter
 
 When results span more than one environment, a dropdown appears below the result count letting you narrow results to a single environment. Filtering is applied client-side — no new API call is made. The count updates to show `X of Y results in "environment-name"` while a filter is active. Clearing the dropdown back to **All environments** restores the full result set.
@@ -121,6 +134,7 @@ Search task records.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `q` | string | Search term (name, email, or exact task ID) |
+| `latestOnly` | boolean | When `true`, returns only the highest version per `task_key` (default: `false`) |
 
 **Response:**
 
@@ -140,6 +154,55 @@ Search task records.
 Returns an empty array if `q` is blank. Maximum 25 results.
 
 **Authorization:** CORE, FLEET, MANAGER, or ADMIN role required.
+
+---
+
+#### `POST /api/task-search/user-similarity`
+
+Find other tasks submitted by the same worker as the selected record, ranked by vector similarity.
+
+**Request body:**
+
+```typescript
+{
+  recordId: string;    // The task to use as the similarity anchor
+  latestOnly?: boolean; // When true, deduplicate comparison pool to highest version per task_key (default: false)
+}
+```
+
+**Response:**
+
+```typescript
+{
+  matches: Array<{
+    id: string;
+    content: string;
+    environment: string;
+    createdByName: string | null;
+    createdByEmail: string | null;
+    createdAt: string; // ISO date
+    taskKey: string | null;
+    taskVersion: string | null;
+    similarity: number; // 0–100
+  }>;
+  versionFiltered: boolean; // true if results were narrowed by version (latestOnly or v1-preference fallback)
+}
+```
+
+**Authorization:** CORE, FLEET, MANAGER, or ADMIN role required.
+
+**Error codes:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | `recordId` missing or request body invalid |
+| 401 | Not authenticated |
+| 403 | Insufficient role |
+| 404 | Source record not found |
+| 422 | Source record has no embedding, no environment, or no user identity |
+| 500 | Database error |
+
+> **Version fallback (latestOnly=false)**: When `latestOnly` is off, the endpoint checks whether the worker has any version-1 tasks. If so, results are restricted to version 1 only (`versionFiltered: true`). If the worker has no version-1 tasks, all versions are returned (`versionFiltered: false`).
 
 ---
 
@@ -207,4 +270,4 @@ The AI check uses a structured system prompt that instructs the LLM to output JS
 
 ---
 
-*Last Updated: 2026-03-02*
+*Last Updated: 2026-03-05*
