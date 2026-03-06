@@ -36,11 +36,16 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const filter = searchParams.get('filter') || 'all';
     const search = searchParams.get('search') || '';
+    const envKey = searchParams.get('envKey') || '';
 
     const skip = (page - 1) * limit;
 
     // Build where clause
     const where: any = {};
+
+    if (envKey) {
+      where.envKey = envKey;
+    }
 
     // Add search filter for name or email
     if (search) {
@@ -79,6 +84,8 @@ export async function GET(request: NextRequest) {
           { isLikelyAIGenerated: true },
         ];
       }
+    } else if (filter === 'templated') {
+      where.isLikelyTemplated = true;
     } else if (filter === 'completed') {
       where.analysisStatus = 'COMPLETED';
     }
@@ -100,13 +107,11 @@ export async function GET(request: NextRequest) {
       where: { analysisStatus: 'COMPLETED' },
     });
 
-    const nonNativeCount = await prisma.promptAuthenticityRecord.count({
-      where: { isLikelyNonNative: true },
-    });
-
-    const aiGeneratedCount = await prisma.promptAuthenticityRecord.count({
-      where: { isLikelyAIGenerated: true },
-    });
+    const [nonNativeCount, aiGeneratedCount, templatedCount] = await Promise.all([
+      prisma.promptAuthenticityRecord.count({ where: { isLikelyNonNative: true } }),
+      prisma.promptAuthenticityRecord.count({ where: { isLikelyAIGenerated: true } }),
+      prisma.promptAuthenticityRecord.count({ where: { isLikelyTemplated: true } }),
+    ]);
 
     return NextResponse.json({
       results,
@@ -120,6 +125,7 @@ export async function GET(request: NextRequest) {
         totalAnalyzed: stats._count.id,
         flaggedNonNative: nonNativeCount,
         flaggedAIGenerated: aiGeneratedCount,
+        flaggedTemplated: templatedCount,
       },
     });
   } catch (error: any) {

@@ -55,6 +55,10 @@ export interface PromptAuthenticityAnalysis {
   isLikelyAIGenerated: boolean;
   aiGeneratedConfidence: number;
   aiGeneratedIndicators: string[];
+  isLikelyTemplated: boolean;
+  templateConfidence: number;
+  templateIndicators: string[];
+  detectedTemplate: string;
   overallAssessment: string;
   recommendations: string[];
   llmModel?: string;
@@ -69,6 +73,7 @@ CRITICAL INSTRUCTION: You MUST respond with ONLY a valid JSON object. No markdow
 Analyze the prompt for:
 1. Non-Native Speaker patterns (grammar, vocabulary, sentence structure)
 2. AI-Generated Content patterns (formal language, lack of personal voice, hedging phrases)
+3. Templated Prompt patterns (fixed structural formulas, placeholder-like language, repetitive framing, fill-in-the-blank structure, e.g. "Write a [X] about [Y] that [Z]")
 
 Required JSON format (example):
 {
@@ -78,6 +83,10 @@ Required JSON format (example):
   "isLikelyAIGenerated": true,
   "aiGeneratedConfidence": 85,
   "aiGeneratedIndicators": ["Overly formal tone", "Hedging language: 'it's important to note'"],
+  "isLikelyTemplated": true,
+  "templateConfidence": 78,
+  "templateIndicators": ["Fixed opening formula: 'Write a [type] about'", "Interchangeable slot structure", "No personal specificity"],
+  "detectedTemplate": "Write a [type] about [topic] that includes [requirements]",
   "overallAssessment": "Likely AI-generated with professional editing",
   "recommendations": ["Add natural speech patterns", "Include specific personal details"]
 }
@@ -125,6 +134,10 @@ export async function analyzePromptAuthenticity(
       isLikelyAIGenerated: analysis.isLikelyAIGenerated || false,
       aiGeneratedConfidence: analysis.aiGeneratedConfidence || 0,
       aiGeneratedIndicators: analysis.aiGeneratedIndicators || [],
+      isLikelyTemplated: analysis.isLikelyTemplated || false,
+      templateConfidence: analysis.templateConfidence || 0,
+      templateIndicators: analysis.templateIndicators || [],
+      detectedTemplate: analysis.detectedTemplate || '',
       overallAssessment: analysis.overallAssessment || '',
       recommendations: analysis.recommendations || [],
       llmModel: undefined, // Not returned by generateCompletionWithUsage
