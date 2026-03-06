@@ -11,6 +11,10 @@ As a FLEET team member, you have access to **four applications**:
 3. **Core App** - Scoring and review tools
 4. **Fleet App** - Fleet management and operations ⭐
 
+**Searching the sidebar:** Every app has a **Search tools...** input at the top of the sidebar. Type to instantly filter all navigation items across sections. Results show the tool name and its section. Clear the input or collapse the sidebar to return to the normal view.
+
+**Similarity Flags badge:** A warning icon (⚠) with a count appears in the header of every app you visit. It shows the number of open similarity flags across the platform. Click it to navigate directly to the Similarity Flags dashboard in the Core App. The badge is visible on all apps for users with CORE role or higher.
+
 ## 📋 Table of Contents
 
 ### Inherited Features

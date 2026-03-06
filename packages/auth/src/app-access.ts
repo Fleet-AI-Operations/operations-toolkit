@@ -68,6 +68,16 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 };
 
 /**
+ * Check if a user's role meets or exceeds a minimum role threshold.
+ * Uses the hierarchical weight system — CORE+ means CORE, FLEET, MANAGER, and ADMIN.
+ */
+export function hasMinRole(userRole: string, minRole: UserRole): boolean {
+  const userWeight = ROLE_WEIGHTS[userRole as UserRole] ?? 0;
+  const minWeight = ROLE_WEIGHTS[minRole] ?? 0;
+  return userWeight >= minWeight;
+}
+
+/**
  * Check if a user's role has access to a specific app
  */
 export function hasAppAccess(userRole: UserRole, appName: AppName): boolean {

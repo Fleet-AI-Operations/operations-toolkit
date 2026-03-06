@@ -1,10 +1,13 @@
 import { createClient } from '@repo/auth/server'
+import { hasMinRole } from '@repo/auth'
+import { prisma } from '@repo/database'
 import Link from 'next/link'
 import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'
 import BugReportNotification from './BugReportNotification'
 import UserBugReportTracker from './UserBugReportTracker'
 import TimeEntryButton from './TimeEntryButton'
+import { SimilarityFlagsButton } from '@repo/ui/components'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -26,6 +29,20 @@ export default async function Header() {
             role: profileData?.role || user.user_metadata?.role || 'USER'
         }
     }
+
+    let openFlagCount = 0
+    if (profile && hasMinRole(profile.role, 'CORE')) {
+        try {
+            const result = await prisma.$queryRaw<[{ count: bigint }]>`
+                SELECT COUNT(*) as count FROM public.similarity_flags WHERE status = 'OPEN'
+            `
+            openFlagCount = Number(result[0]?.count ?? 0)
+        } catch (err) {
+            console.error('[Header] Failed to fetch similarity flag count:', err)
+        }
+    }
+
+    const coreBaseUrl = process.env.NEXT_PUBLIC_CORE_APP_URL || 'http://localhost:3003'
 
     return (
         <header style={{
@@ -49,6 +66,9 @@ export default async function Header() {
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}
+                    {profile && hasMinRole(profile.role, 'CORE') && (
+                        <SimilarityFlagsButton openCount={openFlagCount} flagsUrl={`${coreBaseUrl}/similarity-flags`} />
+                    )}
                     <TimeEntryButton />
                     <UserBugReportTracker />
                     <BugReportNotification userRole={profile?.role || 'USER'} />

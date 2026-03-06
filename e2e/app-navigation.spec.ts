@@ -138,3 +138,92 @@ test.describe(`${appUnderTest.toUpperCase()} App Navigation`, () => {
     }
   });
 });
+
+test.describe(`${appUnderTest.toUpperCase()} App - Sidebar Search`, () => {
+  test('search input is visible when sidebar is expanded', async ({ page }) => {
+    const user = await createTestUser(`${appUnderTest}-search@test.com`, config.role);
+
+    try {
+      await page.goto('/login');
+      await page.fill('input[type="email"]', `${appUnderTest}-search@test.com`);
+      await page.fill('input[type="password"]', 'testpassword123');
+      await page.click('button[type="submit"]');
+      await page.waitForURL(new RegExp(config.expectedLandingPath));
+
+      await expect(page.locator('input[placeholder="Search tools..."]')).toBeVisible();
+    } finally {
+      await cleanupTestUser(user.id);
+    }
+  });
+
+  test('search filters sidebar items to matching results', async ({ page }) => {
+    const user = await createTestUser(`${appUnderTest}-search2@test.com`, config.role);
+
+    try {
+      await page.goto('/login');
+      await page.fill('input[type="email"]', `${appUnderTest}-search2@test.com`);
+      await page.fill('input[type="password"]', 'testpassword123');
+      await page.click('button[type="submit"]');
+      await page.waitForURL(new RegExp(config.expectedLandingPath));
+
+      const searchInput = page.locator('input[placeholder="Search tools..."]');
+      await searchInput.fill('links');
+
+      // Should show the Links nav item
+      await expect(page.locator('.sidebar-link, a[class*="sidebar"]').filter({ hasText: /links/i })).toBeVisible();
+
+      // Section headers should be gone when search is active
+      await expect(page.locator('text=/Resources/i')).not.toBeVisible();
+    } finally {
+      await cleanupTestUser(user.id);
+    }
+  });
+
+  test('search shows empty state for unmatched query', async ({ page }) => {
+    const user = await createTestUser(`${appUnderTest}-search3@test.com`, config.role);
+
+    try {
+      await page.goto('/login');
+      await page.fill('input[type="email"]', `${appUnderTest}-search3@test.com`);
+      await page.fill('input[type="password"]', 'testpassword123');
+      await page.click('button[type="submit"]');
+      await page.waitForURL(new RegExp(config.expectedLandingPath));
+
+      const searchInput = page.locator('input[placeholder="Search tools..."]');
+      await searchInput.fill('xyznotarealtool');
+
+      await expect(page.locator('text=No tools found')).toBeVisible();
+    } finally {
+      await cleanupTestUser(user.id);
+    }
+  });
+
+  test('collapsing sidebar clears search', async ({ page }) => {
+    const user = await createTestUser(`${appUnderTest}-search4@test.com`, config.role);
+
+    try {
+      await page.goto('/login');
+      await page.fill('input[type="email"]', `${appUnderTest}-search4@test.com`);
+      await page.fill('input[type="password"]', 'testpassword123');
+      await page.click('button[type="submit"]');
+      await page.waitForURL(new RegExp(config.expectedLandingPath));
+
+      const searchInput = page.locator('input[placeholder="Search tools..."]');
+      await searchInput.fill('links');
+
+      // Collapse the sidebar
+      await page.locator('aside button').first().click();
+
+      // Search input should be hidden (sidebar collapsed)
+      await expect(searchInput).not.toBeVisible();
+
+      // Re-expand
+      await page.locator('aside button').first().click();
+
+      // Search should be cleared — section headers should be visible again
+      await expect(page.locator('input[placeholder="Search tools..."]')).toHaveValue('');
+    } finally {
+      await cleanupTestUser(user.id);
+    }
+  });
+});

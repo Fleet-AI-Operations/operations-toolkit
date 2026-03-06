@@ -7,6 +7,7 @@ export { createClient as createBrowserClient } from './client';
 // Re-export app access control (client-safe utility functions)
 export {
   hasAppAccess,
+  hasMinRole,
   getAppUrl,
   getDefaultAppForRole,
   getRedirectUrlIfNeeded,
