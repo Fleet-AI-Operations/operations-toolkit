@@ -73,8 +73,8 @@ export default function SimilarityFlagsPage() {
             const data = await res.json();
             setFlags(data.flags);
             setTotal(data.total);
-        } catch (e: any) {
-            setError(e.message);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -88,7 +88,7 @@ export default function SimilarityFlagsPage() {
             })
             .then(d => setEnvironments(d.environments || []))
             .catch(err => {
-                console.warn('[SimilarityFlags] Failed to load environments for filter:', err);
+                console.error('[SimilarityFlags] Failed to load environments for filter:', err);
             });
     }, []);
 
@@ -130,8 +130,8 @@ export default function SimilarityFlagsPage() {
                     ? { ...f, status: updated.status, claimedByEmail: updated.claimedByEmail, claimedAt: updated.claimedAt }
                     : f
             ));
-        } catch (e: any) {
-            setError(e.message);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
         } finally {
             setClaimingId(null);
         }
@@ -170,11 +170,13 @@ export default function SimilarityFlagsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sourceRecordId, matchedRecordId }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error((data as any).error || `Server error (HTTP ${res.status}). Please try again.`);
             setAiAnalysis(data);
-        } catch (e: any) {
-            setAiError(e.message);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.';
+            console.error('[SimilarityFlags] AI analysis failed:', { sourceRecordId, matchedRecordId, error: e });
+            setAiError(message);
         } finally {
             setAiLoading(false);
         }
