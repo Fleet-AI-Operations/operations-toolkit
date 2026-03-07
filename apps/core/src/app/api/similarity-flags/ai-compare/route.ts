@@ -3,6 +3,7 @@ import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { generateCompletionWithUsage } from '@repo/core/ai';
 import { logAudit } from '@repo/core/audit';
+import { ERROR_IDS } from '@/constants/errorIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,11 @@ ${matched.content}`;
         return NextResponse.json({ error: 'The AI service failed to respond. Check your AI provider configuration and try again.' }, { status: 502 });
     }
 
+    if (!result.content) {
+        console.error('[Similarity Flags AI Compare] AI returned empty content', { provider: result.provider });
+        return NextResponse.json({ error: 'The AI returned an empty response. Please try again.' }, { status: 502 });
+    }
+
     logAudit({
         action: 'AI_SIMILARITY_COMPARE',
         entityType: 'AI_REQUEST',
@@ -89,7 +95,7 @@ ${matched.content}`;
         userEmail: user.email ?? 'unknown',
         metadata: { provider: result.provider, sourceRecordId, matchedRecordId },
     }).catch(auditErr => {
-        console.error('[Similarity Flags AI Compare] Audit log failed (non-fatal):', auditErr);
+        console.error(`[${ERROR_IDS.AUDIT_LOG_FAILED}] [Similarity Flags AI Compare] Audit log failed (non-fatal):`, auditErr);
     });
 
     return NextResponse.json({

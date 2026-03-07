@@ -170,8 +170,13 @@ export default function SimilarityFlagsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sourceRecordId, matchedRecordId }),
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error((data as any).error || `Server error (HTTP ${res.status}). Please try again.`);
+            let data: Record<string, unknown> = {};
+            try {
+                data = await res.json();
+            } catch {
+                console.error('[SimilarityFlags] AI compare: failed to parse response body', { status: res.status, contentType: res.headers.get('content-type') });
+            }
+            if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : `Server error (HTTP ${res.status}). Please try again.`);
             setAiAnalysis(data);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.';

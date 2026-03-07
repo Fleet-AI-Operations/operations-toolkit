@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Bug } from 'lucide-react';
 
-const ADMIN_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_APP_URL || 'http://localhost:3005';
-const ADMIN_BUG_REPORTS_URL = `${ADMIN_BASE_URL}/bug-reports`;
+const ADMIN_BUG_REPORTS_URL = `${process.env.NEXT_PUBLIC_ADMIN_APP_URL || 'http://localhost:3005'}/bug-reports`;
 
 interface BugReportNotificationProps {
   userRole: string;
@@ -19,13 +18,19 @@ export default function BugReportNotification({ userRole }: BugReportNotificatio
 
     const fetchUnassignedCount = async () => {
       try {
-        const response = await fetch(`${ADMIN_BASE_URL}/api/bug-reports/unassigned-count`);
+        const response = await fetch('/api/bug-reports/unassigned-count');
         if (!response.ok) {
           console.error('Failed to fetch unassigned bug reports count:', { status: response.status, statusText: response.statusText });
           return;
         }
-        const data = await response.json();
-        setUnassignedCount(data.count);
+        let data: { count?: number };
+        try {
+          data = await response.json();
+        } catch {
+          console.error('Failed to fetch unassigned bug reports count: invalid JSON in response', { contentType: response.headers.get('content-type') });
+          return;
+        }
+        setUnassignedCount(data.count ?? 0);
       } catch (error) {
         console.error('Failed to fetch unassigned bug reports count: network error', error);
       }
