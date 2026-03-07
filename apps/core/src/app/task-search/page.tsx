@@ -286,6 +286,21 @@ export default function TaskSearchPage() {
                 </span>
             </div>
 
+            {/* Loading state */}
+            {loading && (
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '60px 20px',
+                    gap: '16px',
+                }}>
+                    <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'rgba(99,102,241,0.8)' }} />
+                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem' }}>Searching…</span>
+                </div>
+            )}
+
             {/* Error */}
             {error && (
                 <div style={{
