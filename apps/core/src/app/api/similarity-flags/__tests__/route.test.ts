@@ -195,7 +195,7 @@ describe('GET /api/similarity-flags', () => {
         const data = await response.json();
 
         expect(response.status).toBe(500);
-        expect(data.error).toBe('Internal server error');
+        expect(data.error).toBe('Failed to load similarity flags. Please try again.');
     });
 
     it('applies status=CLAIMED and claimedBy=me filter, resolving "me" to user email server-side', async () => {

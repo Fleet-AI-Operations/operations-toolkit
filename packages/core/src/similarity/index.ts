@@ -159,6 +159,7 @@ async function runSimilarityDetection(
         AND type = 'TASK'
         AND embedding IS NOT NULL
         AND "createdByEmail" IS NOT NULL
+        AND "createdByEmail" NOT LIKE '%@fleet.so'
       )
       SELECT id, content, embedding, created_by_email, created_by_name
       FROM ranked

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw, Sparkles } from 'lucide-react';
 import type { MatchType } from '@repo/types';
 
 interface SimilarityFlag {
@@ -42,6 +42,10 @@ export default function SimilarityFlagsPage() {
     const [mineOnly, setMineOnly] = useState(false);
     const [claimingId, setClaimingId] = useState<string | null>(null);
     const [modal, setModal] = useState<{ recordId: string; label: string } | null>(null);
+    const [aiModal, setAiModal] = useState<{ sourceRecordId: string; matchedRecordId: string } | null>(null);
+    const [aiAnalysis, setAiAnalysis] = useState<{ analysis: string; cost: string | null; provider: string } | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
     const [modalRecord, setModalRecord] = useState<{
         id: string; content: string; metadata: Record<string, unknown> | null;
         environment: string; type: string;
@@ -69,8 +73,8 @@ export default function SimilarityFlagsPage() {
             const data = await res.json();
             setFlags(data.flags);
             setTotal(data.total);
-        } catch (e: any) {
-            setError(e.message);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -84,7 +88,7 @@ export default function SimilarityFlagsPage() {
             })
             .then(d => setEnvironments(d.environments || []))
             .catch(err => {
-                console.warn('[SimilarityFlags] Failed to load environments for filter:', err);
+                console.error('[SimilarityFlags] Failed to load environments for filter:', err);
             });
     }, []);
 
@@ -126,8 +130,8 @@ export default function SimilarityFlagsPage() {
                     ? { ...f, status: updated.status, claimedByEmail: updated.claimedByEmail, claimedAt: updated.claimedAt }
                     : f
             ));
-        } catch (e: any) {
-            setError(e.message);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.');
         } finally {
             setClaimingId(null);
         }
@@ -152,6 +156,38 @@ export default function SimilarityFlagsPage() {
             setModalError('Network error loading record. Check your connection and try again.');
         } finally {
             setModalLoading(false);
+        }
+    }
+
+    async function openAiModal(sourceRecordId: string, matchedRecordId: string) {
+        setAiModal({ sourceRecordId, matchedRecordId });
+        setAiAnalysis(null);
+        setAiError(null);
+        setAiLoading(true);
+        try {
+            const res = await fetch('/api/similarity-flags/ai-compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sourceRecordId, matchedRecordId }),
+            });
+            let data: Record<string, unknown> = {};
+            try {
+                data = await res.json();
+            } catch {
+                console.error('[SimilarityFlags] AI compare: failed to parse response body', { status: res.status, contentType: res.headers.get('content-type') });
+            }
+            if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : `Server error (HTTP ${res.status}). Please try again.`);
+            setAiAnalysis({
+                analysis: typeof data.analysis === 'string' ? data.analysis : '',
+                cost: typeof data.cost === 'string' ? data.cost : null,
+                provider: typeof data.provider === 'string' ? data.provider : '',
+            });
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'An unexpected error occurred. Please try again.';
+            console.error('[SimilarityFlags] AI analysis failed:', { sourceRecordId, matchedRecordId, error: e });
+            setAiError(message);
+        } finally {
+            setAiLoading(false);
         }
     }
 
@@ -441,25 +477,45 @@ export default function SimilarityFlagsPage() {
                                     </td>
                                     {/* Actions */}
                                     <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                                        {flag.status === 'OPEN' && (
+                                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                             <button
-                                                onClick={() => handleClaim(flag.id)}
-                                                disabled={claimingId === flag.id}
+                                                onClick={() => openAiModal(flag.sourceRecordId, flag.matchedRecordId)}
+                                                title="Run AI similarity analysis"
                                                 style={{
-                                                    padding: '4px 12px',
+                                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                                    padding: '4px 10px',
                                                     borderRadius: '6px',
-                                                    border: '1px solid rgba(139,92,246,0.4)',
-                                                    background: 'rgba(139,92,246,0.1)',
-                                                    color: '#a78bfa',
-                                                    cursor: claimingId === flag.id ? 'not-allowed' : 'pointer',
+                                                    border: '1px solid rgba(99,102,241,0.4)',
+                                                    background: 'rgba(99,102,241,0.1)',
+                                                    color: '#818cf8',
+                                                    cursor: 'pointer',
                                                     fontSize: '0.8rem',
                                                     fontWeight: 500,
-                                                    opacity: claimingId === flag.id ? 0.5 : 1,
                                                 }}
                                             >
-                                                {claimingId === flag.id ? 'Claiming…' : 'Claim'}
+                                                <Sparkles size={13} />
+                                                Analyse
                                             </button>
-                                        )}
+                                            {flag.status === 'OPEN' && (
+                                                <button
+                                                    onClick={() => handleClaim(flag.id)}
+                                                    disabled={claimingId === flag.id}
+                                                    style={{
+                                                        padding: '4px 12px',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid rgba(139,92,246,0.4)',
+                                                        background: 'rgba(139,92,246,0.1)',
+                                                        color: '#a78bfa',
+                                                        cursor: claimingId === flag.id ? 'not-allowed' : 'pointer',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 500,
+                                                        opacity: claimingId === flag.id ? 0.5 : 1,
+                                                    }}
+                                                >
+                                                    {claimingId === flag.id ? 'Claiming…' : 'Claim'}
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -489,6 +545,89 @@ export default function SimilarityFlagsPage() {
                     <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={paginationBtn(page === totalPages)}>
                         <ChevronsRight size={16} />
                     </button>
+                </div>
+            )}
+
+            {/* AI analysis modal */}
+            {aiModal && (
+                <div
+                    onClick={() => setAiModal(null)}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 300,
+                        background: 'rgba(0,0,0,0.6)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '24px',
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#1a1a22',
+                            border: '1px solid rgba(99,102,241,0.25)',
+                            borderRadius: '12px',
+                            padding: '28px',
+                            maxWidth: '720px',
+                            width: '100%',
+                            maxHeight: '80vh',
+                            overflowY: 'auto',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                        }}
+                    >
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <Sparkles size={18} style={{ color: '#818cf8' }} />
+                                <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
+                                    AI Similarity Analysis
+                                </h2>
+                            </div>
+                            <button
+                                onClick={() => setAiModal(null)}
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'rgba(255,255,255,0.4)', fontSize: '1.4rem', lineHeight: 1,
+                                    padding: '0 4px',
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {aiLoading ? (
+                            <div style={{ textAlign: 'center', padding: '48px 0', color: 'rgba(255,255,255,0.4)' }}>
+                                <div style={{ marginBottom: '12px' }}>
+                                    <Sparkles size={24} style={{ color: '#818cf8', opacity: 0.6 }} />
+                                </div>
+                                Analysing prompts…
+                            </div>
+                        ) : aiError ? (
+                            <div style={{ color: '#f87171', padding: '16px 0' }}>
+                                {aiError}
+                            </div>
+                        ) : aiAnalysis ? (
+                            <div>
+                                <div style={{
+                                    whiteSpace: 'pre-wrap',
+                                    lineHeight: 1.7,
+                                    fontSize: '0.9rem',
+                                    color: 'rgba(255,255,255,0.85)',
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: '8px',
+                                    padding: '16px 18px',
+                                }}>
+                                    {aiAnalysis.analysis}
+                                </div>
+                                <div style={{
+                                    display: 'flex', gap: '16px', marginTop: '14px',
+                                    fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)',
+                                }}>
+                                    <span>Provider: {aiAnalysis.provider}</span>
+                                    {aiAnalysis.cost && <span>Cost: {aiAnalysis.cost}</span>}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             )}
 

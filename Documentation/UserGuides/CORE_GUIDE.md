@@ -242,6 +242,19 @@ For source records that have a task ID, a **View in Task Search** link appears i
 
 Close the modal by clicking the **×** button in the top-right corner or clicking outside the modal.
 
+### AI Comparison
+
+Each flag row has an **Analyse** button. Clicking it sends both prompts to the configured AI provider and displays a structured analysis covering:
+
+1. **Key similarities** — shared objectives, phrasing, or constraints
+2. **Notable differences** — scope, specifics, or intent that differ
+3. **Duplicate assessment** — whether these represent the same task or genuinely distinct work
+4. **Overall verdict** — a clear recommendation on how to handle the flag
+
+The analysis appears in a modal overlay. For OpenRouter-backed deployments, the cost of the AI call is shown. For local LM Studio deployments, no cost is displayed (local compute is free).
+
+The AI analysis is advisory — use it as a starting point for your review, not as a final decision.
+
 ---
 
 ## QA TOOLS

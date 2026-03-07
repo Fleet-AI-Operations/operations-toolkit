@@ -9,6 +9,7 @@ Complete reference for all REST API endpoints in the Operations Tools.
 - [Records](#records)
 - [Ingestion](#ingestion)
 - [Analysis](#analysis)
+- [Similarity Flags](#similarity-flags)
 - [Admin](#admin)
 - [AI Services](#ai-services)
 - [Status](#status)
@@ -364,6 +365,106 @@ Cookie: sb-auth-token=...
   ]
 }
 ```
+
+---
+
+## Similarity Flags
+
+Similarity flags are generated automatically during data ingestion. Records from `@fleet.so` email addresses are excluded from detection.
+
+### GET /api/similarity-flags
+
+Fetch paginated similarity flags with optional filters.
+
+**Authentication**: Required
+**Authorization**: CORE, FLEET, MANAGER, ADMIN
+
+**Query Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Items per page (default: 25) |
+| `environment` | string | Filter by environment |
+| `status` | string | Filter by status: `OPEN` or `CLAIMED` |
+| `claimedBy` | string | `me` to show only flags claimed by the authenticated user (requires `status=CLAIMED`) |
+| `matchType` | string | Filter by match type: `USER_HISTORY` or `DAILY_GREAT` |
+
+**Request**
+```http
+GET /api/similarity-flags?status=OPEN&environment=production HTTP/1.1
+Cookie: sb-auth-token=...
+```
+
+**Response** (200 OK)
+```json
+{
+  "flags": [
+    {
+      "id": "uuid",
+      "similarityJobId": "uuid",
+      "sourceRecordId": "uuid",
+      "matchedRecordId": "uuid",
+      "similarityScore": 0.94,
+      "userEmail": "worker@example.com",
+      "userName": "Worker Name",
+      "environment": "production",
+      "status": "OPEN",
+      "matchType": "USER_HISTORY",
+      "claimedByEmail": null,
+      "claimedAt": null,
+      "notifiedAt": null,
+      "createdAt": "2026-01-15T10:00:00Z",
+      "sourceSnippet": "First 200 chars of source prompt...",
+      "matchedSnippet": "First 200 chars of matched prompt...",
+      "matchedTaskKey": null
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "limit": 25
+}
+```
+
+---
+
+### POST /api/similarity-flags/ai-compare
+
+Use AI to analyse the similarity between two flagged records. Returns a structured comparison covering key similarities, notable differences, duplicate assessment, and an overall verdict.
+
+**Authentication**: Required
+**Authorization**: CORE, FLEET, MANAGER, ADMIN
+
+**Request**
+```http
+POST /api/similarity-flags/ai-compare HTTP/1.1
+Content-Type: application/json
+Cookie: sb-auth-token=...
+
+{
+  "sourceRecordId": "uuid",
+  "matchedRecordId": "uuid"
+}
+```
+
+**Response** (200 OK)
+```json
+{
+  "analysis": "1. Key similarities: ...\n2. Notable differences: ...\n3. Duplicate assessment: ...\n4. Overall verdict: ...",
+  "cost": "$0.0012",
+  "provider": "openrouter"
+}
+```
+
+`cost` is `null` for local LM Studio providers (free compute). `provider` identifies which AI backend was used.
+
+**Error Responses**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Missing `sourceRecordId` or `matchedRecordId`, or invalid JSON body |
+| 404 | Source or matched record not found |
+| 502 | AI provider failed to respond or returned empty content |
 
 ---
 

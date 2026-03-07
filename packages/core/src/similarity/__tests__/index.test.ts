@@ -261,6 +261,25 @@ describe('startSimilarityDetection', () => {
     expect(firstCall).toContain('ingest-001');
     expect(firstCall).toContain('test-env');
   });
+
+  it('excludes @fleet.so email addresses from the newRecords query', async () => {
+    $queryRaw.mockResolvedValueOnce([{ id: 'job-fleet-excl' }]);
+    $queryRaw.mockResolvedValue([]);
+
+    await startSimilarityDetection('ingest-fleet-excl', 'env-fleet');
+
+    // Drain microtask queue so background work starts and issues the newRecords query
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // The second $queryRaw call (after INSERT) is the newRecords CTE query.
+    // Verify its SQL template contains the @fleet.so exclusion filter.
+    const newRecordsCall = $queryRaw.mock.calls[1];
+    expect(newRecordsCall).toBeTruthy();
+    const sqlTemplate = newRecordsCall[0] as unknown as TemplateStringsArray;
+    const sqlStr = sqlTemplate.join('?');
+    expect(sqlStr).toContain('@fleet.so');
+    expect(sqlStr).toContain('NOT LIKE');
+  });
 });
 
 describe('runSimilarityDetection (via startSimilarityDetection)', () => {

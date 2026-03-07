@@ -270,8 +270,8 @@ export async function GET(request: NextRequest) {
         }));
 
         return NextResponse.json({ flags: enriched, total, page, limit });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[similarity-flags] Error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to load similarity flags. Please try again.' }, { status: 500 });
     }
 }

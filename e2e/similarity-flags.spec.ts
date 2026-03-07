@@ -217,4 +217,53 @@ test.describe('Similarity Flags - Interactions', () => {
         // Modal should be dismissed
         await expect(page.locator('text=/Source Record/')).not.toBeVisible({ timeout: 2000 });
     });
+
+    test('table rows have an Analyse button when flags exist', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        await page.waitForTimeout(1000);
+
+        const tableCount = await page.locator('table').count();
+        if (tableCount === 0) {
+            return;
+        }
+
+        // Each flag row should have an Analyse button
+        await expect(page.locator('tbody tr').first().locator('button:has-text("Analyse")')).toBeVisible({ timeout: 3000 });
+    });
+
+    test('clicking Analyse opens AI analysis modal', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        await page.waitForTimeout(1000);
+
+        const tableCount = await page.locator('table').count();
+        if (tableCount === 0) {
+            return;
+        }
+
+        // Click the first Analyse button
+        await page.locator('tbody tr').first().locator('button:has-text("Analyse")').click();
+
+        // Modal should appear with AI Analysis heading
+        await expect(page.locator('text=/AI Analysis/')).toBeVisible({ timeout: 3000 });
+    });
+
+    test('AI analysis modal can be closed', async ({ page }) => {
+        await page.goto('http://localhost:3003/similarity-flags');
+
+        await page.waitForTimeout(1000);
+
+        const tableCount = await page.locator('table').count();
+        if (tableCount === 0) {
+            return;
+        }
+
+        await page.locator('tbody tr').first().locator('button:has-text("Analyse")').click();
+        await expect(page.locator('text=/AI Analysis/')).toBeVisible({ timeout: 3000 });
+
+        // Close via × button
+        await page.locator('button:has-text("×")').last().click();
+        await expect(page.locator('text=/AI Analysis/')).not.toBeVisible({ timeout: 2000 });
+    });
 });
