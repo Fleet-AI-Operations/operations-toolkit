@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { Bug } from 'lucide-react';
+
+const ADMIN_BUG_REPORTS_URL = `${process.env.NEXT_PUBLIC_ADMIN_APP_URL || 'http://localhost:3005'}/bug-reports`;
 
 interface BugReportNotificationProps {
   userRole: string;
@@ -37,8 +38,8 @@ export default function BugReportNotification({ userRole }: BugReportNotificatio
   if (userRole !== 'ADMIN' || unassignedCount === 0) return null;
 
   return (
-    <Link
-      href="/bug-reports"
+    <a
+      href={ADMIN_BUG_REPORTS_URL}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -77,6 +78,6 @@ export default function BugReportNotification({ userRole }: BugReportNotificatio
       }}>
         {unassignedCount}
       </span>
-    </Link>
+    </a>
   );
 }

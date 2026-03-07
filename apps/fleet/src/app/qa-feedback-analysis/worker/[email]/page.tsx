@@ -314,7 +314,7 @@ export default function WorkerDetailsPage() {
                                     <button
                                         key={value}
                                         onClick={() => setTaskFilter(value)}
-                                        className={taskFilter === value ? 'btn-primary text-sm' : 'btn-secondary text-sm'}
+                                        className={taskFilter === value ? 'btn-primary text-sm' : 'text-sm px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-white hover:border-[var(--accent)] transition-colors'}
                                     >
                                         {label}
                                     </button>
