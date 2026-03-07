@@ -92,55 +92,78 @@ SET environment = COALESCE(
 );
 
 -- 3. analytics_jobs: Get environment from project name or default
-UPDATE public.analytics_jobs aj
-SET environment = COALESCE(
-    (
-        SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
-        FROM public.projects p
-        WHERE p.id = aj."projectId"
-    ),
-    'default'
-);
-
--- 4. audit_logs: Get environment from project name or NULL (keep nullable for non-project logs)
-UPDATE public.audit_logs al
-SET environment = CASE
-    WHEN al.project_id IS NOT NULL THEN
-        COALESCE(
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+        UPDATE public.analytics_jobs aj
+        SET environment = COALESCE(
             (
                 SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
                 FROM public.projects p
-                WHERE p.id = al.project_id
+                WHERE p.id = aj."projectId"
             ),
             'default'
-        )
-    ELSE NULL
-END;
+        );
+    ELSE
+        UPDATE public.analytics_jobs SET environment = 'default' WHERE environment IS NULL;
+    END IF;
+END $$;
+
+-- 4. audit_logs: Get environment from project name or NULL (keep nullable for non-project logs)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+        UPDATE public.audit_logs al
+        SET environment = CASE
+            WHEN al.project_id IS NOT NULL THEN
+                COALESCE(
+                    (
+                        SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
+                        FROM public.projects p
+                        WHERE p.id = al.project_id
+                    ),
+                    'default'
+                )
+            ELSE NULL
+        END;
+    END IF;
+END $$;
 
 -- 5. candidate_status: Get environment from project name
-UPDATE public.candidate_status cs
-SET environment = COALESCE(
-    (
-        SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
-        FROM public.projects p
-        WHERE p.id = cs."projectId"
-    ),
-    'default'
-);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+        UPDATE public.candidate_status cs
+        SET environment = COALESCE(
+            (
+                SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
+                FROM public.projects p
+                WHERE p.id = cs."projectId"
+            ),
+            'default'
+        );
+    ELSE
+        UPDATE public.candidate_status SET environment = 'default' WHERE environment IS NULL;
+    END IF;
+END $$;
 
 -- 6. rater_groups: Get environment from project name (skip if table doesn't exist)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'rater_groups') THEN
-        UPDATE public.rater_groups rg
-        SET environment = COALESCE(
-            (
-                SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
-                FROM public.projects p
-                WHERE p.id = rg.project_id
-            ),
-            'default'
-        );
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+            UPDATE public.rater_groups rg
+            SET environment = COALESCE(
+                (
+                    SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
+                    FROM public.projects p
+                    WHERE p.id = rg.project_id
+                ),
+                'default'
+            );
+        ELSE
+            UPDATE public.rater_groups SET environment = 'default' WHERE environment IS NULL;
+        END IF;
     END IF;
 END $$;
 
@@ -148,15 +171,19 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'assignment_batches') THEN
-        UPDATE public.assignment_batches ab
-        SET environment = COALESCE(
-            (
-                SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
-                FROM public.projects p
-                WHERE p.id = ab.project_id
-            ),
-            'default'
-        );
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+            UPDATE public.assignment_batches ab
+            SET environment = COALESCE(
+                (
+                    SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
+                    FROM public.projects p
+                    WHERE p.id = ab.project_id
+                ),
+                'default'
+            );
+        ELSE
+            UPDATE public.assignment_batches SET environment = 'default' WHERE environment IS NULL;
+        END IF;
     END IF;
 END $$;
 
@@ -164,15 +191,19 @@ END $$;
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'llm_evaluation_jobs') THEN
-        UPDATE public.llm_evaluation_jobs lej
-        SET environment = COALESCE(
-            (
-                SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
-                FROM public.projects p
-                WHERE p.id = lej.project_id
-            ),
-            'default'
-        );
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
+            UPDATE public.llm_evaluation_jobs lej
+            SET environment = COALESCE(
+                (
+                    SELECT LOWER(REGEXP_REPLACE(p.name, '[^a-zA-Z0-9]', '-', 'g'))
+                    FROM public.projects p
+                    WHERE p.id = lej.project_id
+                ),
+                'default'
+            );
+        ELSE
+            UPDATE public.llm_evaluation_jobs SET environment = 'default' WHERE environment IS NULL;
+        END IF;
     END IF;
 END $$;
 
