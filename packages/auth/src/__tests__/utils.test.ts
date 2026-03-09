@@ -39,11 +39,14 @@ describe('getUserRole', () => {
     expect(prisma.profile.findUnique).toHaveBeenCalledTimes(1);
   });
 
-  it('returns USER as default when profile is not found', async () => {
+  it('returns USER as default when profile is not found and logs a warning', async () => {
     await mockRole(null);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const role = await getUserRole(USER_ID);
     expect(role).toBe('USER');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(USER_ID));
+    warnSpy.mockRestore();
   });
 
   it('returns cached result on subsequent calls without hitting the database', async () => {

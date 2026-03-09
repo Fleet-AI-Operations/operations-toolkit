@@ -106,7 +106,7 @@ describe('requireAdminRole', () => {
     }
   });
 
-  it('returns 403 { error } when profile DB query returns an error', async () => {
+  it('returns 403 { error } when profile DB query returns an error and logs it', async () => {
     const { createClient } = await import('@repo/auth/server');
     vi.mocked(createClient).mockResolvedValue({
       auth: {
@@ -124,11 +124,18 @@ describe('requireAdminRole', () => {
       })),
     } as any);
 
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const result = await requireAdminRole();
     expect('error' in result).toBe(true);
     if ('error' in result) {
       expect(result.error.status).toBe(403);
     }
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('requireAdminRole'),
+      'u1',
+      expect.any(Error)
+    );
+    errorSpy.mockRestore();
   });
 });
 

@@ -28,8 +28,12 @@ A security audit conducted in March 2026 identified and resolved seven vulnerabi
 
 **Problem**: `GET /api/ingest/jobs` returned full job data to any unauthenticated caller.
 
-**Fix**: Added auth gate requiring FLEET, MANAGER, or ADMIN role:
+**Fix**: Added auth gate requiring FLEET, MANAGER, or ADMIN role. Profile DB errors are logged before returning 403 so a database outage is distinguishable from a legitimate denial in server logs:
 ```typescript
+const { data: profile, error: profileError } = await supabase.from('profiles')...
+if (profileError) {
+  console.error('[ingest/jobs] Failed to fetch profile for userId:', user.id, profileError);
+}
 const allowedRoles = ['FLEET', 'MANAGER', 'ADMIN'];
 if (!profile || !allowedRoles.includes(profile.role))
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -47,13 +51,17 @@ if (!profile || !allowedRoles.includes(profile.role))
 **Problem**: Both routes accepted a `userId` query/body parameter without verifying it matched the authenticated caller. Any logged-in user could view or submit scores on behalf of another user.
 
 **Fix**:
-- **GET** (fetch unrated records): `userId` must match the authenticated user unless the caller has FLEET/MANAGER/ADMIN role.
+- **GET** (fetch unrated records): `userId` must match the authenticated user unless the caller has FLEET/MANAGER/ADMIN role. Profile DB errors are logged before the 403 so operator can distinguish a DB outage from a permission denial.
 - **POST** (submit score): `userId` in the request body must exactly match the authenticated user (no elevation path — users may only submit their own scores).
 - **check-submission**: `userId` must match the authenticated user.
 
 ```typescript
 // IDOR guard in GET
 if (userId !== user.id) {
+  const { data: profile, error: profileError } = await supabase.from('profiles')...
+  if (profileError) {
+    console.error('[likert GET] Failed to fetch profile for elevated role check, userId:', user.id, profileError);
+  }
   const elevatedRoles = ['FLEET', 'MANAGER', 'ADMIN'];
   if (!profile || !elevatedRoles.includes(profile.role))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -83,14 +91,18 @@ import { timingSafeEqual } from 'crypto';
 let authorized = false;
 try {
   authorized = !!secret && timingSafeEqual(Buffer.from(secret), Buffer.from(webhookSecret));
-} catch {
-  // timingSafeEqual throws RangeError if buffer lengths differ — treat as unauthorized
+} catch (err) {
+  // timingSafeEqual throws RangeError if buffers differ in length — treat as unauthorized.
+  // Log anything unexpected (non-RangeError) so misconfigured deployments surface in logs.
+  if (!(err instanceof RangeError)) {
+    console.error('[process-job] Unexpected error during secret comparison:', err);
+  }
 }
 ```
 
-The `try/catch` is intentional: `timingSafeEqual` throws when the two buffers are not the same byte length, which would otherwise produce an uncaught exception and reveal the secret's length.
+The `try/catch` is intentional: `timingSafeEqual` throws `RangeError` when the two buffers are not the same byte length. Non-`RangeError` exceptions (e.g., `Buffer.from()` receiving a non-string value from a misconfigured environment) are logged at error level before being treated as unauthorized, so they surface in deployment logs.
 
-**Tests**: `apps/fleet/src/app/api/ingest/process-job/__tests__/route.test.ts` — covers correct secret (200), wrong secret of same length (401), shorter secret (401, catch path), longer secret (401, catch path).
+**Tests**: `apps/fleet/src/app/api/ingest/process-job/__tests__/route.test.ts` — covers correct secret (200), wrong secret of same length (401), shorter secret (401, expected `RangeError` catch path, not logged), longer secret (401, `RangeError` catch path), and non-`RangeError` in catch is logged.
 
 ---
 
@@ -160,7 +172,9 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-**Tests**: `apps/admin/src/lib/__tests__/auth-helpers.test.ts` — covers ADMIN passes, MANAGER/FLEET/USER are rejected (403), null profile (DB error) is rejected (403), unauthenticated is rejected (401).
+Both helpers log `console.error` when the Supabase profile query returns an error, so a database outage is distinguishable from a legitimate authorization denial in server logs, then return 403 regardless.
+
+**Tests**: `apps/admin/src/lib/__tests__/auth-helpers.test.ts` — covers ADMIN passes, MANAGER/FLEET/USER are rejected (403), null profile (no DB record) is rejected (403), Supabase DB error is rejected (403) and logged, unauthenticated is rejected (401).
 
 ---
 
@@ -176,9 +190,11 @@ export async function POST(req: NextRequest) {
 const ROLE_CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute
 ```
 
+Additionally, `getUserRole` now logs `console.warn` when a profile row is not found, so missing-profile failures (which previously silently defaulted the user to `USER` role) surface in server logs.
+
 **Trade-off**: Each user's role is now re-fetched from the database at most once per minute per app instance, instead of once per 5 minutes. This modestly increases database load in exchange for a tighter revocation window.
 
-**Tests**: `packages/auth/src/__tests__/utils.test.ts` — verifies cache hit within TTL, cache miss after TTL expires, and `invalidateRoleCache` forcing an immediate re-fetch.
+**Tests**: `packages/auth/src/__tests__/utils.test.ts` — verifies cache hit within TTL, cache miss after TTL expires, `invalidateRoleCache` forcing an immediate re-fetch, and `console.warn` emitted when profile is not found.
 
 ---
 
