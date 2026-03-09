@@ -956,7 +956,7 @@ Click **Load Users** to populate the table. Columns show each user's total promp
 |----------|----------------|
 | **Non-Native** | Grammar patterns, phrasing, word choice suggesting non-native English speaker |
 | **AI-Generated** | Structural markers, vocabulary, and style consistent with AI-written text |
-| **Templated** | Repeated structural formulas across a single prompt or (via cross-prompt analysis) across multiple prompts by the same user |
+| **Templated** | A shared structural skeleton repeated across multiple prompts by the same user in the same environment — detected by comparing all of a user's prompts together, not by inspecting any single prompt in isolation |
 
 Each category produces a **confidence score (0–100%)** and a list of specific indicators.
 
@@ -1010,7 +1010,7 @@ Once a user is selected the page shows:
 |------|-------------|
 | **Total Tasks** | All tasks submitted by this user (after deduplication by task key — only the latest version of each task is shown) |
 | **AI-Generated** | Count and % flagged as likely AI-generated |
-| **Templated** | Count and % flagged as using a template formula |
+| **Templated** | Count and % flagged as using a shared template across their submissions (cross-prompt comparison) |
 | **Non-Native** | Count and % flagged as non-native speaker patterns |
 | **Rapid Submission** | Count and % submitted within 5 minutes of an adjacent task |
 
@@ -1023,10 +1023,15 @@ Change the environment dropdown in the header to re-scope the entire deep dive (
 If any tasks have not yet been analyzed, a **Run Analysis (N unanalyzed)** button appears. Clicking it:
 
 1. Syncs the user's tasks into the analysis queue (new tasks only — already-queued tasks are skipped)
-2. Runs AI analysis on all pending tasks in parallel
-3. Reloads the page with updated results when complete
+2. Runs AI analysis on all pending tasks in parallel (non-native speaker and AI-generated detection, per prompt)
+3. Runs a **cross-prompt template analysis** across all the user's completed tasks in the same environment — compares them as a set to detect shared structural skeletons
+4. Reloads the page with updated results when complete
 
-A progress banner is shown during analysis. After completion a green confirmation banner shows how many tasks were analyzed (and how many failed, if any). Re-run Analysis is available even when all tasks are analyzed, to re-analyze with updated models.
+A progress banner is shown during analysis. After completion a green confirmation banner shows how many tasks were analyzed (and how many failed, if any). If the cross-prompt template analysis could not complete, a yellow warning is shown — template badges may be incomplete until you re-run analysis.
+
+Re-run Analysis is available even when all tasks are analyzed, to re-run template detection with updated models or after new tasks have been added.
+
+> **How template detection works**: The AI sees all of the user's completed prompts in the same environment at once (up to 50 — the most recent are used if the set is larger). It looks for a repeated fill-in-the-blank skeleton across multiple prompts — tasks that only vary in one or two slots while the surrounding structure stays identical. A single prompt that happens to use a common phrasing is not flagged; the evidence must span multiple prompts.
 
 #### Flag Filter Bar
 

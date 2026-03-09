@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
-import { analyzePromptAuthenticity } from '@repo/core';
+import { analyzePromptAuthenticity, analyzeTemplateUsage } from '@repo/core';
 
 export const maxDuration = 300;
 
@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     email = body.email;
     environment = body.environment;
-  } catch {
+  } catch (err) {
+    console.error('[user-deep-dive/analyze] Failed to parse request body:', err);
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
@@ -137,83 +138,126 @@ export async function POST(request: NextRequest) {
       select: { id: true, versionId: true, prompt: true },
     });
 
-    if (pending.length === 0) {
-      return NextResponse.json({
-        synced: syncResult.count,
-        analyzed: 0,
-        failed: 0,
-        total: dataRecords.length,
-        message: 'All tasks are already analyzed.',
-      });
-    }
-
-    // ── 4. Analyze in parallel chunks ───────────────────────────────────────
+    // ── 4. Analyze pending records in parallel chunks ────────────────────────
     let analyzed = 0;
     let failed = 0;
 
-    const chunks = chunkArray(pending, CONCURRENT_ANALYSES);
+    if (pending.length > 0) {
+      const chunks = chunkArray(pending, CONCURRENT_ANALYSES);
 
-    for (const chunk of chunks) {
-      const results = await Promise.allSettled(
-        chunk.map(async (record) => {
-          await prisma.promptAuthenticityRecord.update({
-            where: { id: record.id },
-            data: { analysisStatus: 'ANALYZING' },
-          });
+      for (const chunk of chunks) {
+        const results = await Promise.allSettled(
+          chunk.map(async (record) => {
+            await prisma.promptAuthenticityRecord.update({
+              where: { id: record.id },
+              data: { analysisStatus: 'ANALYZING' },
+            });
 
-          const result = await analyzePromptAuthenticity(record.versionId, record.prompt, { silent: true });
+            const result = await analyzePromptAuthenticity(record.versionId, record.prompt, { silent: true });
 
-          await prisma.promptAuthenticityRecord.update({
-            where: { id: record.id },
-            data: {
-              analysisStatus: 'COMPLETED',
-              isLikelyNonNative: result.isLikelyNonNative,
-              nonNativeConfidence: result.nonNativeConfidence,
-              nonNativeIndicators: result.nonNativeIndicators as any,
-              isLikelyAIGenerated: result.isLikelyAIGenerated,
-              aiGeneratedConfidence: result.aiGeneratedConfidence,
-              aiGeneratedIndicators: result.aiGeneratedIndicators as any,
-              isLikelyTemplated: result.isLikelyTemplated,
-              templateConfidence: result.templateConfidence,
-              templateIndicators: result.templateIndicators as any,
-              detectedTemplate: result.detectedTemplate,
-              overallAssessment: result.overallAssessment,
-              recommendations: result.recommendations as any,
-              llmModel: result.llmModel,
-              llmProvider: result.llmProvider,
-              llmCost: result.llmCost,
-              analyzedAt: new Date(),
-            },
-          });
-        })
-      );
+            await prisma.promptAuthenticityRecord.update({
+              where: { id: record.id },
+              data: {
+                analysisStatus: 'COMPLETED',
+                isLikelyNonNative: result.isLikelyNonNative,
+                nonNativeConfidence: result.nonNativeConfidence,
+                nonNativeIndicators: result.nonNativeIndicators as any,
+                isLikelyAIGenerated: result.isLikelyAIGenerated,
+                aiGeneratedConfidence: result.aiGeneratedConfidence,
+                aiGeneratedIndicators: result.aiGeneratedIndicators as any,
+                overallAssessment: result.overallAssessment,
+                recommendations: result.recommendations as any,
+                llmModel: result.llmModel,
+                llmProvider: result.llmProvider,
+                llmCost: result.llmCost,
+                analyzedAt: new Date(),
+              },
+            });
+          })
+        );
 
-      for (let i = 0; i < results.length; i++) {
-        const r = results[i];
-        if (r.status === 'fulfilled') {
-          analyzed++;
-        } else {
-          failed++;
-          console.error('[user-deep-dive/analyze] Record failed:', chunk[i].id, r.reason);
-          await prisma.promptAuthenticityRecord.update({
-            where: { id: chunk[i].id },
-            data: {
-              analysisStatus: 'FAILED',
-              errorMessage: r.reason instanceof Error ? r.reason.message : 'Unknown error',
-            },
-          }).catch((resetErr) => {
-            console.error('[user-deep-dive/analyze] Failed to reset record to FAILED status:', chunk[i].id, resetErr);
-          });
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
+          if (r.status === 'fulfilled') {
+            analyzed++;
+          } else {
+            failed++;
+            console.error('[user-deep-dive/analyze] Record failed:', chunk[i].id, r.reason);
+            await prisma.promptAuthenticityRecord.update({
+              where: { id: chunk[i].id },
+              data: {
+                analysisStatus: 'FAILED',
+                errorMessage: r.reason instanceof Error ? r.reason.message : 'Unknown error',
+              },
+            }).catch((resetErr) => {
+              console.error('[user-deep-dive/analyze] Failed to reset record to FAILED status:', chunk[i].id, resetErr);
+            });
+          }
         }
       }
     }
+
+    // ── 5. Cross-prompt template analysis ───────────────────────────────────
+    // Fetch ALL completed records for this user+environment (including previously
+    // analyzed ones) and compare them as a set to detect template usage patterns.
+    const allCompletedWhere: any = {
+      createdByEmail: { equals: email, mode: 'insensitive' },
+      analysisStatus: 'COMPLETED',
+    };
+    if (environment) allCompletedWhere.envKey = environment;
+
+    const allCompleted = await prisma.promptAuthenticityRecord.findMany({
+      where: allCompletedWhere,
+      select: { id: true, prompt: true },
+    });
+
+    let templateAnalysisFailed = false;
+
+    if (allCompleted.length >= 2) {
+      try {
+        const templateResult = await analyzeTemplateUsage(
+          allCompleted.map((r) => ({ id: r.id, text: r.prompt })),
+          { silent: true }
+        );
+
+        const matchingIdSet = new Set(templateResult.matchingPromptIds);
+
+        const updateResults = await Promise.allSettled(
+          allCompleted.map((r) =>
+            prisma.promptAuthenticityRecord.update({
+              where: { id: r.id },
+              data: {
+                isLikelyTemplated: matchingIdSet.has(r.id),
+                templateConfidence: matchingIdSet.has(r.id) ? templateResult.templateConfidence : 0,
+                templateIndicators: templateResult.templateIndicators as any,
+                detectedTemplate: templateResult.detectedTemplate,
+              },
+            })
+          )
+        );
+
+        const failedUpdates = updateResults.filter((r) => r.status === 'rejected').length;
+        if (failedUpdates > 0) {
+          console.error(`[user-deep-dive/analyze] ${failedUpdates} template field update(s) failed`);
+          templateAnalysisFailed = true;
+        }
+      } catch (err) {
+        console.error('[user-deep-dive/analyze] Cross-prompt template analysis failed:', err);
+        templateAnalysisFailed = true;
+      }
+    }
+
+    const message = analyzed === 0 && failed === 0
+      ? 'All tasks are already analyzed.'
+      : `Analyzed ${analyzed} task${analyzed !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.`;
 
     return NextResponse.json({
       synced: syncResult.count,
       analyzed,
       failed,
       total: dataRecords.length,
-      message: `Analyzed ${analyzed} task${analyzed !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.`,
+      templateAnalysisFailed,
+      message,
     });
   } catch (error: any) {
     console.error('[user-deep-dive/analyze] POST failed:', error);
