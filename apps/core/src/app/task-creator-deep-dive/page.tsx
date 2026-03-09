@@ -89,7 +89,7 @@ function StatCard({ label, count, pct, color }: { label: string; count: number; 
   );
 }
 
-// ── Task Lookup (find creator by task_key or task_id) ──────────────────────
+// ── Task Lookup (find creator by task_key or record ID; shows up to 5 partial matches) ──
 
 type LookupResult = { recordId: string; email: string; name: string | null; environment: string | null; taskKey: string | null };
 
@@ -98,6 +98,7 @@ function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<LookupResult[]>([]);
+  const [matchType, setMatchType] = useState<'exact' | 'fuzzy' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const lookup = async () => {
@@ -105,14 +106,18 @@ function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
     if (!q) return;
     setLoading(true);
     setResults([]);
+    setMatchType(null);
     setError(null);
     try {
       const res = await fetch(`/api/prompt-authenticity/user-deep-dive/lookup?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(data.error ?? 'Lookup failed');
+        setError(data?.error ?? 'Lookup failed');
+      } else if (!data || !Array.isArray(data.results)) {
+        setError('Unexpected server response — please try again');
       } else {
-        setResults(data.results ?? []);
+        setResults(data.results);
+        setMatchType(data.matchType ?? null);
       }
     } catch (err) {
       console.error('[TaskLookup]', err);
@@ -123,12 +128,18 @@ function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
   };
 
   const navigateTo = (r: LookupResult) => {
+    if (!r.email) {
+      setError('Cannot navigate: creator email is missing for this result');
+      return;
+    }
     const params = new URLSearchParams({ email: r.email });
     const env = defaultEnvironment || r.environment;
     if (env) params.set('environment', env);
     router.push(`/task-creator-deep-dive?${params}`);
   };
 
+  // Controls per-row taskKey display in multi-result mode to aid disambiguation.
+  // Also determines whether the "select one" prompt appears in the fuzzy header.
   const isMultiple = results.length > 1;
 
   return (
@@ -146,7 +157,7 @@ function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
           type="text"
           placeholder="Enter task_key or record ID..."
           value={query}
-          onChange={e => { setQuery(e.target.value); setResults([]); setError(null); }}
+          onChange={e => { setQuery(e.target.value); setResults([]); setMatchType(null); setError(null); }}
           onKeyDown={e => e.key === 'Enter' && lookup()}
           style={{
             flex: 1,
@@ -183,9 +194,11 @@ function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
 
       {results.length > 0 && (
         <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {isMultiple && (
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginBottom: '2px' }}>
-              {results.length} partial matches — select one:
+          {matchType === 'fuzzy' && (
+            <div style={{ fontSize: '11px', color: 'rgba(251,191,36,0.7)', marginBottom: '2px' }}>
+              {isMultiple
+                ? `No exact match — ${results.length} partial matches, select one:`
+                : 'No exact match — showing closest partial match'}
             </div>
           )}
           {results.map(r => (

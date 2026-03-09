@@ -78,6 +78,13 @@ describe('GET /api/prompt-authenticity/user-deep-dive/lookup', () => {
     expect((await res.json()).error).toMatch(/q is required/i);
   });
 
+  it('returns 400 when q exceeds 200 characters', async () => {
+    const longQ = 'a'.repeat(201);
+    const res = await GET(new NextRequest(`http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=${longQ}`));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/200 characters/i);
+  });
+
   it('returns creator info when found by exact match', async () => {
     const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=rec-uuid-1'));
     expect(res.status).toBe(200);
@@ -87,6 +94,8 @@ describe('GET /api/prompt-authenticity/user-deep-dive/lookup', () => {
     expect(data.results[0].name).toBe('Alice Worker');
     expect(data.results[0].environment).toBe('prod');
     expect(data.results[0].recordId).toBe('rec-uuid-1');
+    expect(data.results[0].taskKey).toBe('task-key-abc');
+    expect(data.matchType).toBe('exact');
   });
 
   it('queries exact match by both id and metadata.task_key', async () => {
@@ -120,6 +129,8 @@ describe('GET /api/prompt-authenticity/user-deep-dive/lookup', () => {
     expect(data.results).toHaveLength(1);
     expect(data.results[0].email).toBe('bob@example.com');
     expect(data.results[0].taskKey).toBe('task-key-abc-v2');
+    expect(data.matchType).toBe('fuzzy');
+    expect(prisma.$queryRaw).toHaveBeenCalled();
   });
 
   it('returns multiple fuzzy matches when several records match', async () => {
@@ -134,6 +145,28 @@ describe('GET /api/prompt-authenticity/user-deep-dive/lookup', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.results).toHaveLength(2);
+    expect(data.results[0].email).toBe('a@example.com');
+    expect(data.results[0].taskKey).toBe('task-abc-1');
+    expect(data.results[1].email).toBe('b@example.com');
+    expect(data.results[1].taskKey).toBe('task-abc-2');
+    expect(data.matchType).toBe('fuzzy');
+  });
+
+  it('falls through to fuzzy phase when exact match record has null email', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.dataRecord.findFirst).mockResolvedValue(
+      makeRecord({ createdByEmail: null }) as any
+    );
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([
+      { id: 'rec-2', createdByEmail: 'bob@example.com', createdByName: 'Bob', environment: 'prod', taskKey: 'task-key-abc' },
+    ]);
+
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=task-key-abc'));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(prisma.$queryRaw).toHaveBeenCalled();
+    expect(data.results[0].email).toBe('bob@example.com');
+    expect(data.matchType).toBe('fuzzy');
   });
 
   it('returns 404 when neither exact nor fuzzy match finds anything', async () => {
@@ -174,14 +207,38 @@ describe('GET /api/prompt-authenticity/user-deep-dive/lookup', () => {
     );
   });
 
-  it('returns 500 with details on database error', async () => {
+  it('does not error when q contains LIKE wildcard characters', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.dataRecord.findFirst).mockResolvedValue(null as any);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([
+      { id: 'rec-x', createdByEmail: 'x@example.com', createdByName: 'X', environment: 'prod', taskKey: 'task-50%-done' },
+    ]);
+
+    // q=50% (URL-encoded as 50%25)
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=50%25'));
+    expect(res.status).toBe(200);
+    expect(prisma.$queryRaw).toHaveBeenCalled();
+  });
+
+  it('returns 500 on database error in the exact match phase', async () => {
     const { prisma } = await import('@repo/database');
     vi.mocked(prisma.dataRecord.findFirst).mockRejectedValue(new Error('DB down'));
 
     const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=some-key'));
     expect(res.status).toBe(500);
     const data = await res.json();
-    expect(data.details).toBe('DB down');
+    expect(data.error).toMatch(/internal server error/i);
+    expect(data.details).toBeUndefined();
+  });
+
+  it('returns 500 on database error in the fuzzy phase', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.dataRecord.findFirst).mockResolvedValue(null as any);
+    vi.mocked(prisma.$queryRaw).mockRejectedValue(new Error('raw query failed'));
+
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=some-key'));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toMatch(/internal server error/i);
   });
 
   it('returns 500 when profile fetch fails (not 403)', async () => {

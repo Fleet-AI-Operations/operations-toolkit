@@ -11,21 +11,37 @@ function hasPermission(userRole: string | null | undefined, requiredRole: UserRo
   return (ROLE_HIERARCHY[userRole as UserRole] ?? 0) >= ROLE_HIERARCHY[requiredRole];
 }
 
+/** Maximum allowed length for the q search parameter. */
+const MAX_Q_LENGTH = 200;
+
+/** Escapes SQL LIKE metacharacters so user input is treated as a literal string. */
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&');
+}
+
 type LookupRow = {
   id: string;
-  createdByEmail: string | null;
+  createdByEmail: string; // guaranteed non-null — both query paths filter for IS NOT NULL
   createdByName: string | null;
   environment: string | null;
   taskKey: string | null;
 };
 
-function toResult(r: LookupRow) {
+type LookupResult = {
+  recordId: string;
+  email: string;
+  name: string | null;
+  environment: string | null;
+  taskKey: string | null;
+};
+
+function toResult(r: LookupRow): LookupResult {
   return {
     recordId: r.id,
     email: r.createdByEmail,
-    name: r.createdByName ?? null,
-    environment: r.environment ?? null,
-    taskKey: r.taskKey ?? null,
+    name: r.createdByName,
+    environment: r.environment,
+    taskKey: r.taskKey,
   };
 }
 
@@ -33,13 +49,23 @@ function toResult(r: LookupRow) {
  * GET /api/prompt-authenticity/user-deep-dive/lookup?q=<task_key_or_id>
  *
  * Looks up the creator(s) of a task by record ID or metadata.task_key.
+ * Only tasks with a non-null createdByEmail are considered; tasks ingested without
+ * creator attribution will not appear in results.
+ *
+ * Requires authentication. Minimum role: CORE.
  *
  * Search strategy (in order):
- *   1. Exact match on record ID
- *   2. Exact match on metadata.task_key (case-sensitive)
- *   3. Case-insensitive partial match on metadata.task_key (ILIKE '%q%'), up to 5 results
+ *   1. Exact match on record ID or metadata.task_key (case-sensitive, single OR query)
+ *   2. Case-insensitive partial match on metadata.task_key (ILIKE '%q%'), up to 5 results
  *
- * Returns: { results: Array<{ recordId, email, name, environment, taskKey }> }
+ * Returns:
+ *   200 { results: Array<{ recordId, email, name, environment, taskKey }>, matchType: 'exact' | 'fuzzy' }
+ *   400 { error: 'q is required' }
+ *   400 { error: 'q must be 200 characters or fewer' }
+ *   401 { error: 'Unauthorized' }
+ *   403 { error: 'Forbidden' }
+ *   404 { error: 'No task found ...' }
+ *   500 { error: 'Internal server error' }
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -60,9 +86,12 @@ export async function GET(request: NextRequest) {
   if (!q) {
     return NextResponse.json({ error: 'q is required' }, { status: 400 });
   }
+  if (q.length > MAX_Q_LENGTH) {
+    return NextResponse.json({ error: `q must be ${MAX_Q_LENGTH} characters or fewer` }, { status: 400 });
+  }
 
   try {
-    // ── Phase 1: exact match ────────────────────────────────────────────────
+    // ── Phase 1: exact match on record ID or metadata.task_key ──────────────
     const exact = await prisma.dataRecord.findFirst({
       where: {
         type: 'TASK',
@@ -83,10 +112,20 @@ export async function GET(request: NextRequest) {
 
     if (exact?.createdByEmail) {
       const taskKey = (exact.metadata as Record<string, any> | null)?.task_key ?? null;
-      return NextResponse.json({ results: [toResult({ ...exact, taskKey })] });
+      return NextResponse.json({
+        results: [toResult({
+          id: exact.id,
+          createdByEmail: exact.createdByEmail,
+          createdByName: exact.createdByName,
+          environment: exact.environment,
+          taskKey,
+        })],
+        matchType: 'exact',
+      });
     }
 
-    // ── Phase 2: case-insensitive partial match on metadata.task_key ────────
+    // ── Phase 2: fuzzy fallback — no exact match on record ID or task_key found ──
+    const pattern = '%' + escapeLike(q) + '%';
     const fuzzy = await prisma.$queryRaw<LookupRow[]>`
       SELECT
         id,
@@ -97,7 +136,7 @@ export async function GET(request: NextRequest) {
       FROM data_records
       WHERE type = 'TASK'
         AND "createdByEmail" IS NOT NULL
-        AND LOWER(metadata->>'task_key') LIKE LOWER(${'%' + q + '%'})
+        AND metadata->>'task_key' ILIKE ${pattern}
       ORDER BY "createdAt" DESC
       LIMIT 5
     `;
@@ -106,9 +145,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No task found for the given ID or task key' }, { status: 404 });
     }
 
-    return NextResponse.json({ results: fuzzy.map(toResult) });
-  } catch (error: any) {
-    console.error('[user-deep-dive/lookup] GET failed:', error);
-    return NextResponse.json({ error: 'Lookup failed', details: error.message }, { status: 500 });
+    return NextResponse.json({ results: fuzzy.map(toResult), matchType: 'fuzzy' });
+  } catch (err: any) {
+    console.error('[user-deep-dive/lookup] GET failed:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
