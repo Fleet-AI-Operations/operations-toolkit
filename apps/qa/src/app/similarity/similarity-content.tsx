@@ -53,12 +53,16 @@ export default function PromptSimilarityPage() {
     const fetchEnvironments = async () => {
       try {
         const response = await fetch('/api/environments');
+        if (!response.ok) {
+          setError(`Failed to load environments (HTTP ${response.status})`);
+          return;
+        }
         const data = await response.json();
         if (data.environments) {
           setEnvironments(data.environments);
         }
-      } catch (err) {
-        console.error('Failed to fetch environments', err);
+      } catch (err: any) {
+        setError(err.message);
       }
     };
     fetchEnvironments();
@@ -100,13 +104,8 @@ export default function PromptSimilarityPage() {
   }, [users, userSearch]);
 
   const filteredPrompts = useMemo(() => {
-    let filtered = allPrompts;
-
-    if (selectedUserId) {
-      filtered = filtered.filter((p) => p.createdById === selectedUserId);
-    }
-
-    return filtered;
+    if (!selectedUserId) return allPrompts;
+    return allPrompts.filter((p) => p.createdById === selectedUserId);
   }, [selectedUserId, allPrompts]);
 
   useEffect(() => {
@@ -157,9 +156,12 @@ export default function PromptSimilarityPage() {
                   setSimilarPrompts((prev) => prev.map((pp) => pp.id === p.id ? { ...pp, crossEncoderScore: json.score } : pp));
                 }
               } catch (e) {
+                console.error('Cross-encoder cache probe failed for target', p.id, e);
               }
             }));
-          } catch (e) {}
+          } catch (e) {
+            console.error('Cross-encoder cache probe batch failed', e);
+          }
         })();
       } catch (err: any) {
         setError(err.message);
