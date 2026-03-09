@@ -264,10 +264,7 @@ export async function analyzeTemplateUsage(
     };
   } catch (error) {
     console.error('[Template Usage] Error analyzing template usage:', error);
-    throw new Error(
-      `Failed to analyze template usage: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      { cause: error }
-    );
+    throw new Error(`Failed to analyze template usage: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
