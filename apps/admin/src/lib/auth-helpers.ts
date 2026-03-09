@@ -28,6 +28,9 @@ export async function requireAdminRole(): Promise<{ user: AdminUser } | { error:
     .eq('id', user.id)
     .single();
 
+  if (profileError) {
+    console.error('[requireAdminRole] Failed to fetch profile for userId:', user.id, profileError);
+  }
   if (profileError || !profile || !ADMIN_ROLES.includes(profile.role as typeof ADMIN_ROLES[number])) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
@@ -53,6 +56,9 @@ export async function requireManagerRole(): Promise<{ user: AdminUser } | { erro
     .eq('id', user.id)
     .single();
 
+  if (profileError) {
+    console.error('[requireManagerRole] Failed to fetch profile for userId:', user.id, profileError);
+  }
   if (profileError || !profile || !MANAGER_OR_ABOVE.includes(profile.role as typeof MANAGER_OR_ABOVE[number])) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }

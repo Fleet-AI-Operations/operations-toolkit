@@ -149,6 +149,24 @@ describe('POST /api/records/likert-llm', () => {
     expect(data.results[0].error).toMatch(/already evaluated/i);
   });
 
+  it('returns 200 with results[0].error when the LLM call fails (non-2xx)', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 503 });
+
+    const res = await POST(makeRequest({ recordId: 'r1', content: 'Test', models: ['llama3'] }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.results[0].error).toMatch(/failed to evaluate/i);
+  });
+
+  it('returns 200 with results[0].error when fetch throws', async () => {
+    mockFetch.mockRejectedValue(new Error('Network unreachable'));
+
+    const res = await POST(makeRequest({ recordId: 'r1', content: 'Test', models: ['llama3'] }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.results[0].error).toMatch(/failed to evaluate/i);
+  });
+
   it('returns generic 500 without leaking error details on unexpected failure', async () => {
     const { prisma } = await import('@repo/database');
     vi.mocked(prisma.likertScore.create).mockRejectedValue(new Error('DB connection refused at 127.0.0.1:5432'));

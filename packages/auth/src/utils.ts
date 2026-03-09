@@ -7,8 +7,8 @@ import type { UserRole } from '@repo/types';
 // Known limitation: this is an in-process cache. In a multi-app deployment (e.g. separate
 // Vercel instances for Fleet, QA, Core, Admin), each app has its own cache. Calling
 // invalidateRoleCache() in the Admin app only clears that app's cache — other apps will
-// continue serving the stale role until the TTL expires. The 5-minute TTL bounds the
-// worst case. For tighter consistency, reduce the TTL or remove caching for auth checks.
+// continue serving the stale role until the TTL expires. The 1-minute TTL bounds the
+// worst case.
 const ROLE_CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute — bounds the window for revoked permissions in multi-app deployments
 
 interface CachedRole {
@@ -43,6 +43,9 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     where: { id: userId },
     select: { role: true }
   });
+  if (!profile) {
+    console.warn(`[getUserRole] No profile found for userId=${userId}. Defaulting to USER role.`);
+  }
   const role = (profile?.role ?? 'USER') as UserRole;
 
   roleCache.set(userId, { role, expiresAt: now + ROLE_CACHE_TTL_MS });

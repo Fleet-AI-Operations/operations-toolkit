@@ -105,6 +105,31 @@ describe('requireAdminRole', () => {
       expect(result.error.status).toBe(403);
     }
   });
+
+  it('returns 403 { error } when profile DB query returns an error', async () => {
+    const { createClient } = await import('@repo/auth/server');
+    vi.mocked(createClient).mockResolvedValue({
+      auth: {
+        getUser: vi.fn(() => ({
+          data: { user: { id: 'u1', email: 'u@example.com' } },
+          error: null,
+        })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(() => ({ data: null, error: new Error('DB connection refused') })),
+          })),
+        })),
+      })),
+    } as any);
+
+    const result = await requireAdminRole();
+    expect('error' in result).toBe(true);
+    if ('error' in result) {
+      expect(result.error.status).toBe(403);
+    }
+  });
 });
 
 describe('requireManagerRole', () => {

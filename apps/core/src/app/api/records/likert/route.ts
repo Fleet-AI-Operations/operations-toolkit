@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId');
 
     if (!environment) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'environment is required' }, { status: 400 });
     }
 
     if (!userId) {
@@ -25,11 +25,14 @@ export async function GET(req: NextRequest) {
 
     // Users may only fetch their own unrated records; managers/admins may query any userId
     if (userId !== user.id) {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
+      if (profileError) {
+        console.error('[likert GET] Failed to fetch profile for elevated role check, userId:', user.id, profileError);
+      }
       const elevatedRoles = ['FLEET', 'MANAGER', 'ADMIN'];
       if (!profile || !elevatedRoles.includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

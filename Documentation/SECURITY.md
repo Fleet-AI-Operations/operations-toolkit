@@ -19,7 +19,7 @@ Complete security guide for the Operations Tools application covering authentica
 
 ## Security Hardening (FLEOTK-29)
 
-A security audit conducted in March 2026 identified and resolved nine vulnerabilities. This section documents each fix, the rationale, and how it was tested.
+A security audit conducted in March 2026 identified and resolved seven vulnerabilities. This section documents each fix, the rationale, and how it was tested.
 
 ### 1. Unauthenticated Ingest Jobs Endpoint
 
@@ -135,9 +135,9 @@ return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
 ### 6. Admin Routes Using Inline Auth Boilerplate (Code Quality / Correctness)
 
 **Severity**: Low–Medium
-**Files**: 15 routes in `apps/admin/src/app/api/`
+**Files**: 14 routes in `apps/admin/src/app/api/`
 
-**Problem**: Each admin API route repeated 15–20 lines of identical auth boilerplate. A mistake in one copy (e.g. checking `=== 'FLEET'` instead of `=== 'ADMIN'`) would silently grant access to unauthorized roles.
+**Problem**: Each admin API route repeated 15–20 lines of identical auth boilerplate. A mistake in one copy (e.g. checking `=== 'FLEET'` instead of `=== 'ADMIN'`) would silently grant access to unauthorized roles. (`apps/admin/.../users/route.ts` was not migrated as it uses the `getUserRole` cache helper from `@repo/auth/utils` for role-change invalidation.)
 
 **Fix**: Centralized auth helpers in `apps/admin/src/lib/auth-helpers.ts`:
 ```typescript
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-**Tests**: `apps/admin/src/lib/__tests__/auth-helpers.test.ts` — covers ADMIN passes, MANAGER/FLEET/USER/PENDING are rejected (403), unauthenticated is rejected (401).
+**Tests**: `apps/admin/src/lib/__tests__/auth-helpers.test.ts` — covers ADMIN passes, MANAGER/FLEET/USER are rejected (403), null profile (DB error) is rejected (403), unauthenticated is rejected (401).
 
 ---
 
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
 **Severity**: Low
 **File**: `packages/auth/src/utils.ts`
 
-**Problem**: The `getUserRole` in-process cache had a 5-minute TTL. If an admin revokes a user's elevated role, that user could continue accessing privileged APIs for up to 5 minutes in the app that processed the revocation (and indefinitely in other apps until they restarted).
+**Problem**: The `getUserRole` in-process cache had a 5-minute TTL. If an admin revokes a user's elevated role, that user could continue accessing privileged APIs for up to 5 minutes in the app that processed the revocation, and for up to 5 minutes in other apps as well (each app maintains its own independent cache).
 
 **Fix**: Reduced TTL to 1 minute:
 ```typescript

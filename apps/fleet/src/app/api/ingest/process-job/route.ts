@@ -38,8 +38,12 @@ export async function POST(req: NextRequest) {
     let authorized = false;
     try {
         authorized = !!secret && timingSafeEqual(Buffer.from(secret), Buffer.from(webhookSecret));
-    } catch {
-        // timingSafeEqual throws if buffers differ in length — treat as unauthorized
+    } catch (err) {
+        // timingSafeEqual throws RangeError if buffers differ in length — treat as unauthorized.
+        // Log anything unexpected (non-RangeError) so misconfigured deployments surface in logs.
+        if (!(err instanceof RangeError)) {
+            console.error('[process-job] Unexpected error during secret comparison:', err);
+        }
     }
     if (!authorized) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
         // Phase 2 in a new function invocation with its own 300s window.
         waitUntil(
             runPhase1(job_id)
-                .catch(err => console.error(`[process-job] Job ${job_id} Phase 1 failed:`, err))
+                .catch(err => console.error(`[process-job] Job ${job_id} (env=${environment}) Phase 1 failed:`, err))
         );
     } else if (status === 'QUEUED_FOR_VEC') {
         // Phase 2 (vectorization). Triggered by the on_ingest_job_queued_for_vec DB trigger
@@ -73,7 +77,7 @@ export async function POST(req: NextRequest) {
         // jobs seeded directly in QUEUED_FOR_VEC status.
         waitUntil(
             runPhase2(job_id, environment)
-                .catch(err => console.error(`[process-job] Job ${job_id} Phase 2 failed:`, err))
+                .catch(err => console.error(`[process-job] Job ${job_id} (env=${environment}) Phase 2 failed:`, err))
         );
     } else {
         console.warn(`[process-job] Unexpected status '${status}' for job ${job_id} — no action taken`);
