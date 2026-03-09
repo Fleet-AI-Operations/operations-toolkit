@@ -34,6 +34,7 @@ vi.mock('@repo/database', () => ({
 
 vi.mock('@repo/core', () => ({
   analyzePromptAuthenticity: vi.fn(),
+  analyzeTemplateUsage: vi.fn(),
 }));
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
@@ -96,8 +97,16 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
     ] as any);
     vi.mocked(prisma.promptAuthenticityRecord.update).mockResolvedValue({} as any);
 
-    const { analyzePromptAuthenticity } = await import('@repo/core');
+    const { analyzePromptAuthenticity, analyzeTemplateUsage } = await import('@repo/core');
     vi.mocked(analyzePromptAuthenticity).mockResolvedValue(makeAnalysisResult() as any);
+    vi.mocked(analyzeTemplateUsage).mockResolvedValue({
+      isLikelyTemplated: false,
+      templateConfidence: 0,
+      templateIndicators: [],
+      detectedTemplate: null,
+      matchingPromptIds: [],
+      overallAssessment: '',
+    } as any);
   });
 
   it('returns 401 when unauthenticated', async () => {
@@ -138,7 +147,7 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
     expect((await res.json()).error).toMatch(/no tasks/i);
   });
 
-  it('returns 400 with "already analyzed" message when nothing is pending', async () => {
+  it('returns 200 with "already analyzed" message when nothing is pending', async () => {
     const { prisma } = await import('@repo/database');
     vi.mocked(prisma.promptAuthenticityRecord.findMany).mockResolvedValue([] as any);
 
@@ -195,6 +204,94 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ environment: 'staging' }) })
     );
+  });
+
+  // ── Step 5: cross-prompt template analysis ─────────────────────────────
+
+  it('skips template analysis when fewer than 2 completed records exist', async () => {
+    const { analyzeTemplateUsage } = await import('@repo/core');
+    // Default beforeEach returns 1 completed record from findMany — below the threshold
+
+    await POST(makeRequest({ email: 'worker@example.com' }));
+
+    expect(analyzeTemplateUsage).not.toHaveBeenCalled();
+  });
+
+  it('runs template analysis and writes results when 2+ completed records exist', async () => {
+    const { prisma } = await import('@repo/database');
+    const { analyzeTemplateUsage } = await import('@repo/core');
+
+    vi.mocked(prisma.promptAuthenticityRecord.findMany)
+      // Step 3: 1 pending record
+      .mockResolvedValueOnce([{ id: 'par-1', versionId: 'rec-1', prompt: 'Write a story.' }] as any)
+      // Step 5: 2 completed records
+      .mockResolvedValueOnce([
+        { id: 'par-1', prompt: 'Write a story.' },
+        { id: 'par-2', prompt: 'Write a poem.' },
+      ] as any);
+
+    vi.mocked(analyzeTemplateUsage).mockResolvedValue({
+      isLikelyTemplated: true,
+      templateConfidence: 85,
+      templateIndicators: ['Same opening structure'],
+      detectedTemplate: 'Write a [type].',
+      matchingPromptIds: ['par-1'],
+      overallAssessment: 'Template detected.',
+    } as any);
+
+    const res = await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(res.status).toBe(200);
+
+    expect(analyzeTemplateUsage).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { id: 'par-1', text: 'Write a story.' },
+        { id: 'par-2', text: 'Write a poem.' },
+      ]),
+      { silent: true }
+    );
+
+    const updateCalls = vi.mocked(prisma.promptAuthenticityRecord.update).mock.calls;
+    const templateUpdates = updateCalls.filter((c) => 'isLikelyTemplated' in (c[0].data ?? {}));
+    expect(templateUpdates.some((c) => c[0].where.id === 'par-1' && c[0].data.isLikelyTemplated === true)).toBe(true);
+    expect(templateUpdates.some((c) => c[0].where.id === 'par-2' && c[0].data.isLikelyTemplated === false)).toBe(true);
+  });
+
+  it('template analysis failure is non-fatal — still returns 200 with templateAnalysisFailed flag', async () => {
+    const { prisma } = await import('@repo/database');
+    const { analyzeTemplateUsage } = await import('@repo/core');
+
+    vi.mocked(prisma.promptAuthenticityRecord.findMany)
+      .mockResolvedValueOnce([{ id: 'par-1', versionId: 'rec-1', prompt: 'Write a story.' }] as any)
+      .mockResolvedValueOnce([
+        { id: 'par-1', prompt: 'Write a story.' },
+        { id: 'par-2', prompt: 'Write a poem.' },
+      ] as any);
+
+    vi.mocked(analyzeTemplateUsage).mockRejectedValue(new Error('LLM timeout'));
+
+    const res = await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.analyzed).toBe(1);
+    expect(data.templateAnalysisFailed).toBe(true);
+  });
+
+  it('applies environment filter to the completed-records query in step 5', async () => {
+    const { prisma } = await import('@repo/database');
+
+    vi.mocked(prisma.promptAuthenticityRecord.findMany)
+      .mockResolvedValueOnce([{ id: 'par-1', versionId: 'rec-1', prompt: 'Write a story.' }] as any)
+      .mockResolvedValueOnce([
+        { id: 'par-1', prompt: 'Write a story.' },
+        { id: 'par-2', prompt: 'Write a poem.' },
+      ] as any);
+
+    await POST(makeRequest({ email: 'worker@example.com', environment: 'staging' }));
+
+    const findManyCalls = vi.mocked(prisma.promptAuthenticityRecord.findMany).mock.calls;
+    expect(findManyCalls[1][0]).toMatchObject({
+      where: expect.objectContaining({ envKey: 'staging' }),
+    });
   });
 
   it('returns 500 on unexpected database error', async () => {

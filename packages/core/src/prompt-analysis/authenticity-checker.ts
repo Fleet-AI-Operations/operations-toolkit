@@ -58,7 +58,12 @@ export interface PromptAuthenticityAnalysis {
   isLikelyTemplated: boolean;
   templateConfidence: number;
   templateIndicators: string[];
-  detectedTemplate: string;
+  /**
+   * The inferred template pattern, or `null` if template analysis has not yet
+   * been run. Template fields are always `false/0/[]/null` from `analyzePromptAuthenticity`
+   * and are populated by a subsequent call to `analyzeTemplateUsage`.
+   */
+  detectedTemplate: string | null;
   overallAssessment: string;
   recommendations: string[];
   llmModel?: string;
@@ -159,11 +164,11 @@ export async function analyzePromptAuthenticity(
       isLikelyAIGenerated: analysis.isLikelyAIGenerated || false,
       aiGeneratedConfidence: analysis.aiGeneratedConfidence || 0,
       aiGeneratedIndicators: analysis.aiGeneratedIndicators || [],
-      // Template fields are now populated by analyzeTemplateUsage (cross-prompt analysis)
+      // Template fields are populated by analyzeTemplateUsage (cross-prompt analysis)
       isLikelyTemplated: false,
       templateConfidence: 0,
       templateIndicators: [],
-      detectedTemplate: '',
+      detectedTemplate: null,
       overallAssessment: analysis.overallAssessment || '',
       recommendations: analysis.recommendations || [],
       llmModel: undefined, // Not returned by generateCompletionWithUsage
@@ -201,6 +206,7 @@ export async function analyzeTemplateUsage(
   options?: { silent?: boolean }
 ): Promise<TemplateUsageAnalysis> {
   if (prompts.length < 2) {
+    console.warn('[Template Usage] analyzeTemplateUsage called with fewer than 2 prompts — skipping.');
     return {
       isLikelyTemplated: false,
       templateConfidence: 0,
@@ -244,9 +250,11 @@ export async function analyzeTemplateUsage(
       .filter((n) => n >= 1 && n <= promptsToAnalyze.length)
       .map((n) => promptsToAnalyze[n - 1].id);
 
+    const isLikelyTemplated = (analysis.isLikelyTemplated || false) && matchingPromptIds.length > 0;
+
     return {
-      isLikelyTemplated: analysis.isLikelyTemplated || false,
-      templateConfidence: analysis.templateConfidence || 0,
+      isLikelyTemplated,
+      templateConfidence: Math.min(100, Math.max(0, analysis.templateConfidence ?? 0)),
       templateIndicators: analysis.templateIndicators || [],
       detectedTemplate: analysis.detectedTemplate || null,
       matchingPromptIds,
@@ -256,7 +264,10 @@ export async function analyzeTemplateUsage(
     };
   } catch (error) {
     console.error('[Template Usage] Error analyzing template usage:', error);
-    throw new Error(`Failed to analyze template usage: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to analyze template usage: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
+    );
   }
 }
 

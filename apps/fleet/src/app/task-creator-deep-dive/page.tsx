@@ -97,9 +97,11 @@ function UserSelector({ environments }: { environments: string[] }) {
   const [userSearch, setUserSearch] = useState('');
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (environment) params.set('environment', environment);
@@ -108,10 +110,13 @@ function UserSelector({ environments }: { environments: string[] }) {
         const data = await res.json();
         setUsers(data.users ?? []);
       } else {
-        console.error('Failed to load users, status:', res.status);
+        const msg = `Failed to load users (HTTP ${res.status})`;
+        console.error(msg);
+        setLoadError(msg);
       }
     } catch (err) {
       console.error('Failed to load users', err);
+      setLoadError('Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -190,6 +195,8 @@ function UserSelector({ environments }: { environments: string[] }) {
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.3)' }}>Loading users...</div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(220,60,60,0.8)', fontSize: '14px' }}>{loadError}</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.3)' }}>No task creators found.</div>
         ) : (
@@ -261,7 +268,7 @@ export default function TaskCreatorDeepDivePage() {
 
   useEffect(() => {
     fetch('/api/environments')
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => { if (d.environments) setEnvironments(d.environments); })
       .catch(err => console.error('Failed to fetch environments', err));
   }, []);

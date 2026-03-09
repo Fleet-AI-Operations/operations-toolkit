@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     email = body.email;
     environment = body.environment;
-  } catch {
+  } catch (err) {
+    console.error('[user-deep-dive/analyze] Failed to parse request body:', err);
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
@@ -210,6 +211,8 @@ export async function POST(request: NextRequest) {
       select: { id: true, prompt: true },
     });
 
+    let templateAnalysisFailed = false;
+
     if (allCompleted.length >= 2) {
       try {
         const templateResult = await analyzeTemplateUsage(
@@ -219,7 +222,7 @@ export async function POST(request: NextRequest) {
 
         const matchingIdSet = new Set(templateResult.matchingPromptIds);
 
-        await Promise.all(
+        const updateResults = await Promise.allSettled(
           allCompleted.map((r) =>
             prisma.promptAuthenticityRecord.update({
               where: { id: r.id },
@@ -232,9 +235,15 @@ export async function POST(request: NextRequest) {
             })
           )
         );
+
+        const failedUpdates = updateResults.filter((r) => r.status === 'rejected').length;
+        if (failedUpdates > 0) {
+          console.error(`[user-deep-dive/analyze] ${failedUpdates} template field update(s) failed`);
+          templateAnalysisFailed = true;
+        }
       } catch (err) {
         console.error('[user-deep-dive/analyze] Cross-prompt template analysis failed:', err);
-        // Non-fatal — per-prompt analyses are already saved
+        templateAnalysisFailed = true;
       }
     }
 
@@ -247,6 +256,7 @@ export async function POST(request: NextRequest) {
       analyzed,
       failed,
       total: dataRecords.length,
+      templateAnalysisFailed,
       message,
     });
   } catch (error: any) {
