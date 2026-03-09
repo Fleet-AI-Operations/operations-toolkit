@@ -4,7 +4,7 @@ import { POST } from '../route';
 
 // ── Auth mock helpers ──────────────────────────────────────────────────────
 
-function makeAuthClient(role = 'FLEET') {
+function makeAuthClient(role = 'CORE') {
   return {
     auth: {
       getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -121,7 +121,7 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
 
   it('returns 403 for insufficient role', async () => {
     const { createClient } = await import('@repo/auth/server');
-    vi.mocked(createClient).mockReturnValue(makeAuthClient('CORE') as any);
+    vi.mocked(createClient).mockReturnValue(makeAuthClient('QA') as any);
 
     const res = await POST(makeRequest({ email: 'w@example.com' }));
     expect(res.status).toBe(403);

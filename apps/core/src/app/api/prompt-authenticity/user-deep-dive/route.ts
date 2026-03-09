@@ -14,12 +14,12 @@ function hasPermission(userRole: string | null | undefined, requiredRole: UserRo
   return (ROLE_HIERARCHY[userRole as UserRole] ?? 0) >= ROLE_HIERARCHY[requiredRole];
 }
 
-async function requireFleetAuth(request: NextRequest) {
+async function requireCoreAuth(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !hasPermission(profile.role, 'FLEET')) {
+  if (!profile || !hasPermission(profile.role, 'CORE')) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
   return { user };
@@ -73,7 +73,7 @@ function deduplicateByTaskKey<T extends { createdAt: Date; metadata: any }>(reco
 // GET /api/prompt-authenticity/user-deep-dive?email=...&environment=...
 // ============================================================================
 export async function GET(request: NextRequest) {
-  const authResult = await requireFleetAuth(request);
+  const authResult = await requireCoreAuth(request);
   if (authResult.error) return authResult.error;
 
   const { searchParams } = new URL(request.url);

@@ -4,7 +4,7 @@ import { GET } from '../route';
 
 // ── Auth mock helpers ──────────────────────────────────────────────────────
 
-function makeAuthClient(role = 'FLEET') {
+function makeAuthClient(role = 'CORE') {
   return {
     auth: {
       getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })),

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !hasPermission(profile.role, 'FLEET')) {
+  if (!profile || !hasPermission(profile.role, 'CORE')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

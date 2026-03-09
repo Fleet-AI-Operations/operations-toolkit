@@ -89,6 +89,143 @@ function StatCard({ label, count, pct, color }: { label: string; count: number; 
   );
 }
 
+// ── Task Lookup (find creator by task_key or task_id) ──────────────────────
+
+function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ recordId: string; email: string; name: string | null; environment: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const lookup = async () => {
+    const q = query.trim();
+    if (!q) return;
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/prompt-authenticity/user-deep-dive/lookup?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Lookup failed');
+      } else {
+        setResult(data);
+      }
+    } catch (err) {
+      console.error('[TaskLookup]', err);
+      setError('Lookup failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateToUser = () => {
+    if (!result) return;
+    const params = new URLSearchParams({ email: result.email });
+    const env = defaultEnvironment || result.environment;
+    if (env) params.set('environment', env);
+    router.push(`/task-creator-deep-dive?${params}`);
+  };
+
+  return (
+    <div style={{
+      background: 'var(--glass)',
+      border: '1px solid var(--border)',
+      borderRadius: '12px',
+      padding: '24px',
+    }}>
+      <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '14px' }}>
+        Find Creator by Task Key or Task ID
+      </div>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <input
+          type="text"
+          placeholder="Enter task_key or record ID..."
+          value={query}
+          onChange={e => { setQuery(e.target.value); setResult(null); setError(null); }}
+          onKeyDown={e => e.key === 'Enter' && lookup()}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: '14px',
+          }}
+        />
+        <button
+          onClick={lookup}
+          disabled={loading || !query.trim()}
+          style={{
+            padding: '10px 18px',
+            borderRadius: '8px',
+            border: '1px solid rgba(99,102,241,0.5)',
+            background: loading || !query.trim() ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.2)',
+            color: loading || !query.trim() ? 'rgba(165,180,252,0.4)' : '#a5b4fc',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: loading || !query.trim() ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {loading ? 'Searching…' : 'Search'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ marginTop: '12px', fontSize: '13px', color: '#f87171' }}>{error}</div>
+      )}
+
+      {result && (
+        <div style={{
+          marginTop: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
+          background: 'rgba(99,102,241,0.08)',
+          border: '1px solid rgba(99,102,241,0.3)',
+          borderRadius: '8px',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: '14px', color: 'rgba(255,255,255,0.9)' }}>
+              {result.name ?? result.email}
+            </div>
+            {result.name && (
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginTop: '2px' }}>{result.email}</div>
+            )}
+            {result.environment && (
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '3px' }}>
+                Environment: {result.environment}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={navigateToUser}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid rgba(99,102,241,0.5)',
+              background: 'rgba(99,102,241,0.2)',
+              color: '#a5b4fc',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            View Deep Dive →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── User Selector (landing state) ──────────────────────────────────────────
 
 function UserSelector({ environments }: { environments: string[] }) {
@@ -139,7 +276,7 @@ function UserSelector({ environments }: { environments: string[] }) {
   };
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px' }}>
       <h1 className="premium-gradient" style={{ fontSize: '1.8rem', marginBottom: '8px' }}>
         Task Creator Deep-Dive
       </h1>
@@ -147,7 +284,9 @@ function UserSelector({ environments }: { environments: string[] }) {
         Select a task creator to review their full submission history — AI generation, templating, non-native patterns, and rapid submissions.
       </p>
 
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
       <div style={{
+        flex: 2,
         background: 'var(--glass)',
         border: '1px solid var(--border)',
         borderRadius: '12px',
@@ -239,6 +378,11 @@ function UserSelector({ environments }: { environments: string[] }) {
           </div>
         )}
       </div>
+
+      <div style={{ flex: 1, minWidth: '280px' }}>
+        <TaskLookup defaultEnvironment={environment} />
+      </div>
+      </div>
     </div>
   );
 }
@@ -256,6 +400,7 @@ export default function TaskCreatorDeepDivePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userEnvironments, setUserEnvironments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -290,6 +435,12 @@ export default function TaskCreatorDeepDivePage() {
       setTasks(data.tasks);
       setSummary(data.summary);
       setUserName(data.user.name);
+      if (!environment) {
+        const envs = [...new Set(
+          (data.tasks as Task[]).map(t => t.environment).filter(Boolean) as string[]
+        )].sort();
+        setUserEnvironments(envs);
+      }
     } catch (err: any) {
       console.error('[loadDeepDive]', err);
       setError(err instanceof Error ? err.message : String(err));
@@ -380,7 +531,7 @@ export default function TaskCreatorDeepDivePage() {
               }}
             >
               <option value="">All environments</option>
-              {environments.map(env => <option key={env} value={env}>{env}</option>)}
+              {userEnvironments.map(env => <option key={env} value={env}>{env}</option>)}
             </select>
             <button
               onClick={runAnalysis}

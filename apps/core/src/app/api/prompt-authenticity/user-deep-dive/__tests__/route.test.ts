@@ -4,7 +4,7 @@ import { GET } from '../route';
 
 // ── Auth mock helpers ──────────────────────────────────────────────────────
 
-function makeAuthClient(role = 'FLEET') {
+function makeAuthClient(role = 'CORE') {
   return {
     auth: {
       getUser: vi.fn(() => ({ data: { user: { id: 'user-1', email: 'admin@example.com' } }, error: null })),
@@ -85,7 +85,7 @@ describe('GET /api/prompt-authenticity/user-deep-dive', () => {
 
   it('returns 403 for insufficient role', async () => {
     const { createClient } = await import('@repo/auth/server');
-    vi.mocked(createClient).mockReturnValue(makeAuthClient('USER') as any);
+    vi.mocked(createClient).mockReturnValue(makeAuthClient('QA') as any);
 
     const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive?email=w@example.com'));
     expect(res.status).toBe(403);
