@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@repo/database";
+import { createClient } from "@repo/auth/server";
 
 export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const recordId = searchParams.get("recordId");
@@ -12,6 +19,11 @@ export async function GET(request: NextRequest) {
         { error: "recordId and userId are required" },
         { status: 400 }
       );
+    }
+
+    // Users may only check their own submission status
+    if (userId !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Check if user has a Likert score for this record

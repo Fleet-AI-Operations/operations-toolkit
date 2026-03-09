@@ -3,6 +3,7 @@ import { createClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
 import { Prisma } from '@prisma/client'
 import { notifyBugReportCreated } from '@repo/core'
+import { requireAdminRole } from '@/lib/auth-helpers'
 
 export async function POST(request: NextRequest) {
   try {
@@ -128,30 +129,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const authResult = await requireAdminRole()
+  if ('error' in authResult) return authResult.error
+  const { user } = authResult
+
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user is admin
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
-      select: { role: true, email: true }
-    })
-
-    if (profile?.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Forbidden - Admin access required' },
-        { status: 403 }
-      )
-    }
-
     const body = await request.json()
     const { id, status, assignedTo } = body
 
@@ -178,7 +160,7 @@ export async function PATCH(request: NextRequest) {
     // Only update assignment if explicitly provided
     if (assignedTo !== undefined) {
       updateData.assignedTo = assignedTo === 'self' ? user.id : null
-      updateData.assignedToEmail = assignedTo === 'self' ? (profile?.email ?? null) : null
+      updateData.assignedToEmail = assignedTo === 'self' ? (user.email ?? null) : null
     }
 
     const bugReport = await prisma.bugReport.update({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
-import { createClient } from '@repo/auth/server';
+import { requireAdminRole } from '@/lib/auth-helpers';
 
 // Valid notification types - must match the types used throughout the application
 const VALID_NOTIFICATION_TYPES = [
@@ -10,23 +10,10 @@ const VALID_NOTIFICATION_TYPES = [
 ] as const;
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireAdminRole();
+  if ('error' in authResult) return authResult.error;
+
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id }
-    });
-
-    if (!profile || profile.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     // Fetch all notification settings for all admin users
     const settings = await prisma.notificationSetting.findMany({
       select: {
@@ -48,23 +35,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAdminRole();
+  if ('error' in authResult) return authResult.error;
+
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id }
-    });
-
-    if (!profile || profile.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const body = await request.json();
     const { config } = body;
 

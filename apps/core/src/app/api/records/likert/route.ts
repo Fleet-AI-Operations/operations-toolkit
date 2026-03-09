@@ -1,19 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { createClient } from '@repo/auth/server';
 
 // GET: Fetch unrated prompts for the current user
 export async function GET(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const environment = searchParams.get('environment');
     const userId = searchParams.get('userId');
 
     if (!environment) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'environment is required' }, { status: 400 });
     }
 
     if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 401 });
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    // Users may only fetch their own unrated records; managers/admins may query any userId
+    if (userId !== user.id) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      if (profileError) {
+        console.error('[likert GET] Failed to fetch profile for elevated role check, userId:', user.id, profileError);
+      }
+      const elevatedRoles = ['FLEET', 'MANAGER', 'ADMIN'];
+      if (!profile || !elevatedRoles.includes(profile.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     // Get all record IDs that this user has already rated
@@ -59,6 +82,12 @@ export async function GET(req: NextRequest) {
 
 // POST: Submit Likert scores
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { recordId, userId, realismScore, qualityScore } = body;
@@ -69,6 +98,11 @@ export async function POST(req: NextRequest) {
         { error: 'Missing required fields: recordId, userId, realismScore, qualityScore' },
         { status: 400 }
       );
+    }
+
+    // Users may only submit scores under their own userId
+    if (userId !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Validate score ranges (1-7)

@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { createClient } from '@repo/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+    if (profileError) {
+        console.error('[ingest/jobs] Failed to fetch profile for userId:', user.id, profileError);
+    }
+    const allowedRoles = ['FLEET', 'MANAGER', 'ADMIN'];
+    if (!profile || !allowedRoles.includes(profile.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     try {
         const environment = req.nextUrl.searchParams.get('environment');
 
@@ -17,8 +38,8 @@ export async function GET(req: NextRequest) {
         });
 
         return NextResponse.json(jobs);
-    } catch (error: any) {
+    } catch (error) {
         console.error('Fetch Jobs Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
     }
 }

@@ -60,11 +60,56 @@ describe('POST /api/ingest/process-job', () => {
         expect(mockedWaitUntil).not.toHaveBeenCalled();
     });
 
-    it('returns 401 when webhook secret is wrong', async () => {
-        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'wrong-secret');
+    it('returns 401 when webhook secret is wrong (same length)', async () => {
+        // Same byte-length as 'test-secret' — timingSafeEqual does the comparison, no throw
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'wrong-secre');
 
         const res = await POST(req);
         expect(res.status).toBe(401);
+    });
+
+    it('returns 401 when webhook secret has different length (timingSafeEqual catch path)', async () => {
+        // Buffer.byteLength differs → timingSafeEqual throws RangeError → catch sets authorized=false
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'short');
+
+        const res = await POST(req);
+        expect(res.status).toBe(401);
+        expect(mockedWaitUntil).not.toHaveBeenCalled();
+    });
+
+    it('returns 401 when webhook secret is a longer string', async () => {
+        // Longer than 'test-secret' — also hits the length-mismatch catch path
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'test-secret-but-longer');
+
+        const res = await POST(req);
+        expect(res.status).toBe(401);
+    });
+
+    it('logs unexpected non-RangeError exceptions from timingSafeEqual and returns 401', async () => {
+        // Simulate a non-RangeError being thrown inside the try block (e.g. Buffer.from receiving invalid input)
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Pass a secret that will match length so timingSafeEqual runs — then cause it to throw
+        // by temporarily overriding the global Buffer.from to throw a TypeError
+        const originalFrom = Buffer.from.bind(Buffer);
+        let callCount = 0;
+        vi.spyOn(Buffer, 'from').mockImplementation((...args: Parameters<typeof Buffer.from>) => {
+            callCount++;
+            if (callCount === 2) throw new TypeError('Simulated non-RangeError');
+            return originalFrom(...args);
+        });
+
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'test-secret');
+        const res = await POST(req);
+
+        expect(res.status).toBe(401);
+        expect(errorSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Unexpected error during secret comparison'),
+            expect.any(TypeError)
+        );
+
+        vi.restoreAllMocks();
+        errorSpy.mockRestore();
     });
 
     it('returns 400 when body is not valid JSON', async () => {

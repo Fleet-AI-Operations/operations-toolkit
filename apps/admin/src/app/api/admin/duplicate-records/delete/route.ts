@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, Prisma } from '@repo/database';
-import { createClient } from '@repo/auth/server';
+import { requireAdminRole } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,27 +10,8 @@ export const dynamic = 'force-dynamic';
 const BATCH_SIZE = 500;
 
 export async function POST(req: NextRequest) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (profileError) {
-        console.error('[duplicate-records/delete] Failed to fetch profile:', profileError);
-        return NextResponse.json({ error: 'Failed to verify permissions' }, { status: 500 });
-    }
-
-    if ((profile as any)?.role !== 'ADMIN') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const authResult = await requireAdminRole();
+    if ('error' in authResult) return authResult.error;
 
     try {
         // Pick the next batch of IDs from the staging table
@@ -68,6 +49,6 @@ export async function POST(req: NextRequest) {
         });
     } catch (error: any) {
         console.error('[duplicate-records/delete] Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
