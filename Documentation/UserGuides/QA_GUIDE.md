@@ -19,9 +19,10 @@ As a QA team member, you have access to **two applications**:
 ### QA App Features (Your Primary Tools)
 5. [Records Management](#records-management)
 6. [Similarity Search](#similarity-search)
-7. [Top/Bottom 10 Review](#topbottom-10-review)
-8. [Top Prompts Analysis](#top-prompts-analysis)
-9. [Alignment Comparison](#alignment-comparison)
+7. [Prompt Similarity Analysis](#prompt-similarity-analysis)
+8. [Top/Bottom 10 Review](#topbottom-10-review)
+9. [Top Prompts Analysis](#top-prompts-analysis)
+10. [Alignment Comparison](#alignment-comparison)
 
 ---
 
@@ -252,6 +253,57 @@ Similarity search uses AI embeddings to find records with similar **meaning**, n
 - Similarity search requires vectorized records
 - Only records with embeddings are searchable
 - New records need vectorization (happens automatically)
+
+---
+
+## Prompt Similarity Analysis
+
+Compare task prompts from individual workers to detect reuse and near-duplicate submissions.
+
+### What is Prompt Similarity Analysis?
+
+Unlike the general Similarity Search (which searches across all records by text), Prompt Similarity Analysis is user-scoped: it shows you how similar a selected worker's prompts are to each other. It uses vector embeddings to compute semantic similarity, so paraphrased or lightly reworded prompts are still detected.
+
+### Using Prompt Similarity Analysis
+
+1. Navigate to QA App → **Similarity** (left sidebar)
+2. Optionally filter by **Environment** to focus on a specific project environment
+3. Optionally filter by **User** to narrow the prompt list to a single worker
+4. Click a prompt from the left panel to select it
+5. The right panel shows all similar prompts from the same worker, ranked by similarity score
+
+### Understanding the Filters
+
+**Filter by Environment**:
+- The dropdown lists all environments that exist in the database
+- Selecting an environment scopes both the prompt list and the similarity search to that environment
+- Changing the environment resets the user filter automatically
+
+**Filter by User**:
+- After selecting an environment (or leaving it as "All"), the user dropdown shows workers who have prompts in the current view
+- Use the search box above the dropdown to quickly find a worker by name
+- Selecting a user narrows the left panel to only that worker's prompts
+
+### Understanding Similarity Scores
+
+Each result in the right panel has a colour-coded score:
+- **Red (≥70%)**: High similarity — potential duplicate or near-duplicate
+- **Yellow (40–69%)**: Moderate similarity — worth reviewing
+- **Green (<40%)**: Low similarity — likely unique prompts
+
+### Red Zone Review
+
+Click **Red Zone Review** in the top-right corner to bulk-review all prompt pairs that exceed the current threshold. Use the slider to adjust the threshold (50–95%).
+
+### Cross-Encoder Scoring
+
+For deeper analysis, click **Cross-Encode** on any result row. This runs a more precise reranking model over the two prompts and adds a blue CE score badge alongside the vector similarity score.
+
+### Tips
+
+- If the environment dropdown appears empty, check that data has been ingested and that your session has not expired
+- If a worker's prompts are not appearing after selecting them in the user filter, try refreshing — the user list updates when the environment filter changes
+- Only prompts with vector embeddings are searchable; newly ingested records may not appear until vectorization completes
 
 ---
 
