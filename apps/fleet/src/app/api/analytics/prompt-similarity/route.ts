@@ -133,9 +133,8 @@ export async function GET(request: NextRequest) {
         });
     } catch (error: unknown) {
         console.error('Error calculating similarity:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
         return NextResponse.json(
-            { error: 'Failed to calculate similarity', details: message },
+            { error: 'Failed to calculate similarity' },
             { status: 500 }
         );
     }

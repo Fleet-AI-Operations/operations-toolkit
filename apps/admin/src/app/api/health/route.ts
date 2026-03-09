@@ -1,34 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@repo/auth/server';
-
-async function requireAdminAuth(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile || profile.role !== 'ADMIN') {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  }
-
-  return { profile, user };
-}
+import { requireAdminRole } from '@/lib/auth-helpers';
 
 // GET: Proxy health checks to other apps (server-side to avoid CORS)
 export async function GET(request: NextRequest) {
-  const authResult = await requireAdminAuth(request);
-  if (authResult.error) return authResult.error;
+  const authResult = await requireAdminRole();
+  if ('error' in authResult) return authResult.error;
 
   try {
     const { searchParams } = new URL(request.url);

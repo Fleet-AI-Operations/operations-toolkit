@@ -9,7 +9,7 @@ import type { UserRole } from '@repo/types';
 // invalidateRoleCache() in the Admin app only clears that app's cache — other apps will
 // continue serving the stale role until the TTL expires. The 5-minute TTL bounds the
 // worst case. For tighter consistency, reduce the TTL or remove caching for auth checks.
-const ROLE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const ROLE_CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute — bounds the window for revoked permissions in multi-app deployments
 
 interface CachedRole {
   role: UserRole;
@@ -28,7 +28,7 @@ export function invalidateRoleCache(userId: string): void {
 
 /**
  * Get user role from the database by user ID.
- * Results are cached in-process for 5 minutes to avoid a DB round-trip on every request.
+ * Results are cached in-process for 1 minute to avoid a DB round-trip on every request.
  * @param userId - The user's UUID
  * @returns The user's role
  */

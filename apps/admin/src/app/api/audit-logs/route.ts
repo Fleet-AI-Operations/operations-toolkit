@@ -4,33 +4,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { requireAdminRole } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireAdminRole();
+  if ('error' in authResult) return authResult.error;
+
   try {
-    // Check authentication and authorization
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
-      select: { role: true },
-    });
-
-    if (profile?.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams;
     const skip = Math.max(0, parseInt(searchParams.get('skip') || '0', 10));

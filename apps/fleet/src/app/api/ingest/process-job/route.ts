@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { waitUntil } from '@vercel/functions';
 import { runPhase1, runPhase2 } from '@repo/core/ingestion';
 
@@ -34,7 +35,13 @@ export async function POST(req: NextRequest) {
     }
 
     const secret = req.headers.get('x-webhook-secret');
-    if (!secret || secret !== webhookSecret) {
+    let authorized = false;
+    try {
+        authorized = !!secret && timingSafeEqual(Buffer.from(secret), Buffer.from(webhookSecret));
+    } catch {
+        // timingSafeEqual throws if buffers differ in length — treat as unauthorized
+    }
+    if (!authorized) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
-import { createClient } from '@repo/auth/server';
 import { logAudit, checkAuditResult } from '@repo/core/audit';
+import { requireAdminRole } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if ((profile as any)?.role !== 'ADMIN') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const authResult = await requireAdminRole();
+    if ('error' in authResult) return authResult.error;
+    const { user } = authResult;
 
     try {
         const { target, environment } = await req.json();
@@ -179,6 +166,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid clear target' }, { status: 400 });
     } catch (error: any) {
         console.error('Admin Clear API Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

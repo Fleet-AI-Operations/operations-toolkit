@@ -1,25 +1,12 @@
-import { createClient, createAdminClient } from '@repo/auth/server'
+import { createAdminClient } from '@repo/auth/server'
 import { NextResponse } from 'next/server'
 import { logAudit, checkAuditResult } from '@repo/core/audit'
+import { requireAdminRole } from '@/lib/auth-helpers'
 
 export async function POST(req: Request) {
-    const supabase = await createClient()
-    const { data: { user: adminUser } } = await supabase.auth.getUser()
-
-    if (!adminUser) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if the requesting user is an ADMIN
-    const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', adminUser.id)
-        .single()
-
-    if ((adminProfile as any)?.role !== 'ADMIN') {
-        return NextResponse.json({ error: 'Forbidden: Only admins can reset passwords' }, { status: 403 })
-    }
+    const authResult = await requireAdminRole()
+    if ('error' in authResult) return authResult.error
+    const { user: adminUser } = authResult
 
     try {
         const { userId, password } = await req.json()
@@ -75,6 +62,6 @@ export async function POST(req: Request) {
         })
     } catch (error: any) {
         console.error('[Admin API] Reset password error:', error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }

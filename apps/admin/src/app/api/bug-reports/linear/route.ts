@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@repo/auth/server'
-import { prisma } from '@repo/database'
 import { pushBugReportToLinear, LinearNotConfiguredError, LinearAlreadyLinkedError } from '@repo/core/linear'
+import { requireAdminRole } from '@/lib/auth-helpers'
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAdminRole()
+  if ('error' in authResult) return authResult.error
+
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
-      select: { role: true }
-    })
-
-    if (profile?.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
-
     const { id } = await request.json()
     if (!id) {
       return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 })

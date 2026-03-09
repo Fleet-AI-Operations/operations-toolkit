@@ -1,26 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
+import { requireAdminRole } from '@/lib/auth-helpers'
 
 export async function GET() {
+  const authResult = await requireAdminRole()
+  if ('error' in authResult) return authResult.error
+
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user is admin
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
-      select: { role: true }
-    })
-
-    if (profile?.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
-
     // Count unassigned bug reports (assignedTo is null and status is not RESOLVED)
     const count = await prisma.bugReport.count({
       where: {
