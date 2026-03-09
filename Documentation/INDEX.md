@@ -32,7 +32,8 @@ Documentation/
 ├── Feature Guides/
 │   ├── Exemplar Tasks             → ./EXEMPLAR_TASKS.md
 │   ├── Daily Great Tasks          → ./DAILY_GREAT_TASKS.md
-│   └── Task Search                → ./TASK_SEARCH.md
+│   ├── Task Search                → ./TASK_SEARCH.md
+│   └── Task Creator Deep-Dive     → see API Reference § Prompt Authenticity
 │
 ├── Development/
 │   ├── Local Development          → ./LOCAL_DEVELOPMENT.md
@@ -83,6 +84,7 @@ Documentation/
 → [Exemplar Tasks](./EXEMPLAR_TASKS.md) (Fleet)
 → [Daily Great Tasks](./DAILY_GREAT_TASKS.md) (Fleet)
 → [Task Search](./TASK_SEARCH.md) (Core)
+→ [Task Creator Deep-Dive](./Reference/API_REFERENCE.md#prompt-authenticity--task-creator-deep-dive) (Core)
 
 #### **Develop Features**
 → [Local Development](./LOCAL_DEVELOPMENT.md)
@@ -325,4 +327,4 @@ Can't find what you're looking for?
 
 ---
 
-*Last Updated: 2026-03-04*
+*Last Updated: 2026-03-09*

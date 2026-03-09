@@ -10,6 +10,7 @@ Complete reference for all REST API endpoints in the Operations Tools.
 - [Ingestion](#ingestion)
 - [Analysis](#analysis)
 - [Similarity Flags](#similarity-flags)
+- [Prompt Authenticity — Task Creator Deep-Dive](#prompt-authenticity--task-creator-deep-dive)
 - [Admin](#admin)
 - [AI Services](#ai-services)
 - [Status](#status)
@@ -465,6 +466,199 @@ Cookie: sb-auth-token=...
 | 400 | Missing `sourceRecordId` or `matchedRecordId`, or invalid JSON body |
 | 404 | Source or matched record not found |
 | 502 | AI provider failed to respond or returned empty content |
+
+---
+
+## Prompt Authenticity — Task Creator Deep-Dive
+
+Tools for investigating individual task creators: browsing their submission history, running AI-powered authenticity analysis (AI-generated, templated, non-native, rapid submission), and looking up records by ID or task key.
+
+**Authorization**: All endpoints require minimum **CORE** role. Tasks ingested without a `createdByEmail` value are excluded from all results in this section.
+
+---
+
+### GET /api/prompt-authenticity/user-deep-dive
+
+Fetch the full task history for a specific creator, with per-task authenticity flags and a summary.
+
+**Authorization**: CORE+
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `email` | string | Yes | Creator email address |
+| `environment` | string | No | Filter to a single environment |
+
+**Response** (200 OK)
+```json
+{
+  "user": { "name": "Alice Worker" },
+  "tasks": [
+    {
+      "id": "uuid",
+      "content": "Task text...",
+      "environment": "prod",
+      "createdAt": "2026-01-15T10:30:00Z",
+      "gapFromPreviousMin": 12.5,
+      "isRapidSubmission": false,
+      "analysisStatus": "COMPLETED",
+      "isLikelyAIGenerated": false,
+      "aiGeneratedConfidence": 10,
+      "aiGeneratedIndicators": [],
+      "isLikelyTemplated": false,
+      "templateConfidence": 5,
+      "templateIndicators": [],
+      "detectedTemplate": null,
+      "isLikelyNonNative": false,
+      "nonNativeConfidence": 8,
+      "nonNativeIndicators": [],
+      "overallAssessment": "Appears authentic."
+    }
+  ],
+  "summary": {
+    "total": 42,
+    "analyzed": 40,
+    "aiGeneratedCount": 3,
+    "aiGeneratedPct": 7,
+    "templatedCount": 1,
+    "templatedPct": 2,
+    "nonNativeCount": 0,
+    "nonNativePct": 0,
+    "rapidSubmissionCount": 4,
+    "rapidSubmissionPct": 10
+  }
+}
+```
+
+**Error Responses**
+- `400 Bad Request` — `email` is missing
+- `401 Unauthorized` — not authenticated
+- `403 Forbidden` — insufficient role
+- `500 Internal Server Error` — database error
+
+---
+
+### GET /api/prompt-authenticity/user-deep-dive/users
+
+List all distinct task creators, with task counts, for the user selector on the landing page.
+
+**Authorization**: CORE+
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `environment` | string | No | Filter to a single environment |
+
+**Notes**
+- Excludes creators whose email ends with `@fleet.so` (case-insensitive)
+- Results are sorted alphabetically by name (falls back to email)
+- Capped at 10,000 unique emails to prevent OOM on large datasets
+
+**Response** (200 OK)
+```json
+{
+  "users": [
+    { "email": "alice@example.com", "name": "Alice Worker", "taskCount": 42 },
+    { "email": "bob@example.com", "name": "Bob Smith", "taskCount": 17 }
+  ]
+}
+```
+
+**Error Responses**
+- `401 Unauthorized` — not authenticated
+- `403 Forbidden` — insufficient role
+- `500 Internal Server Error` — database error
+
+---
+
+### POST /api/prompt-authenticity/user-deep-dive/analyze
+
+Run AI authenticity analysis on all unanalyzed (or all) tasks for a given creator. Updates each record's `analysisStatus`, flags, and confidence scores. Returns a summary of results.
+
+**Authorization**: CORE+
+
+**Request Body**
+```json
+{
+  "email": "alice@example.com",
+  "environment": "prod"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Creator email address |
+| `environment` | string | No | Limit analysis to a single environment |
+
+**Response** (200 OK)
+```json
+{
+  "analyzed": 38,
+  "failed": 1,
+  "message": "Analyzed 38 tasks (1 failed).",
+  "templateAnalysisFailed": false
+}
+```
+
+`templateAnalysisFailed` is `true` when cross-prompt template detection succeeded per-record but the final template-field DB write failed. Authenticity flags are still populated; only the `detectedTemplate` badge may be incomplete.
+
+**Error Responses**
+- `400 Bad Request` — `email` is missing or request body is invalid JSON
+- `401 Unauthorized` — not authenticated
+- `403 Forbidden` — insufficient role
+- `500 Internal Server Error` — unexpected database or AI error
+
+---
+
+### GET /api/prompt-authenticity/user-deep-dive/lookup
+
+Look up the creator(s) of a task by record ID or `metadata.task_key`. Uses a two-phase search — exact match first, then case-insensitive partial match — and returns a `matchType` field so callers can distinguish exact from approximate results.
+
+**Authorization**: CORE+
+
+**Query Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `q` | string | Yes | Record ID or task key to search for (max 200 characters, whitespace trimmed) |
+
+**Search strategy**
+
+1. **Exact match** — single Prisma `OR` query: `{ id: q }` OR `{ metadata.task_key === q }` (case-sensitive). Returns at most 1 result with `matchType: "exact"`.
+2. **Fuzzy fallback** — if exact match finds nothing, runs `metadata->>'task_key' ILIKE '%q%'` (case-insensitive, LIKE wildcards in `q` are escaped). Returns up to 5 results ordered by `createdAt DESC`, with `matchType: "fuzzy"`.
+
+Only tasks with a non-null `createdByEmail` are considered. Tasks ingested without creator attribution are invisible to this endpoint.
+
+**Response** (200 OK)
+```json
+{
+  "results": [
+    {
+      "recordId": "uuid",
+      "email": "alice@example.com",
+      "name": "Alice Worker",
+      "environment": "prod",
+      "taskKey": "task-key-abc"
+    }
+  ],
+  "matchType": "exact"
+}
+```
+
+`matchType` is `"exact"` when Phase 1 succeeded, `"fuzzy"` when Phase 2 was used. Clients should surface a visible indicator when `matchType` is `"fuzzy"` — fuzzy results are approximate and a single match does not guarantee it is the intended record.
+
+**Error Responses**
+
+| Status | Body | Condition |
+|--------|------|-----------|
+| 400 | `{ "error": "q is required" }` | Query param missing or blank |
+| 400 | `{ "error": "q must be 200 characters or fewer" }` | Query exceeds length limit |
+| 401 | `{ "error": "Unauthorized" }` | Not authenticated |
+| 403 | `{ "error": "Forbidden" }` | Insufficient role |
+| 404 | `{ "error": "No task found for the given ID or task key" }` | Both phases returned nothing |
+| 500 | `{ "error": "Internal server error" }` | Database error (details are not forwarded to the client) |
 
 ---
 
