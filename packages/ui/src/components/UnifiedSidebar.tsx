@@ -86,6 +86,7 @@ const NAV_SECTIONS: NavSection[] = [
             { label: 'Alignment Scoring', href: '/alignment-scoring', icon: Sparkles, app: 'core' },
             { label: 'Likert Scoring', href: '/likert-scoring', icon: Star, app: 'core' },
             { label: 'Similarity Flags', href: '/similarity-flags', icon: AlertTriangle, app: 'core' },
+            { label: 'Task Creator Deep-Dive', href: '/task-creator-deep-dive', icon: UserSearch, app: 'core' },
             { label: 'Task Search', href: '/task-search', icon: Search, app: 'core' },
         ],
     },
@@ -159,7 +160,6 @@ const NAV_SECTIONS: NavSection[] = [
             { label: 'Full Similarity Check', href: '/full-similarity-check', icon: ScanSearch, app: 'fleet' },
             { label: 'Prompt Authenticity Checker', href: '/prompt-authenticity', icon: SearchCheck, app: 'fleet' },
             { label: 'QA Feedback Analysis', href: '/qa-feedback-analysis', icon: MessageSquare, app: 'fleet' },
-            { label: 'Task Creator Deep-Dive', href: '/task-creator-deep-dive', icon: UserSearch, app: 'fleet' },
         ],
     },
     // {

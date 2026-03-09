@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 
 interface Job {
   id: string;
@@ -1849,8 +1848,8 @@ version_id, task_key, prompt, version_no, is_active, created_by_name, created_by
                           </td>
                           <td style={{ padding: '12px' }}>
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <Link
-                                href={`/task-creator-deep-dive?email=${encodeURIComponent(u.email)}${patternEnvFilter ? `&environment=${encodeURIComponent(patternEnvFilter)}` : ''}`}
+                              <a
+                                href={`${process.env.NEXT_PUBLIC_CORE_APP_URL || ''}/task-creator-deep-dive?email=${encodeURIComponent(u.email)}${patternEnvFilter ? `&environment=${encodeURIComponent(patternEnvFilter)}` : ''}`}
                                 style={{
                                   padding: '6px 12px',
                                   fontSize: '12px',
@@ -1866,7 +1865,7 @@ version_id, task_key, prompt, version_no, is_active, created_by_name, created_by
                                 }}
                               >
                                 Deep Dive
-                              </Link>
+                              </a>
                               <button
                                 onClick={() => openPromptModal(u.email, u.name)}
                                 style={{

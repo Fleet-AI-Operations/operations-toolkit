@@ -4,7 +4,7 @@ import { POST } from '../route';
 
 // ── Auth mock helpers ──────────────────────────────────────────────────────
 
-function makeAuthClient(role = 'FLEET') {
+function makeAuthClient(role = 'CORE') {
   return {
     auth: {
       getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })),
@@ -28,6 +28,7 @@ vi.mock('@repo/database', () => ({
       createMany: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
 }));
@@ -96,6 +97,7 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
       { id: 'par-1', versionId: 'rec-1', prompt: 'Write a story about a robot.' },
     ] as any);
     vi.mocked(prisma.promptAuthenticityRecord.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.promptAuthenticityRecord.updateMany).mockResolvedValue({ count: 0 } as any);
 
     const { analyzePromptAuthenticity, analyzeTemplateUsage } = await import('@repo/core');
     vi.mocked(analyzePromptAuthenticity).mockResolvedValue(makeAnalysisResult() as any);
@@ -121,10 +123,29 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
 
   it('returns 403 for insufficient role', async () => {
     const { createClient } = await import('@repo/auth/server');
-    vi.mocked(createClient).mockReturnValue(makeAuthClient('CORE') as any);
+    vi.mocked(createClient).mockReturnValue(makeAuthClient('QA') as any);
 
     const res = await POST(makeRequest({ email: 'w@example.com' }));
     expect(res.status).toBe(403);
+  });
+
+  it('returns 500 (not 403) when the profile fetch fails', async () => {
+    const { createClient } = await import('@repo/auth/server');
+    vi.mocked(createClient).mockReturnValue({
+      auth: {
+        getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(() => ({ data: null, error: new Error('profiles table unreachable') })),
+          })),
+        })),
+      })),
+    } as any);
+
+    const res = await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(res.status).toBe(500);
   });
 
   it('returns 400 when email is missing', async () => {
@@ -302,5 +323,63 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBeTruthy();
+  });
+
+  it('returns 400 for a non-JSON request body', async () => {
+    const res = await POST(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/analyze', {
+      method: 'POST',
+      body: 'not valid json',
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/invalid request body/i);
+  });
+
+  it('resets ANALYZING records via updateMany when the outer try throws', async () => {
+    const { prisma } = await import('@repo/database');
+    // Make createMany throw so the outer catch fires
+    vi.mocked(prisma.promptAuthenticityRecord.createMany).mockRejectedValue(new Error('DB crash'));
+
+    const res = await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(res.status).toBe(500);
+    expect(vi.mocked(prisma.promptAuthenticityRecord.updateMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ analysisStatus: 'ANALYZING' }),
+        data: expect.objectContaining({ analysisStatus: 'FAILED' }),
+      })
+    );
+  });
+
+  it('sets templateAnalysisFailed when template field DB updates fail', async () => {
+    const { prisma } = await import('@repo/database');
+    const { analyzeTemplateUsage } = await import('@repo/core');
+
+    vi.mocked(prisma.promptAuthenticityRecord.findMany)
+      .mockResolvedValueOnce([{ id: 'par-1', versionId: 'rec-1', prompt: 'Write a story.' }] as any)
+      .mockResolvedValueOnce([
+        { id: 'par-1', prompt: 'Write a story.' },
+        { id: 'par-2', prompt: 'Write a poem.' },
+      ] as any);
+
+    vi.mocked(analyzeTemplateUsage).mockResolvedValue({
+      isLikelyTemplated: false,
+      templateConfidence: 0,
+      templateIndicators: [],
+      detectedTemplate: null,
+      matchingPromptIds: [],
+      overallAssessment: '',
+    } as any);
+
+    // First two update calls are ANALYZING + COMPLETED; all subsequent (template) fail
+    vi.mocked(prisma.promptAuthenticityRecord.update)
+      .mockResolvedValueOnce({} as any) // ANALYZING
+      .mockResolvedValueOnce({} as any) // COMPLETED
+      .mockRejectedValue(new Error('DB write failed')); // template updates
+
+    const res = await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.templateAnalysisFailed).toBe(true);
+    expect(data.message).toMatch(/template analysis failed/i);
   });
 });

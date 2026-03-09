@@ -6,7 +6,7 @@
 
 After logging in, you'll see a sidebar on the left with the following sections:
 
-- **Core Tools** — Alignment Scoring, Likert Scoring, Task Search, Similarity Flags
+- **Core Tools** — Alignment Scoring, Likert Scoring, Task Creator Deep-Dive, Task Search, Similarity Flags
 - **QA Tools** — Records, Similarity Search, Top Prompts, Top/Bottom 10
 - **Resources** — Links
 
@@ -21,19 +21,20 @@ Some items open in the same tab; others (marked with a small external link icon)
 ### Core Tools
 1. [Alignment Scoring](#alignment-scoring)
 2. [Likert Scoring](#likert-scoring)
-3. [Task Search](#task-search)
-4. [Similarity Flags](#similarity-flags)
+3. [Task Creator Deep-Dive](#task-creator-deep-dive)
+4. [Task Search](#task-search)
+5. [Similarity Flags](#similarity-flags)
 
 ### QA Tools
-5. [Records](#records)
-6. [Similarity Search](#similarity-search)
-7. [Top Prompts](#top-prompts)
-8. [Top/Bottom 10](#topbottom-10)
+6. [Records](#records)
+7. [Similarity Search](#similarity-search)
+8. [Top Prompts](#top-prompts)
+9. [Top/Bottom 10](#topbottom-10)
 
 ### Other
-9. [Resources](#resources)
-10. [Reporting Bugs](#reporting-bugs)
-11. [Troubleshooting](#troubleshooting)
+10. [Resources](#resources)
+11. [Reporting Bugs](#reporting-bugs)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -254,6 +255,114 @@ Each flag row has an **Analyse** button. Clicking it sends both prompts to the c
 The analysis appears in a modal overlay. For OpenRouter-backed deployments, the cost of the AI call is shown. For local LM Studio deployments, no cost is displayed (local compute is free).
 
 The AI analysis is advisory — use it as a starting point for your review, not as a final decision.
+
+---
+
+## Task Creator Deep-Dive
+
+Perform a focused review of a single task creator's full submission history — including AI generation, templating, non-native language patterns, and rapid submission detection.
+
+**Access**: Core App → Task Creator Deep-Dive (`/task-creator-deep-dive`) — CORE, FLEET, MANAGER, and ADMIN roles.
+
+---
+
+### Overview
+
+The Task Creator Deep-Dive is a per-user investigation tool. It shows every task a creator has submitted, overlaid with authenticity analysis results (where available) and automatic rapid-submission flagging.
+
+Internal `@fleet.so` accounts are excluded from the user list and cannot be deep-dived.
+
+---
+
+### User Selector (Landing Page)
+
+When you navigate to `/task-creator-deep-dive` without selecting a user, you see a searchable list of all task creators.
+
+**Controls**:
+- **Environment** dropdown — filter the list to creators who have tasks in a specific environment
+- **Search** — filter by name or email (client-side, instant)
+
+Click any user row to open their deep dive.
+
+---
+
+### Deep Dive View
+
+Once a user is selected the page shows:
+
+#### Summary Cards
+
+| Card | Description |
+|------|-------------|
+| **Total Tasks** | All tasks submitted by this user (after deduplication by task key — only the latest version of each task is shown) |
+| **AI-Generated** | Count and % flagged as likely AI-generated |
+| **Templated** | Count and % flagged as using a shared template across their submissions (cross-prompt comparison) |
+| **Non-Native** | Count and % flagged as non-native speaker patterns |
+| **Rapid Submission** | Count and % submitted within 5 minutes of an adjacent task |
+
+#### Environment Filter
+
+Change the environment dropdown in the header to re-scope the entire deep dive (updates the URL, re-fetches data).
+
+#### Run Analysis Button
+
+If any tasks have not yet been analyzed, a **Run Analysis (N unanalyzed)** button appears. Clicking it:
+
+1. Syncs the user's tasks into the analysis queue (new tasks only — already-queued tasks are skipped)
+2. Runs AI analysis on all pending tasks in parallel (non-native speaker and AI-generated detection, per prompt)
+3. Runs a **cross-prompt template analysis** across all the user's completed tasks in the same environment — compares them as a set to detect shared structural skeletons
+4. Reloads the page with updated results when complete
+
+A progress banner is shown during analysis. After completion a green confirmation banner shows how many tasks were analyzed (and how many failed, if any). If the cross-prompt template analysis could not complete, a yellow warning is shown — template badges may be incomplete until you re-run analysis.
+
+Re-run Analysis is available even when all tasks are analyzed, to re-run template detection with updated models or after new tasks have been added.
+
+> **How template detection works**: The AI sees all of the user's completed prompts in the same environment at once (up to 50 — the most recent are used if the set is larger). It looks for a repeated fill-in-the-blank skeleton across multiple prompts — tasks that only vary in one or two slots while the surrounding structure stays identical. A single prompt that happens to use a common phrasing is not flagged; the evidence must span multiple prompts.
+
+#### Flag Filter Bar
+
+Filter the task table to show:
+- **All** — every task (default)
+- **AI-Generated** — tasks flagged as AI-generated
+- **Templated** — tasks flagged as using a template
+- **Non-Native** — tasks flagged as non-native
+- **Rapid Submission** — tasks submitted within 5 minutes of an adjacent task
+
+#### Task Table
+
+Chronological list of all tasks. Each row shows:
+
+| Column | Description |
+|--------|-------------|
+| **Submitted** | Date and time of submission |
+| **Gap** | Time since previous task. Displayed in yellow if < 5 min (rapid submission) |
+| **Task** | Task content (truncated, click to expand) |
+| **Flags** | Badge summary: ⚡ Rapid, AI %, Template %, Non-Native %, or *not analyzed* |
+
+Click any row to expand it and see:
+- Full task text
+- Per-category flag detail panels (indicators, confidence, detected template)
+- Overall AI assessment
+- Environment label
+
+---
+
+### Rapid Submission Detection
+
+Rapid submission flags are computed automatically from submission timestamps — no AI call required. The rule:
+
+> Any task submitted within **5 minutes** of its immediate chronological neighbour is flagged. If three tasks are submitted within 5 minutes of each other, all three are flagged.
+
+This flag is always present even for tasks that have not yet been analyzed.
+
+---
+
+### Tips
+
+- Use the **Environment** filter when a creator works across multiple environments to focus on a specific project.
+- **Run Analysis** only processes tasks that are not yet in the analysis queue. It will not re-analyze already-completed tasks unless you explicitly use **Re-run Analysis**.
+- The deep dive can be opened directly from the **Patterns tab** of the Prompt Authenticity Checker (Fleet app) using the **Deep Dive** button on any user row.
+- Only the latest version of each task is shown (deduplicated by `task_key`).
 
 ---
 

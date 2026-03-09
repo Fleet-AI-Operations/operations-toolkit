@@ -5,21 +5,25 @@ import { analyzePromptAuthenticity, analyzeTemplateUsage } from '@repo/core';
 
 export const maxDuration = 300;
 
-type UserRole = 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
+type UserRole = 'PENDING' | 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
+  PENDING: 0, USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
 };
 function hasPermission(userRole: string | null | undefined, requiredRole: UserRole): boolean {
   if (!userRole) return false;
   return (ROLE_HIERARCHY[userRole as UserRole] ?? 0) >= ROLE_HIERARCHY[requiredRole];
 }
 
-async function requireFleetAuth(request: NextRequest) {
+async function requireCoreAuth(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!profile || !hasPermission(profile.role, 'FLEET')) {
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profileError) {
+    console.error('[user-deep-dive/analyze] Failed to fetch user profile:', profileError);
+    return { error: NextResponse.json({ error: 'Internal server error' }, { status: 500 }) };
+  }
+  if (!profile || !hasPermission(profile.role, 'CORE')) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
   return { user };
@@ -56,10 +60,17 @@ function chunkArray<T>(array: T[], size: number): T[][] {
  * present), then runs AI analysis on all PENDING records for that user.
  *
  * Body: { email: string, environment?: string }
- * Returns: { synced, analyzed, failed, total }
+ * Returns: {
+ *   synced: number,
+ *   analyzed: number,
+ *   failed: number,
+ *   total: number,
+ *   templateAnalysisFailed: boolean,
+ *   message: string,
+ * }
  */
 export async function POST(request: NextRequest) {
-  const authResult = await requireFleetAuth(request);
+  const authResult = await requireCoreAuth(request);
   if (authResult.error) return authResult.error;
 
   let email: string;
@@ -112,7 +123,9 @@ export async function POST(request: NextRequest) {
     // ── 2. Sync to PromptAuthenticityRecord (skip already-present records) ──
     const syncData = dataRecords.map(r => ({
       versionId: r.id,
-      taskKey: r.id,
+      // Use the task key from metadata when present; fall back to the record ID
+      // for records that were ingested without a task_key field.
+      taskKey: (r.metadata as Record<string, any> | null)?.task_key ?? r.id,
       prompt: r.content,
       envKey: r.environment,
       createdByName: r.createdByName ?? null,
@@ -236,20 +249,27 @@ export async function POST(request: NextRequest) {
           )
         );
 
-        const failedUpdates = updateResults.filter((r) => r.status === 'rejected').length;
-        if (failedUpdates > 0) {
-          console.error(`[user-deep-dive/analyze] ${failedUpdates} template field update(s) failed`);
-          templateAnalysisFailed = true;
-        }
+        updateResults.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(
+              `[user-deep-dive/analyze] Template field update failed for record ${allCompleted[i].id}:`,
+              r.reason
+            );
+            templateAnalysisFailed = true;
+          }
+        });
       } catch (err) {
         console.error('[user-deep-dive/analyze] Cross-prompt template analysis failed:', err);
         templateAnalysisFailed = true;
       }
     }
 
+    const templateNote = templateAnalysisFailed
+      ? ' Template analysis failed — template badges may be incomplete.'
+      : '';
     const message = analyzed === 0 && failed === 0
-      ? 'All tasks are already analyzed.'
-      : `Analyzed ${analyzed} task${analyzed !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.`;
+      ? `All tasks are already analyzed.${templateNote}`
+      : `Analyzed ${analyzed} task${analyzed !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.${templateNote}`;
 
     return NextResponse.json({
       synced: syncResult.count,
@@ -261,6 +281,21 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[user-deep-dive/analyze] POST failed:', error);
+    // Attempt to reset any records stuck in ANALYZING — if not reset they will
+    // never be retried since the pending filter only selects PENDING records.
+    if (email) {
+      const resetWhere: any = {
+        createdByEmail: { equals: email, mode: 'insensitive' },
+        analysisStatus: 'ANALYZING',
+      };
+      if (environment) resetWhere.envKey = environment;
+      await prisma.promptAuthenticityRecord.updateMany({
+        where: resetWhere,
+        data: { analysisStatus: 'FAILED', errorMessage: 'Aborted by unhandled error' },
+      }).catch((resetErr: any) => {
+        console.error('[user-deep-dive/analyze] Failed to reset stuck ANALYZING records after crash — manual intervention required:', resetErr);
+      });
+    }
     return NextResponse.json({ error: 'Analysis failed', details: error.message }, { status: 500 });
   }
 }
