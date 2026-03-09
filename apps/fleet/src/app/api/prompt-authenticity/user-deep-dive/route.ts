@@ -85,11 +85,13 @@ export async function GET(request: NextRequest) {
   }
 
   // ── 1. Fetch all TASK records for this user from DataRecord ──────────────
+  if (email.toLowerCase().endsWith('@fleet.so')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const where: any = {
     type: 'TASK',
-    OR: [
-      { createdByEmail: { equals: email, mode: 'insensitive' } },
-    ],
+    createdByEmail: { equals: email, mode: 'insensitive' },
   };
   if (environment) where.environment = environment;
 

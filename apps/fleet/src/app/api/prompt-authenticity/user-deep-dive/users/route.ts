@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const environment = searchParams.get('environment') || undefined;
 
-  const where: any = { type: 'TASK', createdByEmail: { not: null } };
+  const where: any = {
+    type: 'TASK',
+    createdByEmail: { not: null },
+    NOT: { createdByEmail: { endsWith: '@fleet.so' } },
+  };
   if (environment) where.environment = environment;
 
   const records = await prisma.dataRecord.findMany({

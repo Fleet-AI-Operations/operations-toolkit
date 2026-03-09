@@ -68,6 +68,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'email is required' }, { status: 400 });
   }
 
+  if (email.toLowerCase().endsWith('@fleet.so')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   // ── 1. Fetch DataRecord tasks for this user ───────────────────────────────
   const where: any = {
     type: 'TASK',
