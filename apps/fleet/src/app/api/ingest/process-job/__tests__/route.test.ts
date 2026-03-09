@@ -60,8 +60,26 @@ describe('POST /api/ingest/process-job', () => {
         expect(mockedWaitUntil).not.toHaveBeenCalled();
     });
 
-    it('returns 401 when webhook secret is wrong', async () => {
-        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'wrong-secret');
+    it('returns 401 when webhook secret is wrong (same length)', async () => {
+        // Same byte-length as 'test-secret' — timingSafeEqual does the comparison, no throw
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'wrong-secre');
+
+        const res = await POST(req);
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 401 when webhook secret has different length (timingSafeEqual catch path)', async () => {
+        // Buffer.byteLength differs → timingSafeEqual throws RangeError → catch sets authorized=false
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'short');
+
+        const res = await POST(req);
+        expect(res.status).toBe(401);
+        expect(mockedWaitUntil).not.toHaveBeenCalled();
+    });
+
+    it('returns 401 when webhook secret is a longer string', async () => {
+        // Longer than 'test-secret' — also hits the length-mismatch catch path
+        const req = makeRequest({ job_id: 'j1', environment: 'prod', status: 'PENDING' }, 'test-secret-but-longer');
 
         const res = await POST(req);
         expect(res.status).toBe(401);
