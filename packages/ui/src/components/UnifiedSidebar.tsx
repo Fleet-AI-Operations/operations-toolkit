@@ -31,6 +31,7 @@ import {
     ChevronDown,
     ExternalLink,
     LucideIcon,
+    UserSearch,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -158,6 +159,7 @@ const NAV_SECTIONS: NavSection[] = [
             { label: 'Full Similarity Check', href: '/full-similarity-check', icon: ScanSearch, app: 'fleet' },
             { label: 'Prompt Authenticity Checker', href: '/prompt-authenticity', icon: SearchCheck, app: 'fleet' },
             { label: 'QA Feedback Analysis', href: '/qa-feedback-analysis', icon: MessageSquare, app: 'fleet' },
+            { label: 'Task Creator Deep-Dive', href: '/task-creator-deep-dive', icon: UserSearch, app: 'fleet' },
         ],
     },
     // {
