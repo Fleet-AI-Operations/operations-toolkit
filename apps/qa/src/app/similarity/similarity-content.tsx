@@ -10,6 +10,7 @@ interface Prompt {
   content: string;
   category: string | null;
   metadata?: Record<string, any> | null;
+  environment: string | null;
   createdById: string | null;
   createdByEmail: string | null;
   createdByName: string | null;
@@ -36,6 +37,7 @@ export default function PromptSimilarityPage() {
 
   const [allPrompts, setAllPrompts] = useState<Prompt[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [environments, setEnvironments] = useState<string[]>([]);
   const [userSearch, setUserSearch] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>("");
@@ -46,6 +48,25 @@ export default function PromptSimilarityPage() {
   const [showRedZoneModal, setShowRedZoneModal] = useState(false);
   const [redZoneThreshold, setRedZoneThreshold] = useState(70);
   const [computingCrossEncoder, setComputingCrossEncoder] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const fetchEnvironments = async () => {
+      try {
+        const response = await fetch('/api/environments');
+        if (!response.ok) {
+          setError(`Failed to load environments (HTTP ${response.status})`);
+          return;
+        }
+        const data = await response.json();
+        if (data.environments) {
+          setEnvironments(data.environments);
+        }
+      } catch (err: any) {
+        setError(err.message);
+      }
+    };
+    fetchEnvironments();
+  }, []);
 
   useEffect(() => {
     const fetchPrompts = async () => {
@@ -82,36 +103,10 @@ export default function PromptSimilarityPage() {
     );
   }, [users, userSearch]);
 
-  // Extract unique environments from all prompts
-  const environments = useMemo(() => {
-    const envSet = new Set<string>();
-    allPrompts.forEach(p => {
-      const env = p.metadata?.environment_name || p.metadata?.env_key;
-      if (env) {
-        envSet.add(env);
-      }
-    });
-    return Array.from(envSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-  }, [allPrompts]);
-
   const filteredPrompts = useMemo(() => {
-    let filtered = allPrompts;
-
-    // Filter by user if selected
-    if (selectedUserId) {
-      filtered = filtered.filter((p) => p.createdById === selectedUserId);
-    }
-
-    // Filter by environment if selected
-    if (selectedEnvironment) {
-      filtered = filtered.filter((p) => {
-        const env = p.metadata?.environment_name || p.metadata?.env_key;
-        return env === selectedEnvironment;
-      });
-    }
-
-    return filtered;
-  }, [selectedUserId, selectedEnvironment, allPrompts]);
+    if (!selectedUserId) return allPrompts;
+    return allPrompts.filter((p) => p.createdById === selectedUserId);
+  }, [selectedUserId, allPrompts]);
 
   useEffect(() => {
     if (!selectedPrompt) {
@@ -161,9 +156,12 @@ export default function PromptSimilarityPage() {
                   setSimilarPrompts((prev) => prev.map((pp) => pp.id === p.id ? { ...pp, crossEncoderScore: json.score } : pp));
                 }
               } catch (e) {
+                console.error('Cross-encoder cache probe failed for target', p.id, e);
               }
             }));
-          } catch (e) {}
+          } catch (e) {
+            console.error('Cross-encoder cache probe batch failed', e);
+          }
         })();
       } catch (err: any) {
         setError(err.message);
@@ -179,11 +177,9 @@ export default function PromptSimilarityPage() {
   const promptsListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // When the selected user or environment filter changes, reset the left prompts scroll to top
     if (promptsListRef.current) {
       promptsListRef.current.scrollTo({ top: 0, behavior: 'auto' });
     }
-    // Also reset selected prompt and similar prompts when filters change
     setSelectedPrompt(null);
     setSimilarPrompts([]);
   }, [selectedUserId, selectedEnvironment]);
@@ -455,6 +451,7 @@ export default function PromptSimilarityPage() {
               value={selectedEnvironment}
               onChange={(e) => {
                 setSelectedEnvironment(e.target.value);
+                setSelectedUserId("");
                 setSelectedPrompt(null);
                 setSimilarPrompts([]);
               }}
@@ -562,7 +559,7 @@ export default function PromptSimilarityPage() {
                     {prompt.content}
                   </div>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {(prompt.metadata?.environment_name || prompt.metadata?.env_key) && (
+                    {prompt.environment && (
                       <div style={{
                         fontSize: "10px",
                         background: selectedPrompt?.id === prompt.id ? "rgba(147, 51, 234, 0.2)" : "rgba(147, 51, 234, 0.1)",
@@ -576,7 +573,7 @@ export default function PromptSimilarityPage() {
                         gap: "4px"
                       }}>
                         <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: selectedPrompt?.id === prompt.id ? "#c4b5fd" : "#a78bfa" }}></div>
-                        {prompt.metadata.environment_name || prompt.metadata.env_key}
+                        {prompt.environment}
                       </div>
                     )}
                     <div style={{ fontSize: "12px", opacity: 0.6 }}>
@@ -645,7 +642,7 @@ export default function PromptSimilarityPage() {
                   <div
                     style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}
                   >
-                    {(selectedPrompt.metadata?.environment_name || selectedPrompt.metadata?.env_key) && (
+                    {selectedPrompt.environment && (
                       <div style={{
                         fontSize: "10px",
                         background: "rgba(147, 51, 234, 0.1)",
@@ -659,7 +656,7 @@ export default function PromptSimilarityPage() {
                         gap: "4px"
                       }}>
                         <div style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#a78bfa" }}></div>
-                        {selectedPrompt.metadata.environment_name || selectedPrompt.metadata.env_key}
+                        {selectedPrompt.environment}
                       </div>
                     )}
                     <div>

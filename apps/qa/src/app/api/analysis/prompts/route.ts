@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
                 content: true,
                 category: true,
                 metadata: true,
+                environment: true,
                 createdById: true,
                 createdByEmail: true,
                 createdByName: true,
