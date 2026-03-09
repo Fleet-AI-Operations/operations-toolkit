@@ -26,37 +26,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const environment = searchParams.get('environment') || undefined;
+  try {
+    const { searchParams } = new URL(request.url);
+    const environment = searchParams.get('environment') || undefined;
 
-  const where: any = {
-    type: 'TASK',
-    createdByEmail: { not: null },
-    NOT: { createdByEmail: { endsWith: '@fleet.so' } },
-  };
-  if (environment) where.environment = environment;
+    const where: any = {
+      type: 'TASK',
+      createdByEmail: { not: null },
+      NOT: { createdByEmail: { endsWith: '@fleet.so', mode: 'insensitive' } },
+    };
+    if (environment) where.environment = environment;
 
-  const records = await prisma.dataRecord.findMany({
-    where,
-    select: { createdByEmail: true, createdByName: true },
-  });
+    const records = await prisma.dataRecord.findMany({
+      where,
+      select: { createdByEmail: true, createdByName: true },
+    });
 
-  // Aggregate by email
-  const map = new Map<string, { email: string; name: string | null; taskCount: number }>();
-  for (const r of records) {
-    if (!r.createdByEmail) continue;
-    const key = r.createdByEmail.toLowerCase();
-    if (!map.has(key)) {
-      map.set(key, { email: r.createdByEmail, name: r.createdByName ?? null, taskCount: 0 });
+    // Aggregate by email
+    const map = new Map<string, { email: string; name: string | null; taskCount: number }>();
+    for (const r of records) {
+      if (!r.createdByEmail) continue;
+      const key = r.createdByEmail.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, { email: r.createdByEmail, name: r.createdByName ?? null, taskCount: 0 });
+      }
+      map.get(key)!.taskCount++;
     }
-    map.get(key)!.taskCount++;
+
+    const users = Array.from(map.values()).sort((a, b) => {
+      const aName = a.name ?? a.email;
+      const bName = b.name ?? b.email;
+      return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+    });
+
+    return NextResponse.json({ users });
+  } catch (error: any) {
+    console.error('[user-deep-dive/users] GET failed:', error);
+    return NextResponse.json({ error: 'Failed to load users', details: error.message }, { status: 500 });
   }
-
-  const users = Array.from(map.values()).sort((a, b) => {
-    const aName = a.name ?? a.email;
-    const bName = b.name ?? b.email;
-    return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
-  });
-
-  return NextResponse.json({ users });
 }

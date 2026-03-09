@@ -84,11 +84,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'email is required' }, { status: 400 });
   }
 
-  // ── 1. Fetch all TASK records for this user from DataRecord ──────────────
   if (email.toLowerCase().endsWith('@fleet.so')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  try {
+  // ── 1. Fetch all TASK records for this user from DataRecord ──────────────
   const where: any = {
     type: 'TASK',
     createdByEmail: { equals: email, mode: 'insensitive' },
@@ -218,4 +219,8 @@ export async function GET(request: NextRequest) {
       rapidSubmissionPct: pct(rapidSubmissionCount),
     },
   });
+  } catch (error: any) {
+    console.error('[user-deep-dive] GET failed:', error);
+    return NextResponse.json({ error: 'Failed to load user data', details: error.message }, { status: 500 });
+  }
 }

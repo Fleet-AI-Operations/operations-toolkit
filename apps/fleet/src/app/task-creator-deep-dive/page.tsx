@@ -107,6 +107,8 @@ function UserSelector({ environments }: { environments: string[] }) {
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users ?? []);
+      } else {
+        console.error('Failed to load users, status:', res.status);
       }
     } catch (err) {
       console.error('Failed to load users', err);
@@ -282,7 +284,8 @@ export default function TaskCreatorDeepDivePage() {
       setSummary(data.summary);
       setUserName(data.user.name);
     } catch (err: any) {
-      setError(err.message);
+      console.error('[loadDeepDive]', err);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -312,7 +315,7 @@ export default function TaskCreatorDeepDivePage() {
         await loadDeepDive();
       }
     } catch (err: any) {
-      setAnalyzeError(err.message);
+      setAnalyzeError(err instanceof Error ? err.message : String(err));
     } finally {
       setAnalyzing(false);
     }
