@@ -11,12 +11,35 @@ function hasPermission(userRole: string | null | undefined, requiredRole: UserRo
   return (ROLE_HIERARCHY[userRole as UserRole] ?? 0) >= ROLE_HIERARCHY[requiredRole];
 }
 
+type LookupRow = {
+  id: string;
+  createdByEmail: string | null;
+  createdByName: string | null;
+  environment: string | null;
+  taskKey: string | null;
+};
+
+function toResult(r: LookupRow) {
+  return {
+    recordId: r.id,
+    email: r.createdByEmail,
+    name: r.createdByName ?? null,
+    environment: r.environment ?? null,
+    taskKey: r.taskKey ?? null,
+  };
+}
+
 /**
  * GET /api/prompt-authenticity/user-deep-dive/lookup?q=<task_key_or_id>
  *
- * Looks up the creator of a task by its record ID or metadata.task_key.
- * Returns creator email, name, and environment so the caller can navigate
- * directly to that user's deep dive.
+ * Looks up the creator(s) of a task by record ID or metadata.task_key.
+ *
+ * Search strategy (in order):
+ *   1. Exact match on record ID
+ *   2. Exact match on metadata.task_key (case-sensitive)
+ *   3. Case-insensitive partial match on metadata.task_key (ILIKE '%q%'), up to 5 results
+ *
+ * Returns: { results: Array<{ recordId, email, name, environment, taskKey }> }
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -39,9 +62,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const record = await prisma.dataRecord.findFirst({
+    // ── Phase 1: exact match ────────────────────────────────────────────────
+    const exact = await prisma.dataRecord.findFirst({
       where: {
         type: 'TASK',
+        createdByEmail: { not: null },
         OR: [
           { id: q },
           { metadata: { path: ['task_key'], equals: q } },
@@ -52,19 +77,36 @@ export async function GET(request: NextRequest) {
         createdByEmail: true,
         createdByName: true,
         environment: true,
+        metadata: true,
       },
     });
 
-    if (!record || !record.createdByEmail) {
+    if (exact?.createdByEmail) {
+      const taskKey = (exact.metadata as Record<string, any> | null)?.task_key ?? null;
+      return NextResponse.json({ results: [toResult({ ...exact, taskKey })] });
+    }
+
+    // ── Phase 2: case-insensitive partial match on metadata.task_key ────────
+    const fuzzy = await prisma.$queryRaw<LookupRow[]>`
+      SELECT
+        id,
+        "createdByEmail",
+        "createdByName",
+        environment,
+        metadata->>'task_key' AS "taskKey"
+      FROM data_records
+      WHERE type = 'TASK'
+        AND "createdByEmail" IS NOT NULL
+        AND LOWER(metadata->>'task_key') LIKE LOWER(${'%' + q + '%'})
+      ORDER BY "createdAt" DESC
+      LIMIT 5
+    `;
+
+    if (fuzzy.length === 0) {
       return NextResponse.json({ error: 'No task found for the given ID or task key' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      recordId: record.id,
-      email: record.createdByEmail,
-      name: record.createdByName ?? null,
-      environment: record.environment ?? null,
-    });
+    return NextResponse.json({ results: fuzzy.map(toResult) });
   } catch (error: any) {
     console.error('[user-deep-dive/lookup] GET failed:', error);
     return NextResponse.json({ error: 'Lookup failed', details: error.message }, { status: 500 });
