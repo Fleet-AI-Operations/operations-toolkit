@@ -29,7 +29,8 @@ As a FLEET team member, you have access to **four applications**:
 7. [Time Analytics](#time-analytics)
 8. [Bug Reports Management](#bug-reports-management)
 9. [Prompt Authenticity Checker](#prompt-authenticity-checker)
-10. [Full Similarity Check](#full-similarity-check)
+10. [Task Creator Deep-Dive](#task-creator-deep-dive)
+11. [Full Similarity Check](#full-similarity-check)
 
 ---
 
@@ -945,6 +946,7 @@ Click **Load Users** to populate the table. Columns show each user's total promp
 | **View Prompts** | Opens a modal showing that user's analyzed prompts (latest version per task only), with environment badge, template confidence badge, and detected template pattern. Filter to "Templated Only" to focus review. |
 | **Expand** | Shows any previously run cross-prompt AI analysis inline |
 | **Cross-Prompt AI** | Sends up to 20 of the user's prompts as a group to the AI for deeper template pattern detection — returns an inferred template, evidence, and confidence score |
+| **Deep Dive** | Opens the Task Creator Deep-Dive page for that user, pre-scoped to the current environment filter. See [Task Creator Deep-Dive](#task-creator-deep-dive). |
 
 ---
 
@@ -967,6 +969,109 @@ Each category produces a **confidence score (0–100%)** and a list of specific 
 - The **Patterns tab** environment filter loads automatically — no need to visit Import first.
 - **Cross-Prompt AI** analysis is on-demand and incurs an AI cost (shown after completion).
 - The **View Prompts** modal deduplicates by task — only the most recent version of each prompt is shown.
+
+---
+
+## Task Creator Deep-Dive
+
+Perform a focused review of a single task creator's full submission history — including AI generation, templating, non-native language patterns, and rapid submission detection.
+
+**Access**: Fleet App → Task Creator Deep-Dive (`/task-creator-deep-dive`) — FLEET/ADMIN roles only.
+
+---
+
+### Overview
+
+The Task Creator Deep-Dive is a per-user investigation tool. It shows every task a creator has submitted, overlaid with authenticity analysis results (where available) and automatic rapid-submission flagging.
+
+Internal `@fleet.so` accounts are excluded from the user list and cannot be deep-dived.
+
+---
+
+### User Selector (Landing Page)
+
+When you navigate to `/task-creator-deep-dive` without selecting a user, you see a searchable list of all task creators.
+
+**Controls**:
+- **Environment** dropdown — filter the list to creators who have tasks in a specific environment
+- **Search** — filter by name or email (client-side, instant)
+
+Click any user row to open their deep dive.
+
+---
+
+### Deep Dive View
+
+Once a user is selected the page shows:
+
+#### Summary Cards
+
+| Card | Description |
+|------|-------------|
+| **Total Tasks** | All tasks submitted by this user (after deduplication by task key — only the latest version of each task is shown) |
+| **AI-Generated** | Count and % flagged as likely AI-generated |
+| **Templated** | Count and % flagged as using a template formula |
+| **Non-Native** | Count and % flagged as non-native speaker patterns |
+| **Rapid Submission** | Count and % submitted within 5 minutes of an adjacent task |
+
+#### Environment Filter
+
+Change the environment dropdown in the header to re-scope the entire deep dive (updates the URL, re-fetches data).
+
+#### Run Analysis Button
+
+If any tasks have not yet been analyzed, a **Run Analysis (N unanalyzed)** button appears. Clicking it:
+
+1. Syncs the user's tasks into the analysis queue (new tasks only — already-queued tasks are skipped)
+2. Runs AI analysis on all pending tasks in parallel
+3. Reloads the page with updated results when complete
+
+A progress banner is shown during analysis. After completion a green confirmation banner shows how many tasks were analyzed (and how many failed, if any). Re-run Analysis is available even when all tasks are analyzed, to re-analyze with updated models.
+
+#### Flag Filter Bar
+
+Filter the task table to show:
+- **All** — every task (default)
+- **AI-Generated** — tasks flagged as AI-generated
+- **Templated** — tasks flagged as using a template
+- **Non-Native** — tasks flagged as non-native
+- **Rapid Submission** — tasks submitted within 5 minutes of an adjacent task
+
+#### Task Table
+
+Chronological list of all tasks. Each row shows:
+
+| Column | Description |
+|--------|-------------|
+| **Submitted** | Date and time of submission |
+| **Gap** | Time since previous task. Displayed in yellow if < 5 min (rapid submission) |
+| **Task** | Task content (truncated, click to expand) |
+| **Flags** | Badge summary: ⚡ Rapid, AI %, Template %, Non-Native %, or *not analyzed* |
+
+Click any row to expand it and see:
+- Full task text
+- Per-category flag detail panels (indicators, confidence, detected template)
+- Overall AI assessment
+- Environment label
+
+---
+
+### Rapid Submission Detection
+
+Rapid submission flags are computed automatically from submission timestamps — no AI call required. The rule:
+
+> Any task submitted within **5 minutes** of its immediate chronological neighbour is flagged. If three tasks are submitted within 5 minutes of each other, all three are flagged.
+
+This flag is always present even for tasks that have not yet been analyzed.
+
+---
+
+### Tips
+
+- Use the **Environment** filter when a creator works across multiple environments to focus on a specific project.
+- **Run Analysis** only processes tasks that are not yet in the analysis queue. It will not re-analyze already-completed tasks unless you explicitly use **Re-run Analysis**.
+- The deep dive can be opened directly from the **Patterns tab** of the Prompt Authenticity Checker using the **Deep Dive** button on any user row.
+- Only the latest version of each task is shown (deduplicated by `task_key`).
 
 ---
 
