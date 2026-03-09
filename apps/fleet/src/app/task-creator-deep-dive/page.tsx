@@ -263,7 +263,7 @@ export default function TaskCreatorDeepDivePage() {
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
   const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeResult, setAnalyzeResult] = useState<{ analyzed: number; failed: number; message: string } | null>(null);
+  const [analyzeResult, setAnalyzeResult] = useState<{ analyzed: number; failed: number; message: string; templateAnalysisFailed?: boolean } | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -318,7 +318,7 @@ export default function TaskCreatorDeepDivePage() {
       if (!response.ok) {
         setAnalyzeError(data.error ?? 'Analysis failed');
       } else {
-        setAnalyzeResult({ analyzed: data.analyzed, failed: data.failed, message: data.message });
+        setAnalyzeResult({ analyzed: data.analyzed, failed: data.failed, message: data.message, templateAnalysisFailed: data.templateAnalysisFailed });
         await loadDeepDive();
       }
     } catch (err: any) {
@@ -427,6 +427,11 @@ export default function TaskCreatorDeepDivePage() {
         <div style={{ padding: '16px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', color: '#4ade80', marginBottom: '24px', fontSize: '14px' }}>
           {analyzeResult.message}
           {analyzeResult.failed > 0 && <span style={{ color: '#f87171', marginLeft: '8px' }}>({analyzeResult.failed} failed)</span>}
+          {analyzeResult.templateAnalysisFailed && (
+            <div style={{ marginTop: '6px', color: '#fbbf24', fontSize: '13px' }}>
+              Template analysis could not complete — template badges may be incomplete. Re-run analysis to retry.
+            </div>
+          )}
         </div>
       )}
 
