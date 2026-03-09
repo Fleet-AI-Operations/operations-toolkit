@@ -147,9 +147,30 @@ describe('GET /api/prompt-authenticity/user-deep-dive/lookup', () => {
     );
   });
 
-  it('returns 500 on database error', async () => {
+  it('returns 500 with details on database error', async () => {
     const { prisma } = await import('@repo/database');
     vi.mocked(prisma.dataRecord.findFirst).mockRejectedValue(new Error('DB down'));
+
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=some-key'));
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.details).toBe('DB down');
+  });
+
+  it('returns 500 when profile fetch fails (not 403)', async () => {
+    const { createClient } = await import('@repo/auth/server');
+    vi.mocked(createClient).mockReturnValue({
+      auth: {
+        getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(() => ({ data: null, error: new Error('profiles table unreachable') })),
+          })),
+        })),
+      })),
+    } as any);
 
     const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/lookup?q=some-key'));
     expect(res.status).toBe(500);

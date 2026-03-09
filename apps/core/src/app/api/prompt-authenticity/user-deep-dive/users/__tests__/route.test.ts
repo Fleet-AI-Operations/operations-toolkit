@@ -137,4 +137,23 @@ describe('GET /api/prompt-authenticity/user-deep-dive/users', () => {
     const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/users'));
     expect(res.status).toBe(500);
   });
+
+  it('returns 500 (not 403) when the profile fetch fails', async () => {
+    const { createClient } = await import('@repo/auth/server');
+    vi.mocked(createClient).mockReturnValue({
+      auth: {
+        getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(() => ({ data: null, error: new Error('profiles table unreachable') })),
+          })),
+        })),
+      })),
+    } as any);
+
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive/users'));
+    expect(res.status).toBe(500);
+  });
 });

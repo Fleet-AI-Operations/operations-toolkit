@@ -5,9 +5,9 @@ import { prisma } from '@repo/database';
 // ============================================================================
 // AUTH
 // ============================================================================
-type UserRole = 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
+type UserRole = 'PENDING' | 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
+  PENDING: 0, USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
 };
 function hasPermission(userRole: string | null | undefined, requiredRole: UserRole): boolean {
   if (!userRole) return false;
@@ -18,7 +18,11 @@ async function requireCoreAuth(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profileError) {
+    console.error('[user-deep-dive] Failed to fetch user profile:', profileError);
+    return { error: NextResponse.json({ error: 'Internal server error' }, { status: 500 }) };
+  }
   if (!profile || !hasPermission(profile.role, 'CORE')) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
@@ -27,8 +31,9 @@ async function requireCoreAuth(request: NextRequest) {
 
 // ============================================================================
 // RAPID SUBMISSION DETECTION
-// Flag every task that is within 5 minutes of its immediate neighbour.
-// e.g. [0:00, 0:03, 0:07] → all three flagged because each adjacent gap < 5 min
+// Flag every task whose adjacent gap (to either neighbour) is strictly less
+// than 5 minutes. e.g. [0:00, 0:03, 0:07] → all three flagged (gaps: 3 min,
+// 4 min — both < 5 min). A gap of exactly 5 min is NOT flagged.
 // ============================================================================
 const RAPID_THRESHOLD_MS = 5 * 60 * 1000;
 

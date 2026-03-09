@@ -228,7 +228,7 @@ function TaskLookup({ defaultEnvironment }: { defaultEnvironment: string }) {
 
 // ── User Selector (landing state) ──────────────────────────────────────────
 
-function UserSelector({ environments }: { environments: string[] }) {
+function UserSelector({ environments, envError }: { environments: string[]; envError: string | null }) {
   const router = useRouter();
   const [environment, setEnvironment] = useState('');
   const [userSearch, setUserSearch] = useState('');
@@ -247,9 +247,11 @@ function UserSelector({ environments }: { environments: string[] }) {
         const data = await res.json();
         setUsers(data.users ?? []);
       } else {
-        const msg = `Failed to load users (HTTP ${res.status})`;
-        console.error(msg);
-        setLoadError(msg);
+        const errData = await res.json().catch(() => ({}));
+        const detail = errData.details ?? errData.error ?? 'unknown error';
+        const msg = `Failed to load users (HTTP ${res.status}): ${detail}`;
+        console.error('[UserSelector]', msg);
+        setLoadError('Failed to load users. Try refreshing the page.');
       }
     } catch (err) {
       console.error('Failed to load users', err);
@@ -311,6 +313,9 @@ function UserSelector({ environments }: { environments: string[] }) {
               <option value="">All environments</option>
               {environments.map(env => <option key={env} value={env}>{env}</option>)}
             </select>
+            {envError && (
+              <div style={{ fontSize: '11px', color: '#f87171', marginTop: '4px' }}>{envError}</div>
+            )}
           </div>
           <div style={{ flex: 2, minWidth: '200px' }}>
             <label style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Search</label>
@@ -403,6 +408,7 @@ export default function TaskCreatorDeepDivePage() {
   const [userEnvironments, setUserEnvironments] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [envError, setEnvError] = useState<string | null>(null);
 
   const [flagFilter, setFlagFilter] = useState<FlagFilter>('all');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
@@ -415,7 +421,10 @@ export default function TaskCreatorDeepDivePage() {
     fetch('/api/environments')
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => { if (d.environments) setEnvironments(d.environments); })
-      .catch(err => console.error('Failed to fetch environments', err));
+      .catch(err => {
+        console.error('Failed to fetch environments', err);
+        setEnvError('Could not load environments');
+      });
   }, []);
 
   const loadDeepDive = useCallback(async () => {
@@ -481,7 +490,7 @@ export default function TaskCreatorDeepDivePage() {
 
   // No email → show user selector
   if (!email) {
-    return <UserSelector environments={environments} />;
+    return <UserSelector environments={environments} envError={envError} />;
   }
 
   const filteredTasks = tasks.filter(t => {
@@ -575,14 +584,17 @@ export default function TaskCreatorDeepDivePage() {
       )}
 
       {analyzeResult && !analyzing && (
-        <div style={{ padding: '16px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', color: '#4ade80', marginBottom: '24px', fontSize: '14px' }}>
+        <div style={{
+          padding: '16px',
+          background: analyzeResult.templateAnalysisFailed ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)',
+          border: `1px solid ${analyzeResult.templateAnalysisFailed ? 'rgba(251,191,36,0.3)' : 'rgba(34,197,94,0.3)'}`,
+          borderRadius: '8px',
+          color: analyzeResult.templateAnalysisFailed ? '#fbbf24' : '#4ade80',
+          marginBottom: '24px',
+          fontSize: '14px',
+        }}>
           {analyzeResult.message}
           {analyzeResult.failed > 0 && <span style={{ color: '#f87171', marginLeft: '8px' }}>({analyzeResult.failed} failed)</span>}
-          {analyzeResult.templateAnalysisFailed && (
-            <div style={{ marginTop: '6px', color: '#fbbf24', fontSize: '13px' }}>
-              Template analysis could not complete — template badges may be incomplete. Re-run analysis to retry.
-            </div>
-          )}
         </div>
       )}
 

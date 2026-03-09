@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 
-type UserRole = 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
+type UserRole = 'PENDING' | 'USER' | 'QA' | 'CORE' | 'FLEET' | 'MANAGER' | 'ADMIN';
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
+  PENDING: 0, USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
 };
 function hasPermission(userRole: string | null | undefined, requiredRole: UserRole): boolean {
   if (!userRole) return false;
@@ -22,7 +22,11 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profileError) {
+    console.error('[user-deep-dive/lookup] Failed to fetch user profile:', profileError);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
   if (!profile || !hasPermission(profile.role, 'CORE')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -63,6 +67,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[user-deep-dive/lookup] GET failed:', error);
-    return NextResponse.json({ error: 'Lookup failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Lookup failed', details: error.message }, { status: 500 });
   }
 }

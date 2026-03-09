@@ -175,6 +175,21 @@ describe('GET /api/prompt-authenticity/user-deep-dive', () => {
     expect(data.summary.rapidSubmissionCount).toBe(0);
   });
 
+  it('does not flag submissions exactly 5 minutes apart (boundary — strict less-than)', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.dataRecord.findMany).mockResolvedValue([
+      makeDataRecord({ id: 'r1', createdAt: new Date('2026-01-10T10:00:00Z') }),
+      makeDataRecord({ id: 'r2', createdAt: new Date('2026-01-10T10:05:00Z') }),
+    ] as any);
+    vi.mocked(prisma.promptAuthenticityRecord.findMany).mockResolvedValue([] as any);
+
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive?email=worker@example.com'));
+    const data = await res.json();
+    expect(data.tasks[0].isRapidSubmission).toBe(false);
+    expect(data.tasks[1].isRapidSubmission).toBe(false);
+    expect(data.summary.rapidSubmissionCount).toBe(0);
+  });
+
   it('filters by environment when provided', async () => {
     const { prisma } = await import('@repo/database');
     const findMany = vi.mocked(prisma.dataRecord.findMany);
@@ -211,5 +226,24 @@ describe('GET /api/prompt-authenticity/user-deep-dive', () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBeTruthy();
+  });
+
+  it('returns 500 (not 403) when the profile fetch fails', async () => {
+    const { createClient } = await import('@repo/auth/server');
+    vi.mocked(createClient).mockReturnValue({
+      auth: {
+        getUser: vi.fn(() => ({ data: { user: { id: 'user-1', email: 'admin@example.com' } }, error: null })),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(() => ({ data: null, error: new Error('profiles table unreachable') })),
+          })),
+        })),
+      })),
+    } as any);
+
+    const res = await GET(new NextRequest('http://localhost/api/prompt-authenticity/user-deep-dive?email=worker@example.com'));
+    expect(res.status).toBe(500);
   });
 });
