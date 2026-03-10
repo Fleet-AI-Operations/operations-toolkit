@@ -27,8 +27,9 @@ export interface RoleAuthError {
 }
 export type RoleAuthResult = RoleAuthSuccess | RoleAuthError;
 /**
- * Require authentication for API routes
- * Returns user or error response
+ * Require authentication for API routes.
+ * Checks Bearer token in Authorization header first, then falls back to Supabase session.
+ * Returns user or error response.
  */
 export declare function requireAuth(req: NextRequest): Promise<AuthResult>;
 /**

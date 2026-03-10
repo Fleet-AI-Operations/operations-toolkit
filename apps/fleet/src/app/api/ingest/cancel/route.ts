@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { requireRole } from '@repo/api-utils';
 
 /**
  * CANCEL INGESTION JOB
@@ -7,6 +8,9 @@ import { prisma } from '@repo/database';
  * every 25 records and will abort if it detects the change.
  */
 export async function POST(req: NextRequest) {
+    const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
+    if (authResult.error) return authResult.error;
+
     try {
         const { jobId } = await req.json();
 

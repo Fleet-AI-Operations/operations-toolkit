@@ -66,7 +66,10 @@ export type AuditAction =
   | 'AI_LIKERT_LLM_EVALUATION'
   | 'AI_SIMILARITY_COMPARE'
   | 'AI_PROMPT_AUTHENTICITY_JOB_STARTED'
-  | 'AI_QUALITY_RATING_JOB_STARTED';
+  | 'AI_QUALITY_RATING_JOB_STARTED'
+  // API Tokens
+  | 'API_TOKEN_CREATED'
+  | 'API_TOKEN_REVOKED';
 
 export type EntityType =
   | 'USER'
@@ -79,7 +82,8 @@ export type EntityType =
   | 'LLM_EVALUATION_JOB'
   | 'RATER_GROUP'
   | 'ASSIGNMENT_BATCH'
-  | 'AI_REQUEST';
+  | 'AI_REQUEST'
+  | 'API_TOKEN';
 
 export interface LogAuditParams {
   action: AuditAction;

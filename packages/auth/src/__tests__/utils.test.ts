@@ -5,11 +5,15 @@ vi.mock('@repo/database', () => ({
     profile: {
       findUnique: vi.fn(),
     },
+    apiToken: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
 // Import after mocks are set up
-import { getUserRole, invalidateRoleCache } from '../utils';
+import { getUserRole, invalidateRoleCache, authenticateWithToken } from '../utils';
 
 const USER_ID = 'user-uuid-1';
 
@@ -87,6 +91,119 @@ describe('getUserRole', () => {
 
     const { prisma } = await import('@repo/database');
     expect(prisma.profile.findUnique).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('authenticateWithToken', () => {
+  const VALID_TOKEN = 'otk_' + 'a'.repeat(64);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns null for tokens without otk_ prefix', async () => {
+    const result = await authenticateWithToken('Bearer some-jwt-token');
+    expect(result).toBeNull();
+
+    const { prisma } = await import('@repo/database');
+    expect(prisma.apiToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('returns null for unknown token hash', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue(null);
+
+    const result = await authenticateWithToken(VALID_TOKEN);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for a revoked token', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue({
+      id: 't1', ownerId: 'u1', revokedAt: new Date(), expiresAt: null,
+      owner: { email: 'admin@example.com' },
+    } as any);
+
+    const result = await authenticateWithToken(VALID_TOKEN);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for an expired token', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue({
+      id: 't1', ownerId: 'u1', revokedAt: null,
+      expiresAt: new Date('2020-01-01'),
+      owner: { email: 'admin@example.com' },
+    } as any);
+
+    const result = await authenticateWithToken(VALID_TOKEN);
+    expect(result).toBeNull();
+  });
+
+  it('returns user for a valid active token with no expiry', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue({
+      id: 't1', ownerId: 'u1', revokedAt: null, expiresAt: null,
+      owner: { email: 'admin@example.com' },
+    } as any);
+    vi.mocked(prisma.apiToken.update).mockResolvedValue({} as any);
+
+    const result = await authenticateWithToken(VALID_TOKEN);
+    expect(result).toEqual({ id: 'u1', email: 'admin@example.com' });
+  });
+
+  it('returns user for a valid token with a future expiry', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue({
+      id: 't1', ownerId: 'u1', revokedAt: null,
+      expiresAt: new Date('2099-01-01'),
+      owner: { email: 'admin@example.com' },
+    } as any);
+    vi.mocked(prisma.apiToken.update).mockResolvedValue({} as any);
+
+    const result = await authenticateWithToken(VALID_TOKEN);
+    expect(result).toEqual({ id: 'u1', email: 'admin@example.com' });
+  });
+
+  it('updates lastUsedAt on successful authentication', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue({
+      id: 't1', ownerId: 'u1', revokedAt: null, expiresAt: null,
+      owner: { email: 'admin@example.com' },
+    } as any);
+    vi.mocked(prisma.apiToken.update).mockResolvedValue({} as any);
+
+    await authenticateWithToken(VALID_TOKEN);
+
+    expect(vi.mocked(prisma.apiToken.update)).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      data: { lastUsedAt: expect.any(Date) },
+    });
+  });
+
+  it('still returns user even if lastUsedAt update fails', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue({
+      id: 't1', ownerId: 'u1', revokedAt: null, expiresAt: null,
+      owner: { email: 'admin@example.com' },
+    } as any);
+    vi.mocked(prisma.apiToken.update).mockRejectedValue(new Error('DB gone'));
+
+    await expect(authenticateWithToken(VALID_TOKEN)).resolves.toEqual({
+      id: 'u1', email: 'admin@example.com',
+    });
+  });
+
+  it('hashes the token before DB lookup (does not store plaintext)', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.apiToken.findUnique).mockResolvedValue(null);
+
+    await authenticateWithToken(VALID_TOKEN);
+
+    const callArg = vi.mocked(prisma.apiToken.findUnique).mock.calls[0][0];
+    const lookedUpHash = (callArg as any).where.tokenHash;
+    expect(lookedUpHash).not.toContain('otk_');
+    expect(lookedUpHash).toMatch(/^[a-f0-9]{64}$/); // SHA-256 hex
   });
 });
 

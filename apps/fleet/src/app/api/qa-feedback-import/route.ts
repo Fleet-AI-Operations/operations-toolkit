@@ -1,7 +1,7 @@
-import { createClient } from '@repo/auth/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@repo/database'
-import { NextResponse } from 'next/server'
 import { parse } from 'csv-parse/sync'
+import { requireRole } from '@repo/api-utils'
 import { ERROR_IDS } from '@/constants/errorIds'
 
 export const dynamic = 'force-dynamic'
@@ -46,52 +46,10 @@ interface ImportSummary {
 }
 
 // POST: Import QA feedback ratings from CSV
-export async function POST(req: Request) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-        console.warn('[QA Feedback Import API] Unauthorized access attempt:', {
-            errorId: ERROR_IDS.AUTH_UNAUTHORIZED,
-            timestamp: new Date().toISOString()
-        })
-        return NextResponse.json({
-            error: 'Unauthorized',
-            errorId: ERROR_IDS.AUTH_UNAUTHORIZED
-        }, { status: 401 })
-    }
-
-    // Check if user is ADMIN (only admins can import)
-    const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (profileError) {
-        console.error('[QA Feedback Import API] Profile query error:', {
-            errorId: ERROR_IDS.DB_QUERY_FAILED,
-            userId: user.id,
-            error: profileError.message,
-            code: profileError.code
-        })
-        return NextResponse.json({
-            error: 'Failed to verify permissions',
-            errorId: ERROR_IDS.DB_QUERY_FAILED
-        }, { status: 500 })
-    }
-
-    if (!profile || profile.role !== 'ADMIN') {
-        console.warn('[QA Feedback Import API] Forbidden access attempt:', {
-            errorId: ERROR_IDS.AUTH_FORBIDDEN,
-            userId: user.id,
-            userRole: profile?.role || 'NONE'
-        })
-        return NextResponse.json({
-            error: 'Forbidden - Admin access required',
-            errorId: ERROR_IDS.AUTH_FORBIDDEN
-        }, { status: 403 })
-    }
+export async function POST(req: NextRequest) {
+    const authResult = await requireRole(req, ['ADMIN'])
+    if (authResult.error) return authResult.error
+    const { user } = authResult
 
     try {
         const formData = await req.formData()
@@ -328,7 +286,7 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('[QA Feedback Import API] Unexpected error:', {
             errorId: ERROR_IDS.SYSTEM_ERROR,
-            userId: user?.id,
+            userId: user.id,
             error: error instanceof Error ? error.message : String(error),
             stack: error instanceof Error ? error.stack : undefined
         })

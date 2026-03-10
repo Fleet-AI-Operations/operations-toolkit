@@ -11,6 +11,7 @@ Complete reference for all REST API endpoints in the Operations Tools.
 - [Analysis](#analysis)
 - [Similarity Flags](#similarity-flags)
 - [Prompt Authenticity — Task Creator Deep-Dive](#prompt-authenticity--task-creator-deep-dive)
+- [QA Feedback Import](#qa-feedback-import)
 - [Admin](#admin)
 - [AI Services](#ai-services)
 - [Status](#status)
@@ -20,16 +21,37 @@ Complete reference for all REST API endpoints in the Operations Tools.
 
 ## Authentication
 
-All API routes (except `/api/status`) require authentication via Supabase session cookies.
+API routes support two authentication methods:
 
-### Authentication Flow
+### 1. Session Cookies (browser / UI)
 
-```typescript
-// Login sets session cookie
+```http
 POST /api/auth/login
+Cookie: sb-auth-token=...
+```
 
-// Session is automatically validated on subsequent requests
-// via middleware and createClient() from @/lib/supabase/server
+Session cookies are set automatically on login and validated on each subsequent request via Supabase SSR.
+
+### 2. API Tokens (programmatic / scripts)
+
+Admin users can create long-lived bearer tokens at **Admin → API Tokens**.
+
+```http
+Authorization: Bearer otk_<64 hex chars>
+```
+
+- Tokens are prefixed `otk_` and contain 256 bits of randomness
+- Only the SHA-256 hash is stored server-side; the plaintext is shown once at creation
+- Tokens inherit the permissions of the admin who created them
+- Tokens can have an optional expiry date and can be revoked at any time
+- The `Authorization: Bearer` header takes precedence over session cookies
+
+**Example:**
+```bash
+curl -X POST https://your-fleet-app/api/ingest/csv \
+  -H "Authorization: Bearer otk_abc123..." \
+  -F "file=@data.csv" \
+  -F "generateEmbeddings=true"
 ```
 
 ### Role-Based Access Control
@@ -181,41 +203,44 @@ Cookie: sb-auth-token=...
 
 ### POST /api/ingest/csv
 
-Ingest data from CSV upload.
+Ingest data from a CSV file upload. Accepts multipart form data. Supports both session cookies and API token authentication.
 
-**Authentication**: Required
-**Authorization**: All roles
+**Authentication**: Required (session cookie or `Authorization: Bearer otk_...`)
+**Authorization**: FLEET, ADMIN
 
 **Request**
 ```http
 POST /api/ingest/csv HTTP/1.1
-Content-Type: application/json
-Cookie: sb-auth-token=...
+Content-Type: multipart/form-data
+Authorization: Bearer otk_...
 
-{
-  "environment": "production",
-  "type": "TASK",
-  "csvData": "task_id,content,rating\ntask-1,Content here,top 10",
-  "filterKeywords": ["production"],
-  "generateEmbeddings": true
-}
+file=<binary CSV data>
+generateEmbeddings=true
+filterKeywords=keyword1,keyword2
 ```
 
-**Request Body**
+```bash
+# curl example
+curl -X POST https://fleet-app/api/ingest/csv \
+  -H "Authorization: Bearer otk_..." \
+  -F "file=@/path/to/data.csv" \
+  -F "generateEmbeddings=true"
+```
+
+**Form Fields**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `environment` | string | Yes | Target environment (e.g. "production") |
-| `type` | enum | Yes | `TASK` or `FEEDBACK` |
-| `csvData` | string | Yes | CSV file content as string |
-| `filterKeywords` | string[] | No | Only ingest records containing these keywords |
-| `generateEmbeddings` | boolean | No | Generate embeddings immediately (default: true) |
+| `file` | File | Yes | CSV file (max 150 MB, must end in `.csv`) |
+| `filterKeywords` | string | No | Comma-separated keywords; only matching rows are ingested |
+| `generateEmbeddings` | boolean | No | Generate vector embeddings after ingestion (default: false) |
+
+The environment and record type are read from columns in the CSV itself (`env_key`, `type`, etc.).
 
 **Response** (200 OK)
 ```json
 {
-  "jobId": "uuid",
-  "message": "Ingestion started",
-  "estimatedRecords": 150
+  "jobId": "clxyz...",
+  "message": "Ingestion started in the background."
 }
 ```
 
@@ -240,8 +265,8 @@ Cookie: sb-auth-token=...
 
 Get status of an ingestion job.
 
-**Authentication**: Required
-**Authorization**: All roles
+**Authentication**: Required (session cookie or `Authorization: Bearer otk_...`)
+**Authorization**: FLEET, MANAGER, ADMIN
 
 **Query Parameters**
 - `jobId` (required): Ingestion job ID
@@ -249,7 +274,7 @@ Get status of an ingestion job.
 **Request**
 ```http
 GET /api/ingest/status?jobId=uuid HTTP/1.1
-Cookie: sb-auth-token=...
+Authorization: Bearer otk_...
 ```
 
 **Response** (200 OK)
@@ -275,21 +300,51 @@ Cookie: sb-auth-token=...
 
 ---
 
+### GET /api/ingest/jobs
+
+List recent ingestion jobs, optionally filtered by environment.
+
+**Authentication**: Required (session cookie or `Authorization: Bearer otk_...`)
+**Authorization**: FLEET, MANAGER, ADMIN
+
+**Query Parameters**
+- `environment` (optional): Filter to a specific environment
+
+**Response** (200 OK)
+```json
+[
+  {
+    "id": "clxyz...",
+    "environment": "production",
+    "type": "TASK",
+    "status": "COMPLETED",
+    "totalRecords": 200,
+    "savedCount": 195,
+    "skippedCount": 5,
+    "createdAt": "2026-03-10T12:00:00Z"
+  }
+]
+```
+
+Returns the 20 most recent jobs ordered by creation date descending.
+
+---
+
 ### POST /api/ingest/cancel
 
 Cancel an active or queued ingestion job.
 
-**Authentication**: Required
-**Authorization**: All roles
+**Authentication**: Required (session cookie or `Authorization: Bearer otk_...`)
+**Authorization**: FLEET, MANAGER, ADMIN
 
 **Request**
 ```http
 POST /api/ingest/cancel HTTP/1.1
 Content-Type: application/json
-Cookie: sb-auth-token=...
+Authorization: Bearer otk_...
 
 {
-  "jobId": "uuid"
+  "jobId": "clxyz..."
 }
 ```
 
@@ -662,7 +717,150 @@ Only tasks with a non-null `createdByEmail` are considered. Tasks ingested witho
 
 ---
 
+## QA Feedback Import
+
+### POST /api/qa-feedback-import
+
+Import QA feedback ratings from a CSV file. Upserts by `rating_id` — existing records are updated, new ones are inserted. Optionally creates task records for linked tasks.
+
+**Authentication**: Required (session cookie or `Authorization: Bearer otk_...`)
+**Authorization**: ADMIN only
+
+**Request**
+```http
+POST /api/qa-feedback-import HTTP/1.1
+Content-Type: multipart/form-data
+Authorization: Bearer otk_...
+
+file=<binary CSV data>
+```
+
+```bash
+curl -X POST https://fleet-app/api/qa-feedback-import \
+  -H "Authorization: Bearer otk_..." \
+  -F "file=@ratings.csv"
+```
+
+**CSV Required Columns**
+| Column | Description |
+|--------|-------------|
+| `rating_id` | Unique identifier for the rating (used for upsert) |
+| `feedback_id` | ID of the feedback being rated |
+| `is_helpful` | `true`/`false` or `1`/`0` |
+| `rated_at` | ISO 8601 date |
+| `rater_email` | Email of the rater |
+| `qa_email` | Email of the QA worker |
+
+**CSV Optional Columns**: `feedback_content`, `eval_task_id`, `is_dispute`, `dispute_status`, `dispute_reason`, `rater_name`, `qa_name`, `resolved_at`, `resolved_by_name`, `resolution_reason`, `task_id`, `task_prompt`, `task_creator_name`, `task_creator_email`, `task_created_at`, `env_key`, `scenario_title`
+
+**Response** (200 OK)
+```json
+{
+  "success": true,
+  "summary": {
+    "imported": 142,
+    "updated": 8,
+    "skipped": 2,
+    "tasksCreated": 15,
+    "errors": ["Row 5: Missing required fields: rater_email"]
+  }
+}
+```
+
+**Error Responses**
+- `400 Bad Request` - No file provided or CSV parse error
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - ADMIN role required
+- `500 Internal Server Error` - Unexpected error
+
+---
+
 ## Admin
+
+### GET /api/admin/api-tokens
+
+List API tokens owned by the authenticated admin.
+
+**Authentication**: Required
+**Authorization**: ADMIN only
+
+**Response** (200 OK)
+```json
+[
+  {
+    "id": "abc123",
+    "name": "Ingest Script",
+    "tokenPrefix": "deadbeef",
+    "lastUsedAt": "2026-03-10T09:00:00Z",
+    "expiresAt": null,
+    "revokedAt": null,
+    "createdAt": "2026-03-01T10:00:00Z"
+  }
+]
+```
+
+The `tokenHash` is never returned. `tokenPrefix` is the first 8 hex chars of the token after `otk_`, for identification.
+
+---
+
+### POST /api/admin/api-tokens
+
+Create a new API token. Returns the plaintext token **once** — it cannot be retrieved again.
+
+**Authentication**: Required
+**Authorization**: ADMIN only
+
+**Request**
+```http
+POST /api/admin/api-tokens HTTP/1.1
+Content-Type: application/json
+Cookie: sb-auth-token=...
+
+{
+  "name": "Ingest Script",
+  "expiresAt": "2027-01-01"
+}
+```
+
+**Request Body**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Human-readable label |
+| `expiresAt` | string | No | ISO date for expiry (e.g. `"2027-01-01"`). Omit for no expiry. |
+
+**Response** (201 Created)
+```json
+{
+  "id": "abc123",
+  "name": "Ingest Script",
+  "tokenPrefix": "deadbeef",
+  "expiresAt": null,
+  "createdAt": "2026-03-10T10:00:00Z",
+  "token": "otk_deadbeef..."
+}
+```
+
+The `token` field is only present in this response. Store it securely.
+
+---
+
+### DELETE /api/admin/api-tokens/:id
+
+Revoke an API token. Soft-deletes by setting `revokedAt`. The token is immediately rejected on subsequent requests.
+
+**Authentication**: Required
+**Authorization**: ADMIN only (own tokens only)
+
+**Response** (200 OK)
+```json
+{ "success": true }
+```
+
+**Error Responses**
+- `404 Not Found` - Token not found or belongs to another user
+- `409 Conflict` - Token already revoked
+
+---
 
 ### GET /api/admin/users
 
@@ -1147,13 +1345,14 @@ const data = await response.json();
 
 ## Changelog
 
-### v0.1.0 (Current)
+### v0.2.0 (2026-03-10)
+- Added API token authentication (`Authorization: Bearer otk_...`)
+- Added `GET/POST /api/admin/api-tokens` and `DELETE /api/admin/api-tokens/:id`
+- Added `POST /api/qa-feedback-import` with token support
+- Updated `POST /api/ingest/csv` to multipart form upload with token support
+- Added auth to `GET /api/ingest/status`, `POST /api/ingest/cancel`, `GET /api/ingest/jobs`
+
+### v0.1.0
 - Initial API release
 - All core endpoints operational
 - Basic authentication and RBAC
-
-### Future Plans
-- GraphQL API
-- Batch operations
-- Export/Import endpoints
-- Webhook support
