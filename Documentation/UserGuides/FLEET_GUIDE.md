@@ -15,6 +15,8 @@ As a FLEET team member, you have access to **four applications**:
 
 **Similarity Flags badge:** A warning icon (⚠) with a count appears in the header of every app you visit. It shows the number of open similarity flags across the platform. Click it to navigate directly to the Similarity Flags dashboard in the Core App. The badge is visible on all apps for users with CORE role or higher.
 
+**Review Requested badge:** A flag icon with a count appears in the top-right header of every app for FLEET role and higher. It shows the number of OPEN or UNDER_REVIEW `REVIEW_REQUESTED` worker flags. Click it to go directly to the Workforce Monitoring page filtered to flagged workers. This badge lets you see pending review requests regardless of which app you're working in.
+
 ## 📋 Table of Contents
 
 ### Inherited Features
@@ -30,6 +32,7 @@ As a FLEET team member, you have access to **four applications**:
 8. [Bug Reports Management](#bug-reports-management)
 9. [Prompt Authenticity Checker](#prompt-authenticity-checker)
 10. [Full Similarity Check](#full-similarity-check)
+11. [Workforce Monitoring](#workforce-monitoring)
 
 ---
 
@@ -1039,6 +1042,62 @@ Click **View** on a match row to open the side-by-side panel. This shows:
 
 ---
 
+## Workforce Monitoring
+
+Track worker activity, manage flags, and run AI-powered analysis across your entire workforce.
+
+**Access**: Fleet App → Workforce Monitoring (`/workforce-monitoring`). Requires FLEET role or higher.
+
+> For full documentation see the **[Workforce Monitoring Guide](./WORKFORCE_MONITORING_GUIDE.md)**.
+
+### Worker List
+
+The list shows every worker with task counts, feedback counts, active flag totals, and last-activity date.
+
+**Default sort**: Workers with active flags appear first, then alphabetically by last name. This keeps flagged workers always visible without manual filtering.
+
+**Filter toggle (All / Flagged / Unflagged)**: Use the segmented toggle to scope the list to workers who have — or don't have — active flags.
+
+**Search**: Type a name or partial email to narrow the list.
+
+### Worker Detail Tabs
+
+Click any worker row to open their detail page with six tabs:
+
+| Tab | What it shows |
+|---|---|
+| **Tasks** | Paginated task records with environment filter and latest-version deduplication |
+| **Feedback** | Paginated feedback records |
+| **Flags** | All flags ever created for this worker; create new flags from here |
+| **Lookup** | Find who submitted a task by record ID or task key |
+| **Similarity** | Cosine-similarity comparison for a single task against the dataset |
+| **Deep Dive** | AI prompt-authenticity analysis results with per-task badges |
+
+### Worker Flags
+
+Create flags to track concerns. Each flag has a **type**, **severity**, and **status**:
+
+| Flag type | Description |
+|---|---|
+| Quality Concern | Submission quality below expectations |
+| Policy Violation | Platform or project policy breach |
+| Communication Issue | Responsiveness or communication problem |
+| Attendance | Availability concern |
+| Other | Miscellaneous |
+| Review Requested | Ops review requested (created from Core app or Deep Dive tab) |
+
+**Status workflow**: `OPEN` → `UNDER_REVIEW` → `RESOLVED` or `DISMISSED`
+
+### Review Requested Workflow
+
+1. A CORE reviewer uses the Task Creator Deep-Dive in the Core App and clicks **Flag for Ops Review**.
+2. A `REVIEW_REQUESTED` flag is created (OPEN status, MEDIUM severity).
+3. The Review Requested badge in the header increments across all apps.
+4. A FLEET manager clicks the badge, sees the flagged-worker list, and investigates.
+5. The manager marks the flag `RESOLVED` or `DISMISSED` once done. The badge count decrements.
+
+---
+
 ## Advanced Topics
 
 ### Bulk Operations
@@ -1091,7 +1150,9 @@ Contact your administrator or IT if you need admin access.
 
 ---
 
-**Document Version**: 1.1
+**Document Version**: 1.2
 **Last Updated**: March 2026
 **Role**: FLEET
 **Access Level**: User App + QA App + Core App + Fleet App (Full Access)
+
+**See also**: [Workforce Monitoring Guide](./WORKFORCE_MONITORING_GUIDE.md) — detailed reference for the Workforce Monitoring system

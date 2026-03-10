@@ -41,6 +41,10 @@ model Profile {
   reviewedFlags        TimeAnalysisFlag[]
   createdConfigs       TimeAnalysisConfig[]
 
+  // Workforce monitoring relations
+  createdWorkerFlags   WorkerFlag[] @relation("CreatedWorkerFlags")
+  resolvedWorkerFlags  WorkerFlag[] @relation("ResolvedWorkerFlags")
+
   @@map("profiles")
   @@schema("public")
 }
@@ -1554,6 +1558,38 @@ model ExemplarTask {
  * Can be associated with specific environments or left as default/global (environment = null).
  * Used by alignment scoring system to evaluate task/feedback quality.
  */
+/**
+ * WORKER FLAG: Manual flag raised by FLEET+ users against a specific worker.
+ * Used for the Workforce Monitoring feature to track quality concerns,
+ * policy violations, communication issues, and other workforce concerns.
+ */
+model WorkerFlag {
+  id               String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  workerEmail      String    @map("worker_email")
+  workerName       String?   @map("worker_name")
+  flagType         String    @map("flag_type") // QUALITY_CONCERN | POLICY_VIOLATION | COMMUNICATION_ISSUE | ATTENDANCE | OTHER
+  severity         String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status           String    @default("OPEN")   // OPEN | UNDER_REVIEW | RESOLVED | DISMISSED
+  reason           String    @db.Text
+  notes            String?   @db.Text
+  createdById      String?   @map("created_by_id") @db.Uuid
+  createdByEmail   String?   @map("created_by_email")
+  resolvedById     String?   @map("resolved_by_id") @db.Uuid
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz(6)
+  resolutionNotes  String?   @map("resolution_notes") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy  Profile? @relation("CreatedWorkerFlags", fields: [createdById], references: [id])
+  resolvedBy Profile? @relation("ResolvedWorkerFlags", fields: [resolvedById], references: [id])
+
+  @@index([workerEmail])
+  @@index([status])
+  @@index([severity])
+  @@map("worker_flags")
+  @@schema("public")
+}
+
 model Guideline {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name         String   // User-friendly name: "Production Quality Guidelines v2.1"

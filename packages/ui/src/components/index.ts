@@ -7,3 +7,4 @@ export type { UnifiedSidebarProps } from './UnifiedSidebar';
 export { AppSwitcher } from './AppSwitcher';
 export type { AppSwitcherProps } from './AppSwitcher';
 export { SimilarityFlagsButton } from './SimilarityFlagsButton';
+export { ReviewRequestedButton } from './ReviewRequestedButton';

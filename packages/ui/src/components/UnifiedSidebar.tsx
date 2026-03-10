@@ -152,6 +152,13 @@ const NAV_SECTIONS: NavSection[] = [
         ],
     },
     {
+        title: 'Workforce Monitoring',
+        minRole: 'FLEET',
+        items: [
+            { label: 'Workers', href: '/workforce-monitoring', icon: UserSearch, app: 'fleet' },
+        ],
+    },
+    {
         title: 'Tasks & Feedback Tools',
         minRole: 'FLEET',
         items: [
@@ -319,7 +326,7 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
                                         className={`sidebar-link ${active ? 'active' : ''}`}
                                     >
                                         <item.icon size={20} />
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0, flex: 1 }}>
                                             <span>{item.label}</span>
                                             <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.sectionTitle}</span>
                                         </div>
@@ -405,7 +412,7 @@ export function UnifiedSidebar({ currentApp, userRole }: UnifiedSidebarProps) {
                                                 style={{ justifyContent: collapsed ? 'center' : undefined }}
                                             >
                                                 <item.icon size={20} />
-                                                {!collapsed && <span>{item.label}</span>}
+                                                {!collapsed && <span style={{ flex: 1 }}>{item.label}</span>}
                                             </Link>
                                         );
                                     }

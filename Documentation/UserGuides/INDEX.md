@@ -58,6 +58,7 @@ Role-specific user guides for Operations Tools. Each guide covers all features a
 - 💰 Bonus Windows Management - Create and track bonuses
 - 📈 Activity Over Time - Trend visualization
 - 🐛 Bug Reports Management - Triage and manage reports
+- 👥 Workforce Monitoring - Worker activity, flags, and AI analysis
 
 **Audience**: Project managers, team leads, fleet managers, operations managers
 
@@ -109,6 +110,7 @@ ADMIN     = All apps including Admin App
 - Review records? → QA Guide or higher
 - Score candidates? → CORE Guide or higher
 - Upload data? → FLEET Guide only
+- Monitor workers / manage flags? → [Workforce Monitoring Guide](./WORKFORCE_MONITORING_GUIDE.md)
 - Manage users? → ADMIN Guide (not included here)
 
 ---
@@ -265,7 +267,7 @@ If you no longer need higher access:
 
 ## 📊 Guide Statistics
 
-**Total Guides**: 4 (USER, QA, CORE, FLEET)
+**Total Guides**: 5 (USER, QA, CORE, FLEET, Workforce Monitoring)
 **Total Pages**: ~60+ pages across all guides
 **Last Updated**: February 2026
 **Format**: Markdown
@@ -275,6 +277,7 @@ If you no longer need higher access:
 - ✅ All QA features documented
 - ✅ All CORE features documented
 - ✅ All FLEET features documented
+- ✅ Workforce Monitoring documented ([WORKFORCE_MONITORING_GUIDE.md](./WORKFORCE_MONITORING_GUIDE.md))
 - ⏳ ADMIN guide (future)
 
 ---

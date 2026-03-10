@@ -446,6 +446,11 @@ export default function TaskCreatorDeepDivePage() {
   const [flagFilter, setFlagFilter] = useState<FlagFilter>('all');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
+  // Ops review flagging state (user-level)
+  const [opsFlag, setOpsFlag] = useState<'idle' | 'pending' | 'done' | 'error'>('idle');
+  const [opsFlagReason, setOpsFlagReason] = useState('');
+  const [opsFlagOpen, setOpsFlagOpen] = useState(false);
+
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<{ analyzed: number; failed: number; message: string; templateAnalysisFailed?: boolean } | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -521,6 +526,29 @@ export default function TaskCreatorDeepDivePage() {
     }
   }, [email, environment, loadDeepDive]);
 
+  const flagForOpsReview = async () => {
+    setOpsFlag('pending');
+    try {
+      const res = await fetch('/api/prompt-authenticity/user-deep-dive/ops-flag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workerEmail: email,
+          workerName: userName,
+          reason: opsFlagReason.trim() || undefined,
+        }),
+      });
+      if (res.ok || res.status === 409) {
+        setOpsFlag('done');
+      } else {
+        setOpsFlag('error');
+      }
+    } catch {
+      setOpsFlag('error');
+    }
+    setOpsFlagOpen(false);
+  };
+
   // No email → show user selector
   if (!email) {
     return <UserSelector environments={environments} envError={envError} />;
@@ -594,6 +622,46 @@ export default function TaskCreatorDeepDivePage() {
                 ? `Run Analysis (${summary.total - summary.analyzed} unanalyzed)`
                 : 'Re-run Analysis'}
             </button>
+
+            {/* User-level ops review flag */}
+            {opsFlag === 'done' ? (
+              <span style={{ fontSize: '13px', color: 'rgba(74,222,128,0.8)', display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}>
+                ✓ Flagged for Ops Review
+              </span>
+            ) : opsFlagOpen ? (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Message (optional)…"
+                  value={opsFlagReason}
+                  onChange={e => setOpsFlagReason(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && flagForOpsReview()}
+                  autoFocus
+                  style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.9)', fontSize: '13px', minWidth: '200px' }}
+                />
+                <button
+                  onClick={flagForOpsReview}
+                  disabled={opsFlag === 'pending'}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(251,113,33,0.4)', background: 'rgba(251,113,33,0.15)', color: 'rgba(251,191,36,0.9)', fontSize: '13px', fontWeight: 600, cursor: opsFlag === 'pending' ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  {opsFlag === 'pending' ? 'Flagging…' : 'Confirm Flag'}
+                </button>
+                <button
+                  onClick={() => { setOpsFlagOpen(false); setOpsFlagReason(''); }}
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                {opsFlag === 'error' && <span style={{ fontSize: '13px', color: '#f87171' }}>Failed — try again</span>}
+              </div>
+            ) : (
+              <button
+                onClick={() => setOpsFlagOpen(true)}
+                style={{ padding: '8px 18px', borderRadius: '8px', border: '1px solid rgba(251,113,33,0.3)', background: 'rgba(251,113,33,0.08)', color: 'rgba(251,191,36,0.8)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                🚩 Flag for Ops Review
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -835,6 +903,7 @@ export default function TaskCreatorDeepDivePage() {
                                     Environment: <span style={{ color: 'rgba(255,255,255,0.5)' }}>{task.environment}</span>
                                   </div>
                                 )}
+
                               </div>
                             </td>
                           </tr>

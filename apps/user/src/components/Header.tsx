@@ -1,10 +1,12 @@
 import { createClient } from '@repo/auth/server'
+import { hasMinRole } from '@repo/auth'
+import { prisma } from '@repo/database'
 import Link from 'next/link'
+import { ReviewRequestedButton } from '@repo/ui/components'
 import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'
 import BugReportNotification from './BugReportNotification'
 import UserBugReportTracker from './UserBugReportTracker'
-import TimeEntryButton from './TimeEntryButton'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -26,6 +28,19 @@ export default async function Header() {
             role: profileData?.role || user.user_metadata?.role || 'USER'
         }
     }
+
+    let reviewRequestedCount = 0
+    if (profile && hasMinRole(profile.role, 'FLEET')) {
+        try {
+            reviewRequestedCount = await prisma.workerFlag.count({
+                where: { flagType: 'REVIEW_REQUESTED', status: { in: ['OPEN', 'UNDER_REVIEW'] } },
+            })
+        } catch (err) {
+            console.error('[Header] Failed to fetch review-requested count:', err)
+        }
+    }
+
+    const fleetBaseUrl = process.env.NEXT_PUBLIC_FLEET_APP_URL || 'http://localhost:3004'
 
     return (
         <header style={{
@@ -49,7 +64,9 @@ export default async function Header() {
             {user ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     {profile?.role === 'ADMIN' && <BalanceIndicator />}
-                    <TimeEntryButton />
+                    {profile && hasMinRole(profile.role, 'FLEET') && (
+                        <ReviewRequestedButton count={reviewRequestedCount} workforceUrl={`${fleetBaseUrl}/workforce-monitoring`} />
+                    )}
                     <UserBugReportTracker />
                     <BugReportNotification userRole={profile?.role || 'USER'} />
                     <UserProfileDropdown

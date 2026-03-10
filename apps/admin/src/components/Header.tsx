@@ -6,8 +6,7 @@ import BalanceIndicator from './AI/BalanceIndicator'
 import UserProfileDropdown from './navigation/UserProfileDropdown'
 import BugReportNotification from './BugReportNotification'
 import UserBugReportTracker from './UserBugReportTracker'
-import TimeEntryButton from './TimeEntryButton'
-import { SimilarityFlagsButton } from '@repo/ui/components'
+import { SimilarityFlagsButton, ReviewRequestedButton } from '@repo/ui/components'
 
 export default async function Header() {
     const supabase = await createClient()
@@ -42,7 +41,19 @@ export default async function Header() {
         }
     }
 
+    let reviewRequestedCount = 0
+    if (profile && hasMinRole(profile.role, 'FLEET')) {
+        try {
+            reviewRequestedCount = await prisma.workerFlag.count({
+                where: { flagType: 'REVIEW_REQUESTED', status: { in: ['OPEN', 'UNDER_REVIEW'] } },
+            })
+        } catch (err) {
+            console.error('[Header] Failed to fetch review-requested count:', err)
+        }
+    }
+
     const coreBaseUrl = process.env.NEXT_PUBLIC_CORE_APP_URL || 'http://localhost:3003'
+    const fleetBaseUrl = process.env.NEXT_PUBLIC_FLEET_APP_URL || 'http://localhost:3004'
 
     return (
         <header style={{
@@ -69,7 +80,9 @@ export default async function Header() {
                     {profile && hasMinRole(profile.role, 'CORE') && (
                         <SimilarityFlagsButton openCount={openFlagCount} flagsUrl={`${coreBaseUrl}/similarity-flags`} />
                     )}
-                    <TimeEntryButton />
+                    {profile && hasMinRole(profile.role, 'FLEET') && (
+                        <ReviewRequestedButton count={reviewRequestedCount} workforceUrl={`${fleetBaseUrl}/workforce-monitoring`} />
+                    )}
                     <UserBugReportTracker />
                     <BugReportNotification userRole={profile?.role || 'USER'} />
                     <UserProfileDropdown
