@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { EnvironmentFilter } from '@repo/ui/components';
 
 interface Task {
@@ -34,12 +35,13 @@ interface SimilarityResult {
   };
 }
 
-export default function FullSimilarityCheckPage() {
+function FullSimilarityCheckPageInner() {
+  const searchParams = useSearchParams();
   const [environment, setEnvironment] = useState<string>('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userFilter, setUserFilter] = useState<string>('');
+  const [userFilter, setUserFilter] = useState<string>(() => searchParams.get('user') ?? '');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedTaskIdForComparison, setSelectedTaskIdForComparison] = useState<string | null>(null);
   const [showCompareOptions, setShowCompareOptions] = useState(false);
@@ -1597,5 +1599,13 @@ export default function FullSimilarityCheckPage() {
       )}
       </div>
     </>
+  );
+}
+
+export default function FullSimilarityCheckPage() {
+  return (
+    <Suspense>
+      <FullSimilarityCheckPageInner />
+    </Suspense>
   );
 }
