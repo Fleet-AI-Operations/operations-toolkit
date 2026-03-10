@@ -33,7 +33,8 @@ Documentation/
 │   ├── Exemplar Tasks             → ./EXEMPLAR_TASKS.md
 │   ├── Daily Great Tasks          → ./DAILY_GREAT_TASKS.md
 │   ├── Task Search                → ./TASK_SEARCH.md
-│   └── Task Creator Deep-Dive     → see API Reference § Prompt Authenticity
+│   ├── Task Creator Deep-Dive     → see API Reference § Prompt Authenticity
+│   └── Workforce Monitoring       → ./UserGuides/WORKFORCE_MONITORING_GUIDE.md
 │
 ├── Development/
 │   ├── Local Development          → ./LOCAL_DEVELOPMENT.md
@@ -85,6 +86,7 @@ Documentation/
 → [Daily Great Tasks](./DAILY_GREAT_TASKS.md) (Fleet)
 → [Task Search](./TASK_SEARCH.md) (Core)
 → [Task Creator Deep-Dive](./Reference/API_REFERENCE.md#prompt-authenticity--task-creator-deep-dive) (Core)
+→ [Workforce Monitoring Guide](./UserGuides/WORKFORCE_MONITORING_GUIDE.md) (Fleet)
 
 #### **Develop Features**
 → [Local Development](./LOCAL_DEVELOPMENT.md)
@@ -327,4 +329,4 @@ Can't find what you're looking for?
 
 ---
 
-*Last Updated: 2026-03-09*
+*Last Updated: 2026-03-09* — Added Workforce Monitoring Guide
