@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { startBackgroundIngest } from '@repo/core/ingestion';
 import { RecordType } from '@prisma/client';
-import { createClient } from '@repo/auth/server';
-import { prisma } from '@repo/database';
+import { requireRole } from '@repo/api-utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,20 +13,8 @@ const VALID_TYPES: RecordType[] = ['TASK', 'FEEDBACK'];
 
 export async function POST(req: NextRequest) {
     try {
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Get user's role
-        const profile = await prisma.profile.findUnique({
-            where: { id: user.id },
-            select: { role: true }
-        });
-
-        const role = profile?.role || 'USER';
+        const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
+        if (authResult.error) return authResult.error;
 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
@@ -52,11 +39,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
                 error: `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Use chunked upload for files over ${MAX_FILE_SIZE / 1024 / 1024}MB.`
             }, { status: 413 });
-        }
-
-        // Authorization: Only FLEET and ADMIN roles can ingest data
-        if (role !== 'ADMIN' && role !== 'FLEET') {
-            return NextResponse.json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
         }
 
         // Read file content

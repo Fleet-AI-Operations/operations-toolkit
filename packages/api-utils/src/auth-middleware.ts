@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
-import { getUserRole } from '@repo/auth/utils';
+import { getUserRole, authenticateWithToken } from '@repo/auth/utils';
 import type { UserRole } from '@repo/types';
 
 export interface AuthSuccess {
@@ -36,10 +36,24 @@ export interface RoleAuthError {
 export type RoleAuthResult = RoleAuthSuccess | RoleAuthError;
 
 /**
- * Require authentication for API routes
- * Returns user or error response
+ * Require authentication for API routes.
+ * Checks Bearer token in Authorization header first, then falls back to Supabase session.
+ * Returns user or error response.
  */
 export async function requireAuth(req: NextRequest): Promise<AuthResult> {
+  const authHeader = req.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const tokenValue = authHeader.slice(7);
+    const tokenUser = await authenticateWithToken(tokenValue);
+    if (tokenUser) {
+      return { user: tokenUser, error: null };
+    }
+    return {
+      user: null,
+      error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    };
+  }
+
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 

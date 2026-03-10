@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { prisma } from '@repo/database';
 import type { UserRole } from '@repo/types';
 
@@ -72,4 +73,39 @@ export async function getUserProfile(userId: string) {
 export async function hasRole(userId: string, role: UserRole): Promise<boolean> {
   const userRole = await getUserRole(userId);
   return userRole === role;
+}
+
+/**
+ * Validate a raw API token string and return the owning user's id and email.
+ * Returns null if the token is invalid, revoked, or expired.
+ * Updates last_used_at non-blocking on success.
+ */
+export async function authenticateWithToken(
+  tokenValue: string
+): Promise<{ id: string; email: string } | null> {
+  if (!tokenValue.startsWith('otk_')) return null;
+
+  const hash = createHash('sha256').update(tokenValue).digest('hex');
+
+  const token = await prisma.apiToken.findUnique({
+    where: { tokenHash: hash },
+    select: {
+      id: true,
+      ownerId: true,
+      revokedAt: true,
+      expiresAt: true,
+      owner: { select: { email: true } },
+    },
+  });
+
+  if (!token) return null;
+  if (token.revokedAt) return null;
+  if (token.expiresAt && token.expiresAt < new Date()) return null;
+
+  // Fire-and-forget — don't block the request
+  prisma.apiToken
+    .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
+    .catch(() => {});
+
+  return { id: token.ownerId, email: token.owner.email };
 }

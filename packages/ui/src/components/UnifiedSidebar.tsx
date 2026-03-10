@@ -30,6 +30,7 @@ import {
     ChevronRight,
     ChevronDown,
     ExternalLink,
+    KeyRound,
     LucideIcon,
     UserSearch,
 } from 'lucide-react';
@@ -143,6 +144,7 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { label: 'AI Settings', href: '/admin/ai-settings', icon: Bot, app: 'admin' },
             { label: 'API Status', href: '/admin/api-status', icon: Activity, app: 'admin' },
+            { label: 'API Tokens', href: '/admin/api-tokens', icon: KeyRound, app: 'admin' },
             { label: 'Audit Logs', href: '/admin/audit-logs', icon: FileText, app: 'admin' },
             { label: 'Bug Reports', href: '/bug-reports', icon: Bug, app: 'admin' },
             { label: 'Configuration', href: '/admin/configuration', icon: Settings, app: 'admin' },
