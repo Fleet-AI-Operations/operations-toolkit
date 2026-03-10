@@ -4,7 +4,7 @@ import { createClient } from '@repo/auth/server';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_FLAG_TYPES = ['QUALITY_CONCERN', 'POLICY_VIOLATION', 'COMMUNICATION_ISSUE', 'ATTENDANCE', 'OTHER'] as const;
+const VALID_FLAG_TYPES = ['QUALITY_CONCERN', 'POLICY_VIOLATION', 'COMMUNICATION_ISSUE', 'ATTENDANCE', 'OTHER', 'REVIEW_REQUESTED'] as const;
 const VALID_SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
 /**

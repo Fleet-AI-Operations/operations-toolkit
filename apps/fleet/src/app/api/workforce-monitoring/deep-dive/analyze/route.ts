@@ -37,13 +37,13 @@ export async function POST(request: NextRequest) {
   let email: string | undefined;
   let environment: string | undefined;
 
-  try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  try {
     const profile = await prisma.profile.findUnique({
       where: { id: user.id },
       select: { role: true },
@@ -51,12 +51,16 @@ export async function POST(request: NextRequest) {
     if (!profile || !['FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+  } catch (err) {
+    console.error('[workforce-monitoring/deep-dive/analyze] Failed to fetch profile:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 
+  try {
     const body = await request.json();
     email = body.email;
     environment = body.environment;
   } catch (err) {
-    console.error('[workforce-monitoring/deep-dive/analyze] Failed to parse request:', err);
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
@@ -108,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     const pendingWhere: any = {
       createdByEmail: { equals: email, mode: 'insensitive' },
-      analysisStatus: 'PENDING',
+      analysisStatus: { in: ['PENDING', 'ANALYZING'] }, // treat stuck ANALYZING as recoverable
     };
     if (environment) pendingWhere.envKey = environment;
 

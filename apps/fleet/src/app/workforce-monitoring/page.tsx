@@ -109,6 +109,7 @@ export default function WorkforceMonitoringPage() {
     // Reset to default sort when switching flag filter so flagged-first ordering applies
     if (f !== 'flagged') {
       setSortBy(null);
+      setSortDir('desc');
     }
   };
 

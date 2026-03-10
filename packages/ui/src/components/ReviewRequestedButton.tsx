@@ -12,6 +12,16 @@ export function ReviewRequestedButton({ count, workforceUrl }: Props) {
     const [hovered, setHovered] = useState(false);
 
     const hasItems = count > 0;
+
+    const flaggedUrl = (() => {
+        try {
+            const url = new URL(workforceUrl);
+            url.searchParams.set('flagged', 'flagged');
+            return url.toString();
+        } catch {
+            return `${workforceUrl}?flagged=flagged`;
+        }
+    })();
     const tooltipText = hasItems
         ? `${count} review request${count !== 1 ? 's' : ''} pending — click to view`
         : 'No pending review requests';
@@ -19,7 +29,7 @@ export function ReviewRequestedButton({ count, workforceUrl }: Props) {
     return (
         <div style={{ position: 'relative', display: 'inline-flex' }}>
             <a
-                href={`${workforceUrl}?flagged=flagged`}
+                href={flaggedUrl}
                 onMouseEnter={() => setHovered(true)}
                 onMouseLeave={() => setHovered(false)}
                 style={{

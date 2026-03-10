@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
+import { hasMinRole } from '@repo/auth';
 import { prisma } from '@repo/database';
 
 /**
@@ -22,14 +23,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role, email')
       .eq('id', user.id)
       .single();
 
-    const roleWeights: Record<string, number> = { PENDING: 0, USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5 };
-    if (!profile || (roleWeights[profile.role] ?? 0) < roleWeights['CORE']) {
+    if (profileError) {
+      console.error('[user-deep-dive/ops-flag] Profile fetch failed:', profileError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+    if (!profile || !hasMinRole(profile.role, 'CORE')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

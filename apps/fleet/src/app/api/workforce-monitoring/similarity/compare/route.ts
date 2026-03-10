@@ -8,12 +8,14 @@ export const dynamic = 'force-dynamic';
 
 function parseVector(embedding: any): number[] | null {
   if (!embedding) return null;
-  if (Array.isArray(embedding)) return embedding;
+  if (Array.isArray(embedding)) return embedding.length > 0 ? embedding : null;
   if (typeof embedding === 'string') {
     try {
-      const values = embedding.replace(/[\[\]]/g, '').split(',').map(v => parseFloat(v.trim()));
-      return values.filter(v => !isNaN(v));
-    } catch {
+      const values = embedding.replace(/[\[\]]/g, '').split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+      if (values.length === 0) return null;
+      return values;
+    } catch (err) {
+      console.error('[parseVector] Failed to parse embedding string:', err);
       return null;
     }
   }
