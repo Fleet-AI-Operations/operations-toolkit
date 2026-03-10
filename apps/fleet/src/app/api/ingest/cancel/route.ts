@@ -8,7 +8,7 @@ import { requireRole } from '@repo/api-utils';
  * every 25 records and will abort if it detects the change.
  */
 export async function POST(req: NextRequest) {
-    const authResult = await requireRole(req, ['FLEET', 'MANAGER', 'ADMIN']);
+    const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
     if (authResult.error) return authResult.error;
 
     try {

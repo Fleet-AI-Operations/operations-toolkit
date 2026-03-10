@@ -5,7 +5,7 @@ import { requireRole } from '@repo/api-utils';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-    const authResult = await requireRole(req, ['FLEET', 'MANAGER', 'ADMIN']);
+    const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
     if (authResult.error) return authResult.error;
 
     try {

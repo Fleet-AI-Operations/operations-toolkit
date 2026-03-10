@@ -80,14 +80,6 @@ describe('GET /api/ingest/jobs', () => {
     expect(res.status).toBe(200);
   });
 
-  it('returns 200 for MANAGER role', async () => {
-    const { requireRole } = await import('@repo/api-utils');
-    vi.mocked(requireRole).mockResolvedValue(makeAuthSuccess('u1', 'MANAGER') as any);
-
-    const res = await GET(makeRequest());
-    expect(res.status).toBe(200);
-  });
-
   it('returns 200 for ADMIN role', async () => {
     const { requireRole } = await import('@repo/api-utils');
     vi.mocked(requireRole).mockResolvedValue(makeAuthSuccess('u1', 'ADMIN') as any);

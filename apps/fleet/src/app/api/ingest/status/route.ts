@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const ZOMBIE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function GET(req: NextRequest) {
-    const authResult = await requireRole(req, ['FLEET', 'MANAGER', 'ADMIN']);
+    const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
     if (authResult.error) return authResult.error;
 
     try {
