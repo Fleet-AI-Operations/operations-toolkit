@@ -646,6 +646,7 @@ export default function TaskCreatorDeepDivePage() {
               value={environment}
               onChange={e => {
                 setEnvironment(e.target.value);
+                setCurrentPage(1);
                 const params = new URLSearchParams({ email });
                 if (e.target.value) params.set('environment', e.target.value);
                 router.replace(`/task-creator-deep-dive?${params}`);
@@ -974,7 +975,7 @@ export default function TaskCreatorDeepDivePage() {
               </table>
 
               {/* Pagination bar */}
-              {filteredTasks.length > 0 && (
+              {filteredTasks.length > pageSize && (
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
