@@ -49,6 +49,9 @@ model Profile {
   ownedApiTokens   ApiToken[] @relation("OwnedTokens")
   createdApiTokens ApiToken[] @relation("CreatedTokens")
 
+  // Mentorship relations
+  ledPods MentorshipPod[] @relation("PodLeader")
+
   @@map("profiles")
   @@schema("public")
 }
@@ -1632,5 +1635,48 @@ model Guideline {
   @@index([uploadedBy])
   @@index([createdAt(sort: Desc)])
   @@map("guidelines")
+  @@schema("public")
+}
+
+// ============================================
+// MENTORSHIP
+// ============================================
+
+/**
+ * MENTORSHIP POD: Groups one CORE team leader with N QA team members.
+ * Used for the mentorship initiative dashboard and analytics.
+ */
+model MentorshipPod {
+  id           String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  name         String
+  coreLeaderId String   @map("core_leader_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  coreLeader Profile             @relation("PodLeader", fields: [coreLeaderId], references: [id], onDelete: Restrict)
+  members    MentorshipPodMember[]
+
+  @@index([coreLeaderId], map: "idx_mentorship_pods_core_leader")
+  @@map("mentorship_pods")
+  @@schema("public")
+}
+
+/**
+ * MENTORSHIP POD MEMBER: A QA worker assigned to a pod, identified by email.
+ * QA workers are ingested from CSV and do not have platform profiles.
+ */
+model MentorshipPodMember {
+  id       String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  podId    String   @map("pod_id")
+  qaEmail  String   @map("qa_email")
+  qaName   String?  @map("qa_name")
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  pod MentorshipPod @relation(fields: [podId], references: [id], onDelete: Cascade)
+
+  @@unique([podId, qaEmail])
+  @@index([podId])
+  @@index([qaEmail])
+  @@map("mentorship_pod_members")
   @@schema("public")
 }
