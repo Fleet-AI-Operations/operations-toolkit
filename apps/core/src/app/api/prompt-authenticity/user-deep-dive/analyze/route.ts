@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
       : `Analyzed ${analyzed} task${analyzed !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.${templateNote}`;
 
     logAudit({
-      action: 'AI_PROMPT_AUTHENTICITY_JOB_STARTED',
+      action: 'AI_PROMPT_AUTHENTICITY_DEEP_DIVE_COMPLETED',
       entityType: 'AI_REQUEST',
       userId: authResult.user.id,
       userEmail: authResult.user.email ?? 'unknown',

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
             entityType: 'INGEST_JOB',
             entityId: jobId,
             userId: authResult.user!.id,
-            userEmail: authResult.user!.email,
+            userEmail: authResult.user!.email ?? 'unknown',
         }).catch(err => console.error('[Cancel Ingest] Audit log failed:', err));
 
         return NextResponse.json({ success: true, status: job.status });

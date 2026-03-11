@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
             entityType: 'INGEST_JOB',
             entityId: jobId,
             userId: authResult.user!.id,
-            userEmail: authResult.user!.email,
+            userEmail: authResult.user!.email ?? 'unknown',
             metadata: { source: `csv:${file.name}`, fileSizeBytes: file.size, generateEmbeddings: generateEmbeddings ?? false },
         }).catch(err => console.error('[CSV Ingest] Audit log failed:', err));
 

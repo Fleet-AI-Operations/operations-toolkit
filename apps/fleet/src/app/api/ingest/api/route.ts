@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
             entityType: 'INGEST_JOB',
             entityId: jobId,
             userId: user.id,
-            userEmail: user.email!,
+            userEmail: user.email ?? 'unknown',
             metadata: { source: `api:${url}`, environment, generateEmbeddings: generateEmbeddings ?? false },
         }).catch(err => console.error('[API Ingest] Audit log failed:', err));
 

@@ -194,3 +194,128 @@ CREATE INDEX IF NOT EXISTS idx_upload_sessions_expires_at ON public.upload_sessi
 -- and ingestion duplicate detection queries.
 CREATE INDEX IF NOT EXISTS idx_data_records_task_key
 ON public.data_records ((metadata->>'task_key'));
+
+-- ============================================================
+-- Duplicate detection staging table (FLEOTK-36)
+-- Populated by pg_cron (bypasses RLS). Fleet/Admin access only.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public._duplicates_to_delete (
+    id TEXT NOT NULL PRIMARY KEY
+);
+
+ALTER TABLE public._duplicates_to_delete ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "duplicates_to_delete_fleet_admin_all"
+    ON public._duplicates_to_delete FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    );
+
+-- ============================================================
+-- Worker flags (FLEOTK-36)
+-- Workforce monitoring. Fleet/Admin access only.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.worker_flags (
+    id               text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    worker_email     text        NOT NULL,
+    worker_name      text,
+    flag_type        text        NOT NULL,
+    severity         text        NOT NULL DEFAULT 'MEDIUM',
+    status           text        NOT NULL DEFAULT 'OPEN',
+    reason           text        NOT NULL,
+    notes            text,
+    created_by_id    uuid        REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_by_email text,
+    resolved_by_id   uuid        REFERENCES public.profiles(id) ON DELETE SET NULL,
+    resolved_at      timestamptz,
+    resolution_notes text,
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.worker_flags ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "worker_flags_fleet_admin_all"
+    ON public.worker_flags FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    );
+
+-- ============================================================
+-- Mentorship pods and members (FLEOTK-36)
+-- Pod config managed by Fleet/Manager/Admin.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.mentorship_pods (
+    id             text        NOT NULL DEFAULT gen_random_uuid()::text,
+    name           text        NOT NULL,
+    core_leader_id uuid        NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    updated_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mentorship_pods_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE public.mentorship_pods ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "mentorship_pods_fleet_admin_all"
+    ON public.mentorship_pods FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    );
+
+CREATE TABLE IF NOT EXISTS public.mentorship_pod_members (
+    id        text        NOT NULL DEFAULT gen_random_uuid()::text,
+    pod_id    text        NOT NULL REFERENCES public.mentorship_pods(id) ON DELETE CASCADE,
+    qa_email  text        NOT NULL,
+    qa_name   text,
+    joined_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT mentorship_pod_members_pkey PRIMARY KEY (id),
+    CONSTRAINT mentorship_pod_members_pod_email_unique UNIQUE (pod_id, qa_email)
+);
+
+ALTER TABLE public.mentorship_pod_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "mentorship_pod_members_fleet_admin_all"
+    ON public.mentorship_pod_members FOR ALL
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = (SELECT auth.uid()) AND role IN ('FLEET', 'MANAGER', 'ADMIN')
+        )
+    );
