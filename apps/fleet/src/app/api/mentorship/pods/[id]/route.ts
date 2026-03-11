@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
+import { logAudit } from '@repo/core/audit'
 import { ERROR_IDS } from '@/constants/errorIds'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             }
         })
 
+        logAudit({
+            action: 'POD_UPDATED',
+            entityType: 'MENTORSHIP_POD',
+            entityId: id,
+            userId: auth.user.id,
+            userEmail: auth.user.email ?? 'unknown',
+            metadata: { ...(name?.trim() ? { name: name.trim() } : {}), ...(coreLeaderId ? { coreLeaderId } : {}) },
+        }).catch(err => console.error('[Mentorship Pod API] Audit log failed:', err));
+
         return NextResponse.json({ pod })
     } catch (error) {
         console.error('[Mentorship Pod API] PATCH error:', error)
@@ -87,6 +97,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         }
 
         await prisma.mentorshipPod.delete({ where: { id } })
+
+        logAudit({
+            action: 'POD_DELETED',
+            entityType: 'MENTORSHIP_POD',
+            entityId: id,
+            userId: auth.user.id,
+            userEmail: auth.user.email ?? 'unknown',
+            metadata: { name: existing.name },
+        }).catch(err => console.error('[Mentorship Pod API] Audit log failed:', err));
 
         return NextResponse.json({ success: true })
     } catch (error) {

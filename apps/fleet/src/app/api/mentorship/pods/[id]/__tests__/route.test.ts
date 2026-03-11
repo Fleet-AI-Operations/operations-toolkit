@@ -19,6 +19,8 @@ vi.mock('@repo/database', () => ({
     }
 }));
 
+vi.mock('@repo/core/audit', () => ({ logAudit: vi.fn(() => Promise.resolve({ success: true })) }));
+
 const makeFleetClient = () => ({
     auth: { getUser: vi.fn(() => ({ data: { user: { id: 'user-1' } }, error: null })) },
     from: vi.fn(() => ({
@@ -107,6 +109,28 @@ describe('PATCH /api/mentorship/pods/[id]', () => {
         );
     });
 
+    it('calls logAudit with POD_UPDATED on successful update', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue(mockPod() as any);
+        vi.mocked(prisma.mentorshipPod.update).mockResolvedValue(mockPod({ name: 'Pod Beta' }) as any);
+
+        await PATCH(makeRequest({ name: 'Pod Beta' }), { params: makeParams('pod-1') });
+
+        expect(vi.mocked(logAudit)).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'POD_UPDATED', entityType: 'MENTORSHIP_POD', entityId: 'pod-1' })
+        );
+    });
+
+    it('does not call logAudit when pod is not found', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue(null);
+
+        await PATCH(makeRequest({ name: 'X' }), { params: makeParams('pod-1') });
+        expect(vi.mocked(logAudit)).not.toHaveBeenCalled();
+    });
+
     it('skips coreLeaderId validation when not provided', async () => {
         const { prisma } = await import('@repo/database');
         vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue(mockPod() as any);
@@ -160,5 +184,27 @@ describe('DELETE /api/mentorship/pods/[id]', () => {
 
         const res = await DELETE(makeRequest(), { params: makeParams('pod-1') });
         expect(res.status).toBe(500);
+    });
+
+    it('calls logAudit with POD_DELETED on successful deletion', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue(mockPod() as any);
+        vi.mocked(prisma.mentorshipPod.delete).mockResolvedValue(mockPod() as any);
+
+        await DELETE(makeRequest(), { params: makeParams('pod-1') });
+
+        expect(vi.mocked(logAudit)).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'POD_DELETED', entityType: 'MENTORSHIP_POD', entityId: 'pod-1', metadata: expect.objectContaining({ name: 'Pod Alpha' }) })
+        );
+    });
+
+    it('does not call logAudit when pod is not found', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue(null);
+
+        await DELETE(makeRequest(), { params: makeParams('pod-1') });
+        expect(vi.mocked(logAudit)).not.toHaveBeenCalled();
     });
 });

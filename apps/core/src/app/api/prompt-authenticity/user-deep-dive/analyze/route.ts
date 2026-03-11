@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { analyzePromptAuthenticity, analyzeTemplateUsage } from '@repo/core';
+import { logAudit } from '@repo/core/audit';
 
 export const maxDuration = 300;
 
@@ -270,6 +271,24 @@ export async function POST(request: NextRequest) {
     const message = analyzed === 0 && failed === 0
       ? `All tasks are already analyzed.${templateNote}`
       : `Analyzed ${analyzed} task${analyzed !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}.${templateNote}`;
+
+    logAudit({
+      action: 'AI_PROMPT_AUTHENTICITY_DEEP_DIVE_COMPLETED',
+      entityType: 'AI_REQUEST',
+      userId: authResult.user.id,
+      userEmail: authResult.user.email ?? 'unknown',
+      metadata: {
+        targetEmail: email,
+        environment: environment ?? null,
+        synced: syncResult.count,
+        analyzed,
+        failed,
+        total: dataRecords.length,
+        templateAnalysisFailed,
+      },
+    }).catch(auditErr => {
+      console.error('[user-deep-dive/analyze] Audit log failed (non-fatal):', auditErr);
+    });
 
     return NextResponse.json({
       synced: syncResult.count,

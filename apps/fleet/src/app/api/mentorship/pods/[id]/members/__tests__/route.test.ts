@@ -34,6 +34,8 @@ vi.mock('@repo/database', () => ({
     }
 }));
 
+vi.mock('@repo/core/audit', () => ({ logAudit: vi.fn(() => Promise.resolve({ success: true })) }));
+
 const makeParams = (id: string) => Promise.resolve({ id });
 
 const makeRequest = (body: object) =>
@@ -136,6 +138,31 @@ describe('POST /api/mentorship/pods/[id]/members', () => {
                 ])
             })
         );
+    });
+
+    it('calls logAudit with POD_MEMBERS_ADDED on success', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue({ id: 'pod-1' } as any);
+        vi.mocked(prisma.mentorshipPodMember.createMany).mockResolvedValue({ count: 2 });
+
+        await POST(
+            makeRequest({ members: [{ qaEmail: 'qa1@example.com' }, { qaEmail: 'qa2@example.com' }] }),
+            { params: makeParams('pod-1') }
+        );
+
+        expect(vi.mocked(logAudit)).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'POD_MEMBERS_ADDED', entityType: 'MENTORSHIP_POD', entityId: 'pod-1', metadata: expect.objectContaining({ added: 2 }) })
+        );
+    });
+
+    it('does not call logAudit when pod is not found', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPod.findUnique).mockResolvedValue(null);
+
+        await POST(makeRequest({ members: [{ qaEmail: 'qa@example.com' }] }), { params: makeParams('pod-1') });
+        expect(vi.mocked(logAudit)).not.toHaveBeenCalled();
     });
 
     it('returns 401 for unauthenticated users', async () => {

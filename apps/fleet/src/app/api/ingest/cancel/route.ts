@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
 import { requireRole } from '@repo/api-utils';
+import { logAudit } from '@repo/core/audit';
 
 /**
  * CANCEL INGESTION JOB
@@ -25,6 +26,14 @@ export async function POST(req: NextRequest) {
                 error: 'Stopped by user'
             }
         });
+
+        logAudit({
+            action: 'DATA_INGESTION_CANCELLED',
+            entityType: 'INGEST_JOB',
+            entityId: jobId,
+            userId: authResult.user!.id,
+            userEmail: authResult.user!.email ?? 'unknown',
+        }).catch(err => console.error('[Cancel Ingest] Audit log failed:', err));
 
         return NextResponse.json({ success: true, status: job.status });
     } catch (error: any) {

@@ -205,12 +205,27 @@ Returns users for picker components in the config UI.
 
 ---
 
+## Audit Logging
+
+All mutating pod operations produce audit log entries (visible in Admin → Audit Logs). Audit calls are fire-and-forget — a failure does not block the API response.
+
+| Action | Triggered by | Entity type | Key metadata |
+|--------|-------------|-------------|--------------|
+| `POD_CREATED` | `POST /api/mentorship/pods` | `MENTORSHIP_POD` | `name`, `coreLeaderId` |
+| `POD_UPDATED` | `PATCH /api/mentorship/pods/[id]` | `MENTORSHIP_POD` | changed fields only |
+| `POD_DELETED` | `DELETE /api/mentorship/pods/[id]` | `MENTORSHIP_POD` | `name` |
+| `POD_MEMBERS_ADDED` | `POST /api/mentorship/pods/[id]/members` | `MENTORSHIP_POD` | `added` count, `emails` array |
+| `POD_MEMBER_REMOVED` | `DELETE /api/mentorship/pods/[id]/members/[memberId]` | `MENTORSHIP_POD` | `memberId`, `qaEmail` |
+
+---
+
 ## Database Migrations
 
 | File | Purpose |
 |------|---------|
 | `supabase/migrations/20260310100000_mentorship_pods.sql` | Creates `mentorship_pods` and `mentorship_pod_members` tables |
 | `supabase/migrations/20260310110000_mentorship_pods_email_members.sql` | Drops `user_id` FK column, adds `qa_email TEXT` and `qa_name TEXT` |
+| `supabase/migrations/20260311000000_enable_rls_on_unprotected_tables.sql` | Enables RLS on `mentorship_pods` and `mentorship_pod_members` (and `_duplicates_to_delete`, `worker_flags`) |
 
 Apply locally:
 ```bash
@@ -248,4 +263,4 @@ The leader picker queries `profiles` with `minRole=CORE&maxRole=FLEET` using num
 
 ---
 
-*Last Updated: 2026-03-10*
+*Last Updated: 2026-03-11*

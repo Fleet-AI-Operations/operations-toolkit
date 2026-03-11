@@ -198,6 +198,26 @@ Additionally, `getUserRole` now logs `console.warn` when a profile row is not fo
 
 ---
 
+### 8. RLS Enabled on Previously Unprotected Public Tables (FLEOTK-36)
+
+**Severity**: Medium
+**Migration**: `supabase/migrations/20260311000000_enable_rls_on_unprotected_tables.sql`
+
+**Problem**: Four tables in the `public` schema had Row Level Security disabled, making them accessible to any authenticated user via PostgREST regardless of role. Supabase exposes all public tables to authenticated users by default when RLS is off.
+
+| Table | Risk |
+|-------|------|
+| `_duplicates_to_delete` | Internal staging table — any authenticated user could read or modify the duplicate-detection queue |
+| `worker_flags` | Sensitive workforce monitoring data (quality concerns, policy violations) readable by all authenticated users |
+| `mentorship_pods` | Pod config readable and writable by all authenticated users |
+| `mentorship_pod_members` | Pod member assignments readable and writable by all authenticated users |
+
+**Fix**: Added `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` and a `FOR ALL` policy on each table requiring `FLEET`, `MANAGER`, or `ADMIN` role. This matches the API-layer auth already enforced in the route handlers.
+
+The `pg_cron` job that populates `_duplicates_to_delete` runs as the `postgres` superuser and bypasses RLS — the migration does not affect background jobs.
+
+---
+
 ## Authentication
 
 ### Supabase Auth

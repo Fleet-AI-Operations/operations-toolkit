@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { getEmbedding } from '@repo/core/ai';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +135,15 @@ export async function POST(request: NextRequest) {
             console.error('[ExemplarTasks] Failed to generate embedding for', id, embeddingError);
             embeddingWarning = 'Task saved but embedding generation failed. Use "Generate Missing Embeddings" to retry.';
         }
+
+        logAudit({
+            action: 'EXEMPLAR_TASK_CREATED',
+            entityType: 'EXEMPLAR_TASK',
+            entityId: exemplar.id,
+            userId: user!.id,
+            userEmail: user!.email ?? 'unknown',
+            metadata: { environment, hasEmbedding },
+        }).catch(err => console.error('[ExemplarTasks] Audit log failed:', err));
 
         return NextResponse.json(
             { exemplar: { ...exemplar, hasEmbedding }, ...(embeddingWarning && { embeddingWarning }) },

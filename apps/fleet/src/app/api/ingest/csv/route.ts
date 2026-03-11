@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { startBackgroundIngest } from '@repo/core/ingestion';
 import { RecordType } from '@prisma/client';
 import { requireRole } from '@repo/api-utils';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -54,6 +55,15 @@ export async function POST(req: NextRequest) {
             filterKeywords,
             generateEmbeddings,
         });
+
+        logAudit({
+            action: 'DATA_INGESTION_STARTED',
+            entityType: 'INGEST_JOB',
+            entityId: jobId,
+            userId: authResult.user!.id,
+            userEmail: authResult.user!.email ?? 'unknown',
+            metadata: { source: `csv:${file.name}`, fileSizeBytes: file.size, generateEmbeddings: generateEmbeddings ?? false },
+        }).catch(err => console.error('[CSV Ingest] Audit log failed:', err));
 
         // Processing is triggered by the Supabase DB webhook on ingest_jobs INSERT.
         return NextResponse.json({

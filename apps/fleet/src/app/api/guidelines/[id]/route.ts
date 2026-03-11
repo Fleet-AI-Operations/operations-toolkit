@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
 import { createClient } from '@repo/auth/server';
+import { logAudit } from '@repo/core/audit';
 
 // Helper function to check FLEET+ authorization
 async function checkAuth() {
@@ -117,6 +118,15 @@ export async function PATCH(
             }
         });
 
+        logAudit({
+            action: 'GUIDELINE_UPDATED',
+            entityType: 'GUIDELINE',
+            entityId: id,
+            userId: auth.user!.id,
+            userEmail: auth.user!.email ?? 'unknown',
+            metadata: { ...(name !== undefined ? { name } : {}), ...(environments !== undefined ? { environments } : {}) },
+        }).catch(err => console.error('[Guidelines API] Audit log failed:', err));
+
         return NextResponse.json({ guideline });
     } catch (error) {
         console.error('Error updating guideline:', error);
@@ -157,6 +167,15 @@ export async function DELETE(
         await prisma.guideline.delete({
             where: { id }
         });
+
+        logAudit({
+            action: 'GUIDELINE_DELETED',
+            entityType: 'GUIDELINE',
+            entityId: id,
+            userId: auth.user!.id,
+            userEmail: auth.user!.email ?? 'unknown',
+            metadata: { name: existing.name, environments: existing.environments },
+        }).catch(err => console.error('[Guidelines API] Audit log failed:', err));
 
         return NextResponse.json({ success: true });
     } catch (error) {

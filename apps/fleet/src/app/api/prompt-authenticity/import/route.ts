@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { logAudit } from '@repo/core/audit';
 
 // ============================================================================
 // VERCEL CONFIGURATION - Increase timeout for large file uploads
@@ -287,6 +288,14 @@ export async function POST(request: NextRequest) {
     const recordsPerSecond = (imported / parseFloat(totalTime)).toFixed(0);
 
     console.log(`[Import] Complete: ${imported} imported, ${skipped} skipped (${skippedFleetEmails} fleet emails, ${skippedWrongVersion} wrong version), ${errors.length} errors in ${totalTime}s (${recordsPerSecond} records/s)`);
+
+    logAudit({
+      action: 'PROMPT_AUTHENTICITY_IMPORTED',
+      entityType: 'PROMPT_AUTHENTICITY_RECORD',
+      userId: authResult.user.id,
+      userEmail: authResult.user.email ?? 'unknown',
+      metadata: { imported, skipped, skippedFleetEmails, fileName: file.name, fileSizeMB: (file.size / 1024 / 1024).toFixed(2) },
+    }).catch(err => console.error('[Prompt Authenticity Import] Audit log failed:', err));
 
     return NextResponse.json({
       success: true,

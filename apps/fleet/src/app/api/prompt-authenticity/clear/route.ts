@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { logAudit } from '@repo/core/audit';
 
 async function requireAdminAuth(request: NextRequest) {
   const supabase = await createClient();
@@ -52,6 +53,14 @@ export async function DELETE(request: NextRequest) {
       prisma.promptAuthenticityRecord.deleteMany({}),
       prisma.promptAuthenticityJob.deleteMany({}),
     ]);
+
+    logAudit({
+      action: 'PROMPT_AUTHENTICITY_CLEARED',
+      entityType: 'PROMPT_AUTHENTICITY_RECORD',
+      userId: authResult.user.id,
+      userEmail: authResult.user.email ?? 'unknown',
+      metadata: { recordsDeleted: recordCount, jobsDeleted: jobCount },
+    }).catch(err => console.error('[Prompt Authenticity Clear] Audit log failed:', err));
 
     return NextResponse.json({
       success: true,
