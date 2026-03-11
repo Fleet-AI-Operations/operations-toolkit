@@ -596,7 +596,7 @@ Fetch the full task history for a specific creator, with per-task authenticity f
 
 ### GET /api/prompt-authenticity/user-deep-dive/users
 
-List all distinct task creators, with task counts, for the user selector on the landing page.
+List all distinct task creators, with task counts, for the user selector on the landing page. Returns all matching users — pagination is handled client-side (25 users per page).
 
 **Authorization**: CORE+
 

@@ -298,11 +298,18 @@ function UserSelector({ environments, envError }: { environments: string[]; envE
     loadUsers();
   }, [loadUsers]);
 
+  const [userPage, setUserPage] = useState(1);
+  const USER_PAGE_SIZE = 25;
+
   const filtered = users.filter(u => {
     if (!userSearch) return true;
     const q = userSearch.toLowerCase();
     return (u.name ?? '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
   });
+
+  const userTotalPages = Math.max(1, Math.ceil(filtered.length / USER_PAGE_SIZE));
+  const safeUserPage = Math.min(userPage, userTotalPages);
+  const pagedUsers = filtered.slice((safeUserPage - 1) * USER_PAGE_SIZE, safeUserPage * USER_PAGE_SIZE);
 
   const navigate = (email: string) => {
     const params = new URLSearchParams({ email });
@@ -356,7 +363,7 @@ function UserSelector({ environments, envError }: { environments: string[]; envE
               type="text"
               placeholder="Filter by name or email..."
               value={userSearch}
-              onChange={e => setUserSearch(e.target.value)}
+              onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -378,7 +385,7 @@ function UserSelector({ environments, envError }: { environments: string[]; envE
           <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.3)' }}>No task creators found.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {filtered.map(u => (
+            {pagedUsers.map(u => (
               <button
                 key={u.email}
                 onClick={() => navigate(u.email)}
@@ -413,6 +420,52 @@ function UserSelector({ environments, envError }: { environments: string[]; envE
                 </div>
               </button>
             ))}
+
+            {/* Pagination bar */}
+            {filtered.length > USER_PAGE_SIZE && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingTop: '12px',
+                marginTop: '4px',
+                borderTop: '1px solid var(--border)',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
+                  {(safeUserPage - 1) * USER_PAGE_SIZE + 1}–{Math.min(safeUserPage * USER_PAGE_SIZE, filtered.length)} of {filtered.length} users
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {[
+                    { label: '«', page: 1, disabled: safeUserPage === 1 },
+                    { label: '‹', page: safeUserPage - 1, disabled: safeUserPage === 1 },
+                    { label: '›', page: safeUserPage + 1, disabled: safeUserPage === userTotalPages },
+                    { label: '»', page: userTotalPages, disabled: safeUserPage === userTotalPages },
+                  ].map(({ label, page, disabled }) => (
+                    <button
+                      key={label}
+                      onClick={() => setUserPage(page)}
+                      disabled={disabled}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border)',
+                        background: 'transparent',
+                        color: disabled ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)',
+                        fontSize: '13px',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: '0 4px' }}>
+                    Page {safeUserPage} of {userTotalPages}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -445,6 +498,8 @@ export default function TaskCreatorDeepDivePage() {
 
   const [flagFilter, setFlagFilter] = useState<FlagFilter>('all');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Ops review flagging state (user-level)
   const [opsFlag, setOpsFlag] = useState<'idle' | 'pending' | 'done' | 'error'>('idle');
@@ -562,6 +617,10 @@ export default function TaskCreatorDeepDivePage() {
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedTasks = filteredTasks.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   const displayName = userName || email;
 
   return (
@@ -587,6 +646,7 @@ export default function TaskCreatorDeepDivePage() {
               value={environment}
               onChange={e => {
                 setEnvironment(e.target.value);
+                setCurrentPage(1);
                 const params = new URLSearchParams({ email });
                 if (e.target.value) params.set('environment', e.target.value);
                 router.replace(`/task-creator-deep-dive?${params}`);
@@ -735,7 +795,7 @@ export default function TaskCreatorDeepDivePage() {
             ] as { key: FlagFilter; label: string }[]).map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => setFlagFilter(key)}
+                onClick={() => { setFlagFilter(key); setCurrentPage(1); }}
                 style={{
                   padding: '6px 14px',
                   borderRadius: '20px',
@@ -774,7 +834,7 @@ export default function TaskCreatorDeepDivePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTasks.map((task) => {
+                  {pagedTasks.map((task) => {
                     const isExpanded = expandedTask === task.id;
                     const hasFlags = task.isLikelyAIGenerated || task.isLikelyTemplated || task.isLikelyNonNative || task.isRapidSubmission;
                     const date = new Date(task.createdAt);
@@ -913,6 +973,69 @@ export default function TaskCreatorDeepDivePage() {
                   })}
                 </tbody>
               </table>
+
+              {/* Pagination bar */}
+              {filteredTasks.length > pageSize && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderTop: '1px solid var(--border)',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                }}>
+                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
+                    {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredTasks.length)} of {filteredTasks.length} tasks
+                  </span>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {[
+                      { label: '«', page: 1, disabled: safePage === 1 },
+                      { label: '‹', page: safePage - 1, disabled: safePage === 1 },
+                      { label: '›', page: safePage + 1, disabled: safePage === totalPages },
+                      { label: '»', page: totalPages, disabled: safePage === totalPages },
+                    ].map(({ label, page, disabled }) => (
+                      <button
+                        key={label}
+                        onClick={() => setCurrentPage(page)}
+                        disabled={disabled}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          background: 'transparent',
+                          color: disabled ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)',
+                          fontSize: '13px',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: '0 4px' }}>
+                      Page {safePage} of {totalPages}
+                    </span>
+                  </div>
+
+                  <select
+                    value={pageSize}
+                    onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                    style={{
+                      padding: '5px 8px',
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: '13px',
+                    }}
+                  >
+                    {[25, 50, 100].map(n => (
+                      <option key={n} value={n}>{n} per page</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
         </>
