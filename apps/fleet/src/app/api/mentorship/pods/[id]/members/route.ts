@@ -37,10 +37,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return NextResponse.json({ error: 'members must be a non-empty array.', errorId: ERROR_IDS.INVALID_INPUT }, { status: 400 })
         }
 
+        if (!members.every((m: any) => typeof m.qaEmail === 'string' && m.qaEmail.trim())) {
+            return NextResponse.json({ error: 'Each member must have a valid qaEmail.', errorId: ERROR_IDS.INVALID_INPUT }, { status: 400 })
+        }
+
         const pod = await prisma.mentorshipPod.findUnique({ where: { id: podId } })
         if (!pod) return NextResponse.json({ error: 'Pod not found.', errorId: ERROR_IDS.PROJECT_NOT_FOUND }, { status: 404 })
 
-        await prisma.mentorshipPodMember.createMany({
+        const result = await prisma.mentorshipPodMember.createMany({
             data: members.map((m: { qaEmail: string; qaName?: string }) => ({
                 podId,
                 qaEmail: m.qaEmail.trim().toLowerCase(),
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             skipDuplicates: true
         })
 
-        return NextResponse.json({ added: members.length }, { status: 201 })
+        return NextResponse.json({ added: result.count }, { status: 201 })
     } catch (error) {
         console.error('[Mentorship Members API] POST error:', error)
         return NextResponse.json({ error: 'Failed to add members.', errorId: ERROR_IDS.SYSTEM_ERROR }, { status: 500 })

@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             },
             include: {
                 coreLeader: { select: { id: true, email: true, firstName: true, lastName: true } },
-                members: { include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } } }
+                members: { orderBy: { joinedAt: 'asc' } }
             }
         })
 

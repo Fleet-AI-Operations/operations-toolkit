@@ -78,7 +78,7 @@ export default function MentorshipDashboardPage() {
                 return;
             }
             if (res.status === 401) {
-                router.push('/auth/login');
+                router.push('/login');
                 return;
             }
             if (!res.ok) {
