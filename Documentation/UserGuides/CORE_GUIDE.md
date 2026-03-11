@@ -281,6 +281,7 @@ When you navigate to `/task-creator-deep-dive` without selecting a user, you see
 **Controls**:
 - **Environment** dropdown — filter the list to creators who have tasks in a specific environment
 - **Search** — filter by name or email (client-side, instant)
+- **Pagination** — the list is paged at 25 users per page; use the « ‹ › » controls at the bottom to navigate. The search filter resets to page 1 automatically.
 
 Click any user row to open their deep dive.
 
@@ -330,7 +331,7 @@ Filter the task table to show:
 
 #### Task Table
 
-Chronological list of all tasks. Each row shows:
+Chronological list of tasks, paginated at 25 per page (configurable to 50 or 100 via the selector at the bottom-right). Each row shows:
 
 | Column | Description |
 |--------|-------------|
@@ -338,6 +339,10 @@ Chronological list of all tasks. Each row shows:
 | **Gap** | Time since previous task. Displayed in yellow if < 5 min (rapid submission) |
 | **Task** | Task content (truncated, click to expand) |
 | **Flags** | Badge summary: ⚡ Rapid, AI %, Template %, Non-Native %, or *not analyzed* |
+
+The pagination bar below the table shows the current range (e.g. "1–25 of 120 tasks") and « ‹ › » navigation. Switching the flag filter resets to page 1.
+
+The summary cards and filter counts always reflect **all** tasks regardless of the current page.
 
 Click any row to expand it and see:
 - Full task text
