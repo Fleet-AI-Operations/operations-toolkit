@@ -38,6 +38,8 @@ vi.mock('@repo/core', () => ({
   analyzeTemplateUsage: vi.fn(),
 }));
 
+vi.mock('@repo/core/audit', () => ({ logAudit: vi.fn(() => Promise.resolve({ success: true })) }));
+
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
 function makeDataRecord(overrides: Record<string, any> = {}) {
@@ -323,6 +325,36 @@ describe('POST /api/prompt-authenticity/user-deep-dive/analyze', () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBeTruthy();
+  });
+
+  it('calls logAudit with AI_PROMPT_AUTHENTICITY_DEEP_DIVE_COMPLETED on success', async () => {
+    const { logAudit } = await import('@repo/core/audit');
+
+    const res = await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(res.status).toBe(200);
+
+    expect(vi.mocked(logAudit)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'AI_PROMPT_AUTHENTICITY_DEEP_DIVE_COMPLETED',
+        entityType: 'AI_REQUEST',
+        metadata: expect.objectContaining({ targetEmail: 'worker@example.com' }),
+      })
+    );
+  });
+
+  it('does not call logAudit when email is missing', async () => {
+    const { logAudit } = await import('@repo/core/audit');
+    await POST(makeRequest({}));
+    expect(vi.mocked(logAudit)).not.toHaveBeenCalled();
+  });
+
+  it('does not call logAudit when no tasks found', async () => {
+    const { prisma } = await import('@repo/database');
+    const { logAudit } = await import('@repo/core/audit');
+    vi.mocked(prisma.dataRecord.findMany).mockResolvedValue([] as any);
+
+    await POST(makeRequest({ email: 'worker@example.com' }));
+    expect(vi.mocked(logAudit)).not.toHaveBeenCalled();
   });
 
   it('returns 400 for a non-JSON request body', async () => {

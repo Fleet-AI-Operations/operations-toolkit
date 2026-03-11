@@ -226,6 +226,8 @@ All endpoints require FLEET, MANAGER, or ADMIN role.
 | `POST` | `/api/exemplar-tasks` | Create an exemplar; generates embedding automatically |
 | `PATCH` | `/api/exemplar-tasks/[id]` | Update content; regenerates embedding if content changed |
 | `DELETE` | `/api/exemplar-tasks/[id]` | Delete an exemplar |
+
+**Audit logging**: `POST`, `PATCH`, and `DELETE` produce audit log entries (`EXEMPLAR_TASK_CREATED`, `EXEMPLAR_TASK_UPDATED`, `EXEMPLAR_TASK_DELETED`) visible in Admin → Audit Logs. Calls are fire-and-forget and do not affect the API response on failure.
 | `POST` | `/api/exemplar-tasks/compare` | Run cosine similarity scan |
 | `POST` | `/api/exemplar-tasks/import` | Bulk CSV import with embedding generation |
 | `POST` | `/api/exemplar-tasks/embed-pending` | Regenerate embeddings for rows missing them (body: `{ environment? }`) |

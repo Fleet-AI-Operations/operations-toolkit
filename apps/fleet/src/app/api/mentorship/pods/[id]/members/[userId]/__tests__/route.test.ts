@@ -32,6 +32,8 @@ vi.mock('@repo/database', () => ({
     }
 }));
 
+vi.mock('@repo/core/audit', () => ({ logAudit: vi.fn(() => Promise.resolve({ success: true })) }));
+
 const makeParams = (id: string, userId: string) => Promise.resolve({ id, userId });
 
 const makeRequest = () =>
@@ -79,6 +81,30 @@ describe('DELETE /api/mentorship/pods/[id]/members/[userId]', () => {
         expect(prisma.mentorshipPodMember.findFirst).toHaveBeenCalledWith({
             where: { id: 'member-1', podId: 'pod-1' }
         });
+    });
+
+    it('calls logAudit with POD_MEMBER_REMOVED on successful deletion', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPodMember.findFirst).mockResolvedValue({
+            id: 'member-1', podId: 'pod-1', qaEmail: 'qa@example.com', qaName: 'QA Worker', joinedAt: new Date()
+        } as any);
+        vi.mocked(prisma.mentorshipPodMember.delete).mockResolvedValue({} as any);
+
+        await DELETE(makeRequest(), { params: makeParams('pod-1', 'member-1') });
+
+        expect(vi.mocked(logAudit)).toHaveBeenCalledWith(
+            expect.objectContaining({ action: 'POD_MEMBER_REMOVED', entityType: 'MENTORSHIP_POD', entityId: 'pod-1', metadata: expect.objectContaining({ qaEmail: 'qa@example.com' }) })
+        );
+    });
+
+    it('does not call logAudit when member is not found', async () => {
+        const { prisma } = await import('@repo/database');
+        const { logAudit } = await import('@repo/core/audit');
+        vi.mocked(prisma.mentorshipPodMember.findFirst).mockResolvedValue(null);
+
+        await DELETE(makeRequest(), { params: makeParams('pod-1', 'member-1') });
+        expect(vi.mocked(logAudit)).not.toHaveBeenCalled();
     });
 
     it('returns 401 for unauthenticated users', async () => {
