@@ -61,6 +61,30 @@ export type AuditAction =
   | 'ASSIGNMENT_BATCH_UPDATED'
   | 'ASSIGNMENT_BATCH_DELETED'
   | 'ASSIGNMENT_BATCH_DISTRIBUTED'
+  // Mentorship Pods
+  | 'POD_CREATED'
+  | 'POD_UPDATED'
+  | 'POD_DELETED'
+  | 'POD_MEMBERS_ADDED'
+  | 'POD_MEMBER_REMOVED'
+  // Guidelines
+  | 'GUIDELINE_CREATED'
+  | 'GUIDELINE_UPDATED'
+  | 'GUIDELINE_DELETED'
+  // Exemplar Tasks
+  | 'EXEMPLAR_TASK_CREATED'
+  | 'EXEMPLAR_TASK_UPDATED'
+  | 'EXEMPLAR_TASK_DELETED'
+  // Data Ingestion
+  | 'DATA_INGESTION_STARTED'
+  | 'DATA_INGESTION_CANCELLED'
+  // Meetings
+  | 'MEETING_CREATED'
+  | 'MEETING_UPDATED'
+  | 'MEETING_DELETED'
+  // Prompt Authenticity
+  | 'PROMPT_AUTHENTICITY_CLEARED'
+  | 'PROMPT_AUTHENTICITY_IMPORTED'
   // AI Calls
   | 'AI_CHECK_REQUESTED'
   | 'AI_LIKERT_LLM_EVALUATION'
@@ -83,7 +107,13 @@ export type EntityType =
   | 'RATER_GROUP'
   | 'ASSIGNMENT_BATCH'
   | 'AI_REQUEST'
-  | 'API_TOKEN';
+  | 'API_TOKEN'
+  | 'MENTORSHIP_POD'
+  | 'GUIDELINE'
+  | 'EXEMPLAR_TASK'
+  | 'INGEST_JOB'
+  | 'MEETING'
+  | 'PROMPT_AUTHENTICITY_RECORD';
 
 export interface LogAuditParams {
   action: AuditAction;

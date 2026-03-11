@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { logAudit } from '@repo/core/audit';
 
 async function requireFleetAuth(request: NextRequest) {
   const supabase = await createClient();
@@ -76,6 +77,15 @@ export async function POST(request: NextRequest) {
         createdBy: authResult.user.email || 'system',
       },
     });
+
+    logAudit({
+      action: 'MEETING_CREATED',
+      entityType: 'MEETING',
+      entityId: meeting.id,
+      userId: authResult.user.id,
+      userEmail: authResult.user.email ?? 'unknown',
+      metadata: { title: meeting.title, category: meeting.category, isRecurring: meeting.isRecurring },
+    }).catch(err => console.error('[Meetings API] Audit log failed:', err));
 
     return NextResponse.json({
       success: true,

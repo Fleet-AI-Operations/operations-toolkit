@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
+import { logAudit } from '@repo/core/audit'
 import { ERROR_IDS } from '@/constants/errorIds'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,16 @@ export async function DELETE(
         if (!membership) return NextResponse.json({ error: 'Member not found in this pod.', errorId: ERROR_IDS.USER_NOT_FOUND }, { status: 404 })
 
         await prisma.mentorshipPodMember.delete({ where: { id: memberId } })
+
+        logAudit({
+            action: 'POD_MEMBER_REMOVED',
+            entityType: 'MENTORSHIP_POD',
+            entityId: podId,
+            userId: user.id,
+            userEmail: user.email ?? 'unknown',
+            metadata: { memberId, qaEmail: membership.qaEmail },
+        }).catch(err => console.error('[Mentorship Members API] Audit log failed:', err));
+
         return NextResponse.json({ success: true })
     } catch (error) {
         console.error('[Mentorship Members API] DELETE error:', error)

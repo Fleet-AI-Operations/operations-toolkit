@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
 import { createClient } from '@repo/auth/server';
+import { logAudit } from '@repo/core/audit';
 
 /**
  * GET /api/guidelines
@@ -136,6 +137,15 @@ export async function POST(request: NextRequest) {
                 }
             }
         });
+
+        logAudit({
+            action: 'GUIDELINE_CREATED',
+            entityType: 'GUIDELINE',
+            entityId: guideline.id,
+            userId: user.id,
+            userEmail: user.email ?? 'unknown',
+            metadata: { name: guideline.name, environments: guideline.environments },
+        }).catch(err => console.error('[Guidelines API] Audit log failed:', err));
 
         return NextResponse.json({ guideline }, { status: 201 });
     } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { logAudit } from '@repo/core/audit';
 
 async function requireFleetAuth(request: NextRequest) {
   const supabase = await createClient();
@@ -57,6 +58,15 @@ export async function PUT(
       },
     });
 
+    logAudit({
+      action: 'MEETING_UPDATED',
+      entityType: 'MEETING',
+      entityId: id,
+      userId: authResult.user.id,
+      userEmail: authResult.user.email ?? 'unknown',
+      metadata: { title: meeting.title, category: meeting.category, isActive: meeting.isActive },
+    }).catch(err => console.error('[Meetings API] Audit log failed:', err));
+
     return NextResponse.json({
       success: true,
       meeting,
@@ -89,6 +99,14 @@ export async function DELETE(
     await prisma.meeting.delete({
       where: { id },
     });
+
+    logAudit({
+      action: 'MEETING_DELETED',
+      entityType: 'MEETING',
+      entityId: id,
+      userId: authResult.user.id,
+      userEmail: authResult.user.email ?? 'unknown',
+    }).catch(err => console.error('[Meetings API] Audit log failed:', err));
 
     return NextResponse.json({
       success: true,

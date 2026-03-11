@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@repo/auth/server'
 import { prisma } from '@repo/database'
+import { logAudit } from '@repo/core/audit'
 import { ERROR_IDS } from '@/constants/errorIds'
 
 export const dynamic = 'force-dynamic'
@@ -52,6 +53,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             })),
             skipDuplicates: true
         })
+
+        logAudit({
+            action: 'POD_MEMBERS_ADDED',
+            entityType: 'MENTORSHIP_POD',
+            entityId: podId,
+            userId: auth.user.id,
+            userEmail: auth.user.email ?? 'unknown',
+            metadata: { added: result.count, emails: members.map((m: { qaEmail: string }) => m.qaEmail) },
+        }).catch(err => console.error('[Mentorship Members API] Audit log failed:', err));
 
         return NextResponse.json({ added: result.count }, { status: 201 })
     } catch (error) {

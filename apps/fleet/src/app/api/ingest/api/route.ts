@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { startBackgroundIngest } from '@repo/core/ingestion';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,15 @@ export async function POST(req: NextRequest) {
             filterKeywords,
             generateEmbeddings,
         });
+
+        logAudit({
+            action: 'DATA_INGESTION_STARTED',
+            entityType: 'INGEST_JOB',
+            entityId: jobId,
+            userId: user.id,
+            userEmail: user.email!,
+            metadata: { source: `api:${url}`, environment, generateEmbeddings: generateEmbeddings ?? false },
+        }).catch(err => console.error('[API Ingest] Audit log failed:', err));
 
         // Processing is triggered by the Supabase DB webhook on ingest_jobs INSERT.
         return NextResponse.json({

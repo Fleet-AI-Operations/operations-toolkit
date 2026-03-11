@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { getEmbedding } from '@repo/core/ai';
+import { logAudit } from '@repo/core/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,6 +105,15 @@ export async function PATCH(
             hasEmbedding = rows.length > 0;
         }
 
+        logAudit({
+            action: 'EXEMPLAR_TASK_UPDATED',
+            entityType: 'EXEMPLAR_TASK',
+            entityId: id,
+            userId: authResult.user!.id,
+            userEmail: authResult.user!.email ?? 'unknown',
+            metadata: { environment: exemplar.environment, contentChanged: content !== undefined && content.trim() !== existing.content },
+        }).catch(err => console.error('[ExemplarTasks] Audit log failed:', err));
+
         return NextResponse.json({
             exemplar: { ...exemplar, hasEmbedding },
             ...(embeddingWarning && { embeddingWarning }),
@@ -129,6 +139,15 @@ export async function DELETE(
 
     try {
         await prisma.exemplarTask.delete({ where: { id } });
+
+        logAudit({
+            action: 'EXEMPLAR_TASK_DELETED',
+            entityType: 'EXEMPLAR_TASK',
+            entityId: id,
+            userId: authResult.user!.id,
+            userEmail: authResult.user!.email ?? 'unknown',
+        }).catch(err => console.error('[ExemplarTasks] Audit log failed:', err));
+
         return NextResponse.json({ success: true });
     } catch (err: any) {
         if (err.code === 'P2025') {
