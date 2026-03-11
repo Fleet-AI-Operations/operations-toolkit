@@ -33,6 +33,7 @@ import {
     KeyRound,
     LucideIcon,
     UserSearch,
+    GraduationCap,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -107,6 +108,14 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { label: 'Assignments', href: '/assignments', icon: ClipboardList, app: 'fleet' },
             { label: 'Rater Groups', href: '/rater-groups', icon: Users, app: 'fleet' },
+        ],
+    },
+    {
+        title: 'Mentorship Program',
+        minRole: 'FLEET',
+        items: [
+            { label: 'Mentorship Dashboard', href: '/mentorship-dashboard', icon: GraduationCap, app: 'fleet' },
+            { label: 'Mentorship Config', href: '/mentorship-config', icon: GraduationCap, app: 'fleet' },
         ],
     },
     {
