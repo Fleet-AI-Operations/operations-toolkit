@@ -139,6 +139,7 @@ model DataRecord {
   likertScores      LikertScore[]
   assignments       AssignmentRecord[]
   qaFeedbackRatings QAFeedbackRating[]
+  taskDisputes      TaskDispute[]
   /// Cross-encoder cache relations: lists of cache entries where this record is source/target
   ceAsSource        CrossEncoderCache[]    @relation("ce_source")
   ceAsTarget        CrossEncoderCache[]    @relation("ce_target")
@@ -1618,6 +1619,49 @@ model WorkerFlag {
   @@index([status])
   @@index([severity])
   @@map("worker_flags")
+  @@schema("public")
+}
+
+model TaskDispute {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalId          Int       @unique @map("external_id")
+  createdAtSource     DateTime  @map("created_at_source") @db.Timestamptz(6)
+  updatedAtSource     DateTime  @map("updated_at_source") @db.Timestamptz(6)
+  feedbackId          Int       @map("feedback_id")
+  evalTaskId          String?   @map("eval_task_id")
+  disputeStatus       String    @map("dispute_status")
+  disputeReason       String?   @map("dispute_reason") @db.Text
+  resolutionReason    String?   @map("resolution_reason") @db.Text
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz(6)
+  reportText          String?   @map("report_text") @db.Text
+  isHelpful           Boolean?  @map("is_helpful")
+  disputerUserId      String?   @map("disputer_user_id")
+  disputerName        String?   @map("disputer_name")
+  disputerEmail       String?   @map("disputer_email")
+  resolverUserId      String?   @map("resolver_user_id")
+  resolverName        String?   @map("resolver_name")
+  teamId              String?   @map("team_id")
+  teamName            String?   @map("team_name")
+  taskKey             String    @map("task_key")
+  taskLifecycleStatus String?   @map("task_lifecycle_status")
+  envKey              String?   @map("env_key")
+  envDataKey          String?   @map("env_data_key")
+  taskModality        String?   @map("task_modality")
+  disputeData         Json?     @map("dispute_data")
+  leasedBy            String?   @map("leased_by")
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  importedAt          DateTime  @default(now()) @map("imported_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Optional link to local data_records
+  dataRecord          DataRecord? @relation(fields: [evalTaskId], references: [id])
+
+  @@index([disputeStatus])
+  @@index([disputerEmail])
+  @@index([envKey])
+  @@index([taskKey])
+  @@index([evalTaskId])
+  @@map("task_disputes")
   @@schema("public")
 }
 
