@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'File too large. Maximum size is 50MB.' }, { status: 400 });
+    }
+
     const fileContent = await file.text();
 
     let records: CSVRow[];
@@ -87,6 +92,16 @@ export async function POST(req: NextRequest) {
     `;
     const taskKeyToRecordId = new Map(matchedRecords.map(r => [r.task_key, r.id]));
 
+    // Pre-fetch existing externalIds to distinguish creates from updates
+    const allExternalIds = records
+      .map(r => parseInt(r.id, 10))
+      .filter(n => !isNaN(n));
+    const existingDisputes = await prisma.taskDispute.findMany({
+      where: { externalId: { in: allExternalIds } },
+      select: { externalId: true },
+    });
+    const existingExternalIds = new Set(existingDisputes.map(d => d.externalId));
+
     const BATCH_SIZE = 100;
     for (let i = 0; i < records.length; i += BATCH_SIZE) {
       const batch = records.slice(i, i + BATCH_SIZE);
@@ -115,8 +130,14 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
+          const feedbackId = parseInt(row.feedback_id, 10);
+          if (isNaN(feedbackId)) {
+            summary.errors.push(`Row ${rowNum}: invalid feedback_id "${row.feedback_id}"`);
+            summary.skipped++;
+            continue;
+          }
+
           const evalTaskId = row.task_key ? (taskKeyToRecordId.get(row.task_key) ?? null) : null;
-          if (evalTaskId) summary.matched++;
 
           const resolvedAt = row.resolved_at ? new Date(row.resolved_at) : null;
           const leaseExpiresAt = row.lease_expires_at ? new Date(row.lease_expires_at) : null;
@@ -134,7 +155,7 @@ export async function POST(req: NextRequest) {
             externalId,
             createdAtSource,
             updatedAtSource,
-            feedbackId: parseInt(row.feedback_id, 10),
+            feedbackId,
             evalTaskId,
             disputeStatus: row.dispute_status || 'pending',
             disputeReason: row.dispute_reason || null,
@@ -159,13 +180,17 @@ export async function POST(req: NextRequest) {
             leaseExpiresAt: leaseExpiresAt && !isNaN(leaseExpiresAt.getTime()) ? leaseExpiresAt : null,
           };
 
-          const existing = await prisma.taskDispute.findUnique({ where: { externalId } });
-          if (existing) {
-            await prisma.taskDispute.update({ where: { externalId }, data });
-            summary.updated++;
-          } else {
-            await prisma.taskDispute.create({ data });
+          const isNew = !existingExternalIds.has(externalId);
+          await prisma.taskDispute.upsert({
+            where: { externalId },
+            create: data,
+            update: data,
+          });
+          if (isNew) {
             summary.imported++;
+            if (evalTaskId) summary.matched++;
+          } else {
+            summary.updated++;
           }
         } catch (err) {
           summary.errors.push(`Row ${rowNum}: ${err instanceof Error ? err.message : String(err)}`);
