@@ -74,6 +74,7 @@ apps/*/node_modules/
 packages/*/dist/
 scripts/sync-feedback-outcome-to-prod.js
 scripts/ingest-csv-to-prod.sh
+apps/fleet/scripts/
 
 # Playwright MCP logs
 .playwright-mcp/

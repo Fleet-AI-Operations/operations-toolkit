@@ -6,14 +6,17 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "require": "./dist/index.js",
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
     "./database": {
+      "require": "./dist/database.js",
       "import": "./dist/database.js",
       "types": "./dist/database.d.ts"
     },
     "./api": {
+      "require": "./dist/api.js",
       "import": "./dist/api.js",
       "types": "./dist/api.d.ts"
     }

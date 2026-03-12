@@ -6,7 +6,9 @@
     "dev": "next dev --port 3004",
     "build": "next build",
     "start": "next start",
-    "lint": "echo 'Linting disabled - TODO: Fix ESLint 9 config' && exit 0"
+    "lint": "echo 'Linting disabled - TODO: Fix ESLint 9 config' && exit 0",
+    "batch-deep-dive": "tsx scripts/batch-deep-dive-analysis.ts",
+    "ai-score-report": "tsx scripts/ai-score-report.ts"
   },
   "dependencies": {
     "@repo/api-utils": "workspace:*",

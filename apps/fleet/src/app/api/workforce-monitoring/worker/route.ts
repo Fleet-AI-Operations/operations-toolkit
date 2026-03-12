@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
                      CAST(COALESCE(NULLIF(metadata->>'task_version', ''), NULLIF(metadata->>'version_no', ''), '0') AS INTEGER) DESC,
                      "createdAt" DESC
           ) latest
-          ORDER BY "createdAt" DESC
+          ORDER BY "createdAt" DESC, id
           LIMIT ${limit} OFFSET ${skip}
         `;
       } else {
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
             WHERE type = 'TASK'
               AND "createdByEmail" = ${email}
               ${envFilter}
-            ORDER BY "createdAt" DESC
+            ORDER BY "createdAt" DESC, id
             LIMIT ${limit} OFFSET ${skip}
           `,
           prisma.dataRecord.count({
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
           prisma.dataRecord.findMany({
             where: { createdByEmail: email, type: 'FEEDBACK', ...(environment ? { environment } : {}) },
             select: { id: true, environment: true, content: true, metadata: true, createdAt: true, alignmentAnalysis: true, hasBeenReviewed: true },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
             skip: typeFilter === 'FEEDBACK' ? skip : 0,
             take: typeFilter === 'FEEDBACK' ? limit : 50,
           }),
