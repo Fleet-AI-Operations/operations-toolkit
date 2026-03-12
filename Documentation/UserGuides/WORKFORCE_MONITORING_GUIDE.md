@@ -127,6 +127,8 @@ Paginated list of the worker's TASK records (50 per page), newest first.
 
 Each row shows the task content (truncated), environment badge, creation date, and metadata. Click a row to expand the full content.
 
+> **Note**: Task pagination is stable across pages — tasks are ordered by creation date (newest first), with record ID as a tiebreaker to ensure consistent results when multiple tasks share the same timestamp.
+
 ---
 
 ### Feedback Tab
@@ -435,5 +437,5 @@ Creates a `REVIEW_REQUESTED` flag with `MEDIUM` severity. Response: `{ flag }` (
 ---
 
 **Document Version**: 1.0
-**Last Updated**: March 2026
+**Last Updated**: 2026-03-12
 **Role**: FLEET / MANAGER / ADMIN
