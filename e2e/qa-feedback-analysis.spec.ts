@@ -21,7 +21,7 @@ test.describe('QA Feedback Analysis', () => {
         await expect(page.locator('h1:has-text("QA Feedback Analysis")')).toBeVisible({ timeout: 15000 });
 
         // Check for main UI elements
-        await expect(page.locator('text=Filter Options')).toBeVisible();
+        await expect(page.locator('text=Filters')).toBeVisible();
         await expect(page.locator('text=QA Workers')).toBeVisible();
     });
 
@@ -46,15 +46,34 @@ test.describe('QA Feedback Analysis', () => {
         await expect(page.locator('th:has-text("Negative %")')).toBeVisible();
     });
 
+    test('should not show an Import CSV button on the main dashboard', async ({ page }) => {
+        await loginAsFleet(page);
+        await page.goto('http://localhost:3004/qa-feedback-analysis');
+
+        await expect(page.locator('h1:has-text("QA Feedback Analysis")')).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('button:has-text("Import CSV")')).not.toBeVisible();
+    });
+
+    test('should default to Last 7 Days date range', async ({ page }) => {
+        await loginAsFleet(page);
+        await page.goto('http://localhost:3004/qa-feedback-analysis');
+
+        await expect(page.locator('h1:has-text("QA Feedback Analysis")')).toBeVisible({ timeout: 15000 });
+
+        // Last 7 Days button should be the active/highlighted quick-range button
+        const sevenDaysBtn = page.locator('button:has-text("Last 7 Days")');
+        await expect(sevenDaysBtn).toBeVisible({ timeout: 10000 });
+    });
+
     test('should filter by date range', async ({ page }) => {
         await loginAsFleet(page);
         await page.goto('http://localhost:3004/qa-feedback-analysis');
 
         // Wait for filters to be visible
-        await expect(page.locator('text=Filter Options')).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Filters')).toBeVisible({ timeout: 15000 });
 
         // Click on 30 Days filter
-        const thirtyDaysBtn = page.locator('button:has-text("30 Days")');
+        const thirtyDaysBtn = page.locator('button:has-text("Last 30 Days")');
         if (await thirtyDaysBtn.isVisible()) {
             await thirtyDaysBtn.click();
 

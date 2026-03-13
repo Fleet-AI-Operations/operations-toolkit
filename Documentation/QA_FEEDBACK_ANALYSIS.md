@@ -26,7 +26,7 @@ The QA Feedback Analysis feature provides comprehensive performance analytics fo
 - Total feedbacks written
 
 **Features:**
-- **Date Range Filtering:** Quick selects (7, 30, 90 days, All Time) or custom date range
+- **Date Range Filtering:** Quick selects (7, 30, 90 days, All Time) or custom date range. Defaults to last 7 days on page load.
 - **Environment Filtering:** Filter by specific environment (e.g., Production, Staging)
 - **Minimum Negative % Filter:** Show only workers above a certain negative threshold
 - **Search:** Search by QA name or email
@@ -429,7 +429,7 @@ Optional columns:
 ### No Data Showing
 
 **Possible Causes:**
-1. No ratings imported yet → Import CSV via `/qa-feedback-import`
+1. No ratings imported yet → Import CSV via the Admin app at `/admin/qa-feedback-import`
 2. Ratings not linked to tasks → Use Link Tasks tool at `/qa-feedback-analysis/link-tasks`
 3. Date range filter too narrow → Try "All Time" filter
 4. Environment filter excluding all data → Clear filters
@@ -643,3 +643,8 @@ npm run postinstall
 - API endpoints with performance optimizations
 - E2E and unit tests
 - Documentation
+
+**v1.1.0 (2026-03-13)** — FLEOTK-38
+- Default date range changed from 30 days to 7 days
+- Removed Import CSV button and modal from main dashboard (import is handled via the Admin app)
+- Improved filter button visibility: active quick-range button uses accent colour, inactive buttons have higher-contrast border/background, Clear Filters uses red tinting consistent with other pages
