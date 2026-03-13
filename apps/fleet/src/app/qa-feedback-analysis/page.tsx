@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, Filter, TrendingDown, AlertTriangle, Users, Search, X } from 'lucide-react'
 
@@ -86,6 +86,7 @@ export default function QAFeedbackAnalysisPage() {
     const [workerEnvStats, setWorkerEnvStats] = useState<Map<string, EnvStats[]>>(new Map())
 
     const ITEMS_PER_PAGE = 25
+    const initialFetchDone = useRef(false)
 
     // Set default date range (last 7 days)
     useEffect(() => {
@@ -113,13 +114,6 @@ export default function QAFeedbackAnalysisPage() {
             })
             .catch(err => console.error('Failed to fetch environments:', err))
     }, [])
-
-    // Auto-fetch data on initial load once dates are set
-    useEffect(() => {
-        if (startDate && endDate && workers.length === 0 && !isLoading) {
-            fetchData()
-        }
-    }, [startDate, endDate, fetchData, workers.length, isLoading])
 
     // Fetch worker data
     const fetchData = useCallback(async (overrideStart?: string, overrideEnd?: string) => {
@@ -151,6 +145,14 @@ export default function QAFeedbackAnalysisPage() {
             setIsLoading(false)
         }
     }, [startDate, endDate, environment, minNegativePercent])
+
+    // Auto-fetch data on initial load once dates are set
+    useEffect(() => {
+        if (startDate && endDate && !initialFetchDone.current) {
+            initialFetchDone.current = true
+            fetchData()
+        }
+    }, [startDate, endDate, fetchData])
 
     // Fetch environment stats for a worker when expanded
     const fetchWorkerEnvStats = async (qaEmail: string) => {
