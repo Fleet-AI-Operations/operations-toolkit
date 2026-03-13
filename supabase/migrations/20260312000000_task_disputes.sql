@@ -41,6 +41,15 @@ CREATE INDEX IF NOT EXISTS idx_task_disputes_task_key          ON public.task_di
 CREATE INDEX IF NOT EXISTS idx_task_disputes_eval_task_id      ON public.task_disputes(eval_task_id);
 CREATE INDEX IF NOT EXISTS idx_task_disputes_created_at_source ON public.task_disputes(created_at_source DESC);
 
-CREATE OR REPLACE TRIGGER set_task_disputes_updated_at
-  BEFORE UPDATE ON public.task_disputes
-  FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime(updated_at);
+CREATE OR REPLACE FUNCTION public.update_task_disputes_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = '';
+
+CREATE TRIGGER set_task_disputes_updated_at
+    BEFORE UPDATE ON public.task_disputes
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_task_disputes_updated_at();
