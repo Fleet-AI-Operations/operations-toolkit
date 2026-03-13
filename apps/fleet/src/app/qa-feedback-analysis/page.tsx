@@ -187,7 +187,7 @@ export default function QAFeedbackAnalysisPage() {
     }
 
     // Handle quick date range selection — auto-fetches
-    const setQuickRange = (days: QuickRange) => {
+    const setQuickRange = (days: Exclude<QuickRange, undefined>) => {
         setActiveRange(days)
         const end = new Date()
         const newEnd = end.toISOString().split('T')[0]
