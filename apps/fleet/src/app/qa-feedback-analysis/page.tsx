@@ -26,7 +26,40 @@ interface EnvStats {
 
 type SortField = 'qaEmail' | 'totalRatings' | 'negativePercent' | 'negativePerFeedbackRatio' | 'disputes'
 type SortDirection = 'asc' | 'desc'
-type QuickRange = 7 | 30 | 90 | null
+type QuickRange = 7 | 30 | 90 | null | undefined
+
+const quickRangeActiveStyle: React.CSSProperties = {
+    padding: '6px 14px',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    borderRadius: '6px',
+    border: '1px solid var(--accent)',
+    background: 'var(--accent)',
+    color: '#000',
+    cursor: 'pointer',
+}
+
+const quickRangeInactiveStyle: React.CSSProperties = {
+    padding: '6px 14px',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    borderRadius: '6px',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'rgba(255,255,255,0.07)',
+    color: 'rgba(255,255,255,0.85)',
+    cursor: 'pointer',
+}
+
+const clearFiltersStyle: React.CSSProperties = {
+    padding: '8px 16px',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    borderRadius: '6px',
+    border: '1px solid rgba(239,68,68,0.35)',
+    background: 'rgba(239,68,68,0.12)',
+    color: '#f87171',
+    cursor: 'pointer',
+}
 
 export default function QAFeedbackAnalysisPage() {
     const router = useRouter()
@@ -86,7 +119,7 @@ export default function QAFeedbackAnalysisPage() {
         if (startDate && endDate && workers.length === 0 && !isLoading) {
             fetchData()
         }
-    }, [startDate, endDate])
+    }, [startDate, endDate, fetchData, workers.length, isLoading])
 
     // Fetch worker data
     const fetchData = useCallback(async (overrideStart?: string, overrideEnd?: string) => {
@@ -281,7 +314,7 @@ export default function QAFeedbackAnalysisPage() {
                             value={startDate}
                             onChange={(e) => {
                                 setStartDate(e.target.value)
-                                setActiveRange(undefined as any)
+                                setActiveRange(undefined)
                             }}
                             className="input-field"
                         />
@@ -294,7 +327,7 @@ export default function QAFeedbackAnalysisPage() {
                             value={endDate}
                             onChange={(e) => {
                                 setEndDate(e.target.value)
-                                setActiveRange(undefined as any)
+                                setActiveRange(undefined)
                             }}
                             className="input-field"
                         />
@@ -358,25 +391,7 @@ export default function QAFeedbackAnalysisPage() {
                         <button
                             key={label}
                             onClick={() => setQuickRange(value)}
-                            style={activeRange === value ? {
-                                padding: '6px 14px',
-                                fontSize: '0.875rem',
-                                fontWeight: 600,
-                                borderRadius: '6px',
-                                border: '1px solid var(--accent)',
-                                background: 'var(--accent)',
-                                color: '#000',
-                                cursor: 'pointer',
-                            } : {
-                                padding: '6px 14px',
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                                borderRadius: '6px',
-                                border: '1px solid rgba(255,255,255,0.25)',
-                                background: 'rgba(255,255,255,0.07)',
-                                color: 'rgba(255,255,255,0.85)',
-                                cursor: 'pointer',
-                            }}
+                            style={activeRange === value ? quickRangeActiveStyle : quickRangeInactiveStyle}
                         >
                             {label}
                         </button>
@@ -399,16 +414,7 @@ export default function QAFeedbackAnalysisPage() {
                             setSearchQuery('')
                             setQuickRange(7)
                         }}
-                        style={{
-                            padding: '8px 16px',
-                            fontSize: '0.875rem',
-                            fontWeight: 500,
-                            borderRadius: '6px',
-                            border: '1px solid rgba(239,68,68,0.35)',
-                            background: 'rgba(239,68,68,0.12)',
-                            color: '#f87171',
-                            cursor: 'pointer',
-                        }}
+                        style={clearFiltersStyle}
                     >
                         Clear Filters
                     </button>
