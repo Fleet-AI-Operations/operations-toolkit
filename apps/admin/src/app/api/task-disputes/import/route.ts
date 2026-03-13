@@ -43,7 +43,7 @@ interface ImportSummary {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireRole(req, 'ADMIN');
+  const authResult = await requireRole(req, ['ADMIN']);
   if (authResult.error) return authResult.error;
   const { user } = authResult;
 
