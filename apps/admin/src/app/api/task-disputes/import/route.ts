@@ -43,7 +43,7 @@ interface ImportSummary {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireRole(req, ['ADMIN']);
+  const authResult = await requireRole(req, 'ADMIN');
   if (authResult.error) return authResult.error;
   const { user } = authResult;
 
@@ -102,12 +102,9 @@ export async function POST(req: NextRequest) {
     });
     const existingExternalIds = new Set(existingDisputes.map(d => d.externalId));
 
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-      const batch = records.slice(i, i + BATCH_SIZE);
-
-      for (const row of batch) {
-        const rowNum = i + batch.indexOf(row) + 2;
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const rowNum = i + 2;
         try {
           const externalId = parseInt(row.id, 10);
           if (isNaN(externalId)) {
@@ -192,10 +189,9 @@ export async function POST(req: NextRequest) {
           } else {
             summary.updated++;
           }
-        } catch (err) {
-          summary.errors.push(`Row ${rowNum}: ${err instanceof Error ? err.message : String(err)}`);
-          summary.skipped++;
-        }
+      } catch (err) {
+        summary.errors.push(`Row ${rowNum}: ${err instanceof Error ? err.message : String(err)}`);
+        summary.skipped++;
       }
     }
 

@@ -40,3 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_task_disputes_env_key           ON public.task_di
 CREATE INDEX IF NOT EXISTS idx_task_disputes_task_key          ON public.task_disputes(task_key);
 CREATE INDEX IF NOT EXISTS idx_task_disputes_eval_task_id      ON public.task_disputes(eval_task_id);
 CREATE INDEX IF NOT EXISTS idx_task_disputes_created_at_source ON public.task_disputes(created_at_source DESC);
+
+CREATE OR REPLACE TRIGGER set_task_disputes_updated_at
+  BEFORE UPDATE ON public.task_disputes
+  FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime(updated_at);

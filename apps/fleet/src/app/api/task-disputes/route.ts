@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  *   matched       (optional) — 'true' | 'false' — filter by whether eval_task_id is linked
  */
 export async function GET(req: NextRequest) {
-  const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
+  const authResult = await requireRole(req, 'FLEET');
   if (authResult.error) return authResult.error;
 
   try {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -92,9 +92,26 @@ export default function TaskDisputesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [envFilter, setEnvFilter] = useState('');
   const [emailFilter, setEmailFilter] = useState('');
+  const [emailInput, setEmailInput] = useState('');
   const [modalityFilter, setModalityFilter] = useState('');
   const [matchedFilter, setMatchedFilter] = useState('');
   const [taskKeyFilter, setTaskKeyFilter] = useState('');
+  const [taskKeyInput, setTaskKeyInput] = useState('');
+
+  const emailDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const taskKeyDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEmailInput = (value: string) => {
+    setEmailInput(value);
+    if (emailDebounce.current) clearTimeout(emailDebounce.current);
+    emailDebounce.current = setTimeout(() => setEmailFilter(value), 300);
+  };
+
+  const handleTaskKeyInput = (value: string) => {
+    setTaskKeyInput(value);
+    if (taskKeyDebounce.current) clearTimeout(taskKeyDebounce.current);
+    taskKeyDebounce.current = setTimeout(() => setTaskKeyFilter(value), 300);
+  };
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -139,15 +156,17 @@ export default function TaskDisputesPage() {
     setStatusFilter('');
     setEnvFilter('');
     setEmailFilter('');
+    setEmailInput('');
     setModalityFilter('');
     setMatchedFilter('');
     setTaskKeyFilter('');
+    setTaskKeyInput('');
   };
 
   const hasFilters = statusFilter || envFilter || emailFilter || modalityFilter || matchedFilter || taskKeyFilter;
   const totalPages = Math.ceil(total / LIMIT);
   const grandTotal = stats ? stats.totalMatched + stats.totalUnmatched : 0;
-  const matchPct = grandTotal > 0 ? Math.round((stats!.totalMatched / grandTotal) * 100) : 0;
+  const matchPct = stats && grandTotal > 0 ? Math.round((stats.totalMatched / grandTotal) * 100) : 0;
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
@@ -215,12 +234,12 @@ export default function TaskDisputesPage() {
               <input
                 type="text"
                 placeholder="Filter by email"
-                value={emailFilter}
-                onChange={e => setEmailFilter(e.target.value)}
+                value={emailInput}
+                onChange={e => handleEmailInput(e.target.value)}
                 className="w-full pl-8 pr-7 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--bg)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
               />
-              {emailFilter && (
-                <button onClick={() => setEmailFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+              {emailInput && (
+                <button onClick={() => { setEmailInput(''); setEmailFilter(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
                   <X className="w-3 h-3 text-[var(--text-secondary)]" />
                 </button>
               )}
@@ -235,12 +254,12 @@ export default function TaskDisputesPage() {
               <input
                 type="text"
                 placeholder="Filter by task key"
-                value={taskKeyFilter}
-                onChange={e => setTaskKeyFilter(e.target.value)}
+                value={taskKeyInput}
+                onChange={e => handleTaskKeyInput(e.target.value)}
                 className="w-full pl-8 pr-7 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--bg)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
               />
-              {taskKeyFilter && (
-                <button onClick={() => setTaskKeyFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+              {taskKeyInput && (
+                <button onClick={() => { setTaskKeyInput(''); setTaskKeyFilter(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
                   <X className="w-3 h-3 text-[var(--text-secondary)]" />
                 </button>
               )}
