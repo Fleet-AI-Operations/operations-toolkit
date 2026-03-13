@@ -35,6 +35,7 @@ Documentation/
 │   ├── Task Search                → ./TASK_SEARCH.md
 │   ├── Task Creator Deep-Dive     → see API Reference § Prompt Authenticity
 │   ├── Mentorship Program         → ./MENTORSHIP.md
+│   ├── Task Disputes              → ./TASK_DISPUTES.md
 │   └── Workforce Monitoring       → ./UserGuides/WORKFORCE_MONITORING_GUIDE.md
 │
 ├── Development/
@@ -89,6 +90,7 @@ Documentation/
 → [Task Creator Deep-Dive](./Reference/API_REFERENCE.md#prompt-authenticity--task-creator-deep-dive) (Core)
 → [Workforce Monitoring Guide](./UserGuides/WORKFORCE_MONITORING_GUIDE.md) (Fleet)
 → [Mentorship Program](./MENTORSHIP.md) (Fleet)
+→ [Task Disputes](./TASK_DISPUTES.md) (Fleet/Admin)
 
 #### **Develop Features**
 → [Local Development](./LOCAL_DEVELOPMENT.md)
@@ -331,4 +333,4 @@ Can't find what you're looking for?
 
 ---
 
-*Last Updated: 2026-03-10* — Added Mentorship Program docs; added API token authentication docs; updated Ingestion and QA Feedback Import API reference
+*Last Updated: 2026-03-12* — Added Task Disputes feature docs (TASK_DISPUTES.md)

@@ -34,6 +34,7 @@ import {
     LucideIcon,
     UserSearch,
     GraduationCap,
+    Scale,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -159,6 +160,7 @@ const NAV_SECTIONS: NavSection[] = [
             { label: 'Configuration', href: '/admin/configuration', icon: Settings, app: 'admin' },
             { label: 'LLM Models', href: '/admin/llm-models', icon: Sparkles, app: 'admin' },
             { label: 'Notification Settings', href: '/admin/notification-settings', icon: MessageSquare, app: 'admin' },
+            { label: 'Task Disputes Import', href: '/admin/task-disputes-import', icon: Scale, app: 'admin' },
             { label: 'Users', href: '/admin/users', icon: Users, app: 'admin' },
         ],
     },
@@ -178,6 +180,7 @@ const NAV_SECTIONS: NavSection[] = [
             { label: 'Full Similarity Check', href: '/full-similarity-check', icon: ScanSearch, app: 'fleet' },
             { label: 'Prompt Authenticity Checker', href: '/prompt-authenticity', icon: SearchCheck, app: 'fleet' },
             { label: 'QA Feedback Analysis', href: '/qa-feedback-analysis', icon: MessageSquare, app: 'fleet' },
+            { label: 'Task Disputes', href: '/task-disputes', icon: Scale, app: 'fleet' },
         ],
     },
     // {
