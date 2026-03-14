@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { startBackgroundIngestFromSession } from '@repo/core/ingestion';
 import { prisma } from '@repo/database';
+import { requireRole } from '@repo/api-utils';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,9 @@ async function cleanupExpiredSessions(): Promise<void> {
 }
 
 export async function POST(req: NextRequest) {
+    const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
+    if (authResult.error) return authResult.error;
+
     try {
         const body = await req.json();
         const { action } = body;

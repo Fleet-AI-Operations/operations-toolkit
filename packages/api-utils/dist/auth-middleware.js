@@ -62,6 +62,34 @@ export async function requireRole(req, roles) {
         error: null
     };
 }
+const ROLE_WEIGHTS = {
+    PENDING: 0,
+    USER: 1,
+    QA: 2,
+    CORE: 3,
+    FLEET: 4,
+    MANAGER: 4,
+    ADMIN: 5,
+};
+/**
+ * Require a minimum role (hierarchical). Any role >= minRole is accepted.
+ * ADMIN > MANAGER/FLEET > CORE > QA > USER > PENDING
+ */
+export async function requireMinRole(req, minRole) {
+    const authResult = await requireAuth(req);
+    if (authResult.error) {
+        return { user: null, role: null, error: authResult.error };
+    }
+    const role = await getUserRole(authResult.user.id);
+    if ((ROLE_WEIGHTS[role] ?? 0) < (ROLE_WEIGHTS[minRole] ?? 0)) {
+        return {
+            user: null,
+            role: null,
+            error: NextResponse.json({ error: `Forbidden - ${minRole} or higher role required` }, { status: 403 })
+        };
+    }
+    return { user: authResult.user, role, error: null };
+}
 /**
  * Helper to check if auth result is successful
  */

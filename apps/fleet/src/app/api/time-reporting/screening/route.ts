@@ -1,30 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@repo/auth/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@repo/database';
-
-async function requireFleetAuth(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile || !['FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  }
-
-  return { profile, user };
-}
+import { requireRole } from '@repo/api-utils';
 
 interface WorkerMetrics {
   workerName: string;
@@ -41,8 +18,19 @@ interface WorkerMetrics {
   lastReportDate: Date;
 }
 
+interface AggregatedRow {
+  worker_email: string;
+  worker_name: string;
+  total_hours: string;
+  report_count: bigint;
+  days_active: bigint;
+  first_date: Date;
+  last_date: Date;
+  all_notes: string[];
+}
+
 export async function GET(request: NextRequest) {
-  const authResult = await requireFleetAuth(request);
+  const authResult = await requireRole(request, ['FLEET', 'MANAGER', 'ADMIN']);
   if (authResult.error) return authResult.error;
 
   try {
@@ -62,21 +50,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid endDate format' }, { status: 400 });
     }
 
-    // Build date filter for SQL
-    const dateConditions: string[] = [];
-    const dateParams: any[] = [];
-    if (startDate) {
-      dateConditions.push(`work_date >= $${dateParams.length + 1}`);
-      dateParams.push(new Date(startDate));
-    }
-    if (endDate) {
-      dateConditions.push(`work_date <= $${dateParams.length + 1}`);
-      dateParams.push(new Date(endDate));
-    }
-    const whereClause = dateConditions.length > 0 ? `WHERE ${dateConditions.join(' AND ')}` : '';
+    // Build date filter using Prisma.sql tagged templates (safe from injection)
+    const conditions: Prisma.Sql[] = [];
+    if (startDate) conditions.push(Prisma.sql`work_date >= ${new Date(startDate)}`);
+    if (endDate) conditions.push(Prisma.sql`work_date <= ${new Date(endDate)}`);
+    const where = conditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.empty;
 
     // Use database-level aggregation for performance (takes advantage of indexes)
-    const aggregationQuery = `
+    const aggregatedData = await prisma.$queryRaw<AggregatedRow[]>`
       SELECT
         worker_email,
         worker_name,
@@ -87,15 +70,10 @@ export async function GET(request: NextRequest) {
         MAX(work_date) as last_date,
         ARRAY_AGG(notes ORDER BY work_date) as all_notes
       FROM time_report_records
-      ${whereClause}
+      ${where}
       GROUP BY worker_email, worker_name
       ORDER BY worker_email
     `;
-
-    const aggregatedData: any[] = await prisma.$queryRawUnsafe(
-      aggregationQuery,
-      ...dateParams
-    );
 
     // Calculate metrics for each worker (with task counting from notes)
     const workerMetrics: WorkerMetrics[] = [];
@@ -110,7 +88,7 @@ export async function GET(request: NextRequest) {
       }
 
       const totalHours = parseFloat(row.total_hours) || 0;
-      const daysActive = parseInt(row.days_active) || 0;
+      const daysActive = parseInt(String(row.days_active)) || 0;
       const avgHoursPerTask = totalTasks > 0 ? totalHours / totalTasks : 0;
       const tasksPerDay = daysActive > 0 ? totalTasks / daysActive : 0;
 
@@ -216,10 +194,10 @@ export async function GET(request: NextRequest) {
         hasPreviousPage: page > 1,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in screening analysis:', error);
     return NextResponse.json(
-      { error: 'Failed to perform screening analysis', details: error.message },
+      { error: 'Failed to perform screening analysis' },
       { status: 500 },
     );
   }

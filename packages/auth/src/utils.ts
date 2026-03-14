@@ -10,7 +10,7 @@ import type { UserRole } from '@repo/types';
 // invalidateRoleCache() in the Admin app only clears that app's cache — other apps will
 // continue serving the stale role until the TTL expires. The 1-minute TTL bounds the
 // worst case.
-const ROLE_CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute — bounds the window for revoked permissions in multi-app deployments
+const ROLE_CACHE_TTL_MS = 30 * 1000; // 30 seconds — bounds the window for revoked permissions in multi-app deployments
 
 interface CachedRole {
   role: UserRole;
@@ -45,9 +45,9 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     select: { role: true }
   });
   if (!profile) {
-    console.warn(`[getUserRole] No profile found for userId=${userId}. Defaulting to USER role.`);
+    console.warn(`[getUserRole] No profile found for userId=${userId}. Defaulting to PENDING role.`);
   }
-  const role = (profile?.role ?? 'USER') as UserRole;
+  const role = (profile?.role ?? 'PENDING') as UserRole;
 
   roleCache.set(userId, { role, expiresAt: now + ROLE_CACHE_TTL_MS });
   return role;

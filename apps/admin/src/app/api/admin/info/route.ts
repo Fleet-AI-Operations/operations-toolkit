@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { requireAdminRole } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+    const authResult = await requireAdminRole();
+    if ('error' in authResult) return authResult.error;
+
     try {
         // Parse DB Host/Port from connection string (sanitized)
         // Check multiple possible database URL environment variables
@@ -94,7 +98,8 @@ export async function GET() {
                 embeddingModel
             }
         });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error) {
+        console.error('[admin/info] Error fetching system info:', error);
+        return NextResponse.json({ error: 'Failed to fetch system info' }, { status: 500 });
     }
 }

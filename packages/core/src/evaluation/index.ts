@@ -80,9 +80,10 @@ export async function startBulkEvaluation(
 
   // 5. Trigger the first batch (Fire & Forget)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || EnvDefaults.NEXT_PUBLIC_APP_URL;
+  const webhookSecret = process.env.WEBHOOK_SECRET ?? '';
   fetch(`${baseUrl}/api/evaluation/bulk-llm/process`, {
     method: 'POST',
-    headers: { [HTTPHeaders.CONTENT_TYPE]: 'application/json' },
+    headers: { [HTTPHeaders.CONTENT_TYPE]: 'application/json', 'x-webhook-secret': webhookSecret },
     body: JSON.stringify({ jobId: job.id })
   }).catch(err => console.error('Failed to trigger initial batch:', err));
 
