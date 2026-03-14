@@ -178,23 +178,46 @@ Both helpers log `console.error` when the Supabase profile query returns an erro
 
 ---
 
-### 7. In-Process Role Cache TTL Reduced
+### 7. In-Process Role Cache TTL Reduced & Missing-Profile Hardened (FLEOTK-42)
 
 **Severity**: Low
 **File**: `packages/auth/src/utils.ts`
 
-**Problem**: The `getUserRole` in-process cache had a 5-minute TTL. If an admin revokes a user's elevated role, that user could continue accessing privileged APIs for up to 5 minutes in the app that processed the revocation, and for up to 5 minutes in other apps as well (each app maintains its own independent cache).
+**Problem**: The `getUserRole` in-process cache had a 5-minute TTL. If an admin revokes a user's elevated role, that user could continue accessing privileged APIs for up to 5 minutes in the app that processed the revocation, and for up to 5 minutes in other apps as well (each app maintains its own independent cache). Additionally, a missing profile row silently defaulted the user to `USER` role (fail-open).
 
-**Fix**: Reduced TTL to 1 minute:
+**Fix**: Reduced TTL to 30 seconds and changed the missing-profile fallback to `PENDING` (fail-closed):
 ```typescript
-const ROLE_CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute
+const ROLE_CACHE_TTL_MS = 30 * 1000; // 30 seconds — bounds revocation window in multi-app deployments
+
+// Missing profile now defaults to PENDING (not USER) and logs console.error
+const role = (profile?.role ?? 'PENDING') as UserRole;
 ```
 
-Additionally, `getUserRole` now logs `console.warn` when a profile row is not found, so missing-profile failures (which previously silently defaulted the user to `USER` role) surface in server logs.
+**Trade-off**: Each user's role is now re-fetched at most once per 30 seconds per app instance. The tighter TTL provides a shorter revocation window and the fail-closed default prevents a data integrity bug (authenticated Supabase user with no profile row) from granting unintended access.
 
-**Trade-off**: Each user's role is now re-fetched from the database at most once per minute per app instance, instead of once per 5 minutes. This modestly increases database load in exchange for a tighter revocation window.
+**Tests**: `packages/auth/src/__tests__/utils.test.ts` — verifies cache hit within 29s TTL, cache miss after 31s, `invalidateRoleCache` forcing an immediate re-fetch, and `console.error` emitted when profile is not found.
 
-**Tests**: `packages/auth/src/__tests__/utils.test.ts` — verifies cache hit within TTL, cache miss after TTL expires, `invalidateRoleCache` forcing an immediate re-fetch, and `console.warn` emitted when profile is not found.
+---
+
+### 7b. `requireMinRole()` Helper Added for Hierarchical Role Checks (FLEOTK-42)
+
+**Severity**: Low
+**File**: `packages/api-utils/src/auth-middleware.ts`
+
+**Problem**: All call sites of `requireRole()` had to enumerate every permitted role explicitly (e.g. `['FLEET', 'MANAGER', 'ADMIN']`). Any omission silently broke the hierarchy. There was no shared function expressing "this role or any role above it."
+
+**Fix**: Added `requireMinRole(req, minRole)` using a `ROLE_WEIGHTS` map:
+```typescript
+const ROLE_WEIGHTS: Record<UserRole, number> = {
+  PENDING: 0, USER: 1, QA: 2, CORE: 3, FLEET: 4, MANAGER: 4, ADMIN: 5,
+};
+```
+
+Any role with weight >= the minimum weight is accepted. Note: MANAGER and FLEET share weight 4 — use `requireRole()` with an explicit list if you need to distinguish them.
+
+The 403 response body uses a generic message (`'Forbidden - insufficient role'`) rather than disclosing the required role name, preventing role-enumeration reconnaissance.
+
+**Tests**: `packages/api-utils/src/__tests__/auth-middleware.test.ts` — verifies correct role accepts, one-level-below rejects, MANAGER/FLEET equality, ADMIN passes for every minRole, PENDING rejected for any minRole above PENDING.
 
 ---
 
