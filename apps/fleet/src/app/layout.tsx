@@ -15,8 +15,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Task Data | Ingestion & Similarity Analysis",
-  description: "A professional tool for ingesting CSV and API data, filtering it, and analyzing similarity using local LLMs.",
+  title: "Operations Toolkit | Fleet",
+  description: "Fleet management tools for QA performance analysis, team activity tracking, task disputes, and mentorship.",
 };
 
 export default async function RootLayout({
