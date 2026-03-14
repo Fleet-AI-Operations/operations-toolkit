@@ -59,7 +59,7 @@ describe('requireMinRole', () => {
         const result = await requireMinRole(req, 'QA');
 
         expect(result.error?.status).toBe(403);
-        const body = await result.error?.json();
+        const body = await result.error?.json() as { error: string };
         expect(body.error).toBe('Forbidden - insufficient role');
         expect(result.user).toBeNull();
     });

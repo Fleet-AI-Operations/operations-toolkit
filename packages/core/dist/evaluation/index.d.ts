@@ -25,19 +25,19 @@ export declare function getEvaluationJobStatus(jobId: string): Promise<({
     };
 } & {
     id: string;
-    environment: string;
-    modelConfigId: string;
+    createdAt: Date;
+    updatedAt: Date;
     status: import("@prisma/client").$Enums.JobStatus;
+    error: string | null;
+    environment: string;
     totalRecords: number;
     processedCount: number;
+    modelConfigId: string;
     errorCount: number;
     tokensUsed: number;
     cost: number;
-    error: string | null;
     startedAt: Date | null;
     completedAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
 }) | null>;
 /**
  * Get all evaluation jobs for an environment
@@ -49,19 +49,19 @@ export declare function getEnvironmentEvaluationJobs(environment: string, limit?
     };
 } & {
     id: string;
-    environment: string;
-    modelConfigId: string;
+    createdAt: Date;
+    updatedAt: Date;
     status: import("@prisma/client").$Enums.JobStatus;
+    error: string | null;
+    environment: string;
     totalRecords: number;
     processedCount: number;
+    modelConfigId: string;
     errorCount: number;
     tokensUsed: number;
     cost: number;
-    error: string | null;
     startedAt: Date | null;
     completedAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
 })[]>;
 /**
  * Start bulk evaluation for all active models
