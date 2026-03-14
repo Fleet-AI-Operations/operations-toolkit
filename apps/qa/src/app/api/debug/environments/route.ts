@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@repo/database';
+import { createClient } from '@repo/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * DEBUG: Check environment distribution in database
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         // Get count of records per environment (from environment column)
         const environmentCounts = await prisma.$queryRaw<{
@@ -56,8 +63,8 @@ export async function GET() {
                 totalDistinctInMetadata: metadataEnvCounts.length
             }
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error in debug endpoint:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch environment data' }, { status: 500 });
     }
 }

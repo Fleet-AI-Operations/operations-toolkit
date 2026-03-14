@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
         }).catch(err => console.error('[Cancel Ingest] Audit log failed:', err));
 
         return NextResponse.json({ success: true, status: job.status });
-    } catch (error: any) {
+    } catch (error) {
         console.error('Cancel Job Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to cancel job' }, { status: 500 });
     }
 }

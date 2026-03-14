@@ -43,14 +43,14 @@ describe('getUserRole', () => {
     expect(prisma.profile.findUnique).toHaveBeenCalledTimes(1);
   });
 
-  it('returns USER as default when profile is not found and logs a warning', async () => {
+  it('returns PENDING as default when profile is not found and logs an error', async () => {
     await mockRole(null);
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const role = await getUserRole(USER_ID);
-    expect(role).toBe('USER');
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(USER_ID));
-    warnSpy.mockRestore();
+    expect(role).toBe('PENDING');
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(USER_ID));
+    errorSpy.mockRestore();
   });
 
   it('returns cached result on subsequent calls without hitting the database', async () => {
@@ -63,13 +63,13 @@ describe('getUserRole', () => {
     expect(prisma.profile.findUnique).toHaveBeenCalledTimes(1);
   });
 
-  it('re-fetches from the database after the 1-minute TTL expires', async () => {
+  it('re-fetches from the database after the 30-second TTL expires', async () => {
     vi.useFakeTimers();
 
     await getUserRole(USER_ID);
 
-    // Advance time past the 1-minute TTL
-    vi.advanceTimersByTime(61 * 1000);
+    // Advance time past the 30-second TTL
+    vi.advanceTimersByTime(31 * 1000);
 
     await mockRole('ADMIN');
     const role = await getUserRole(USER_ID);
@@ -84,8 +84,8 @@ describe('getUserRole', () => {
 
     await getUserRole(USER_ID);
 
-    // Advance to just before TTL
-    vi.advanceTimersByTime(59 * 1000);
+    // Advance to just before the 30-second TTL
+    vi.advanceTimersByTime(29 * 1000);
 
     await getUserRole(USER_ID);
 

@@ -54,8 +54,8 @@ export async function GET(req: NextRequest) {
         }
 
         return NextResponse.json(job);
-    } catch (error: any) {
+    } catch (error) {
         console.error('Job Status Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to fetch job status' }, { status: 500 });
     }
 }

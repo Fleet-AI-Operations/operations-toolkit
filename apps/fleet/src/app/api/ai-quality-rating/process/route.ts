@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { prisma } from '@repo/database';
 import { generateCompletionWithUsage } from '@repo/core/ai';
 
 export const maxDuration = 60;
+
+function verifyWebhookSecret(req: NextRequest): boolean {
+    const secret = process.env.WEBHOOK_SECRET;
+    if (!secret) {
+        console.error('[verifyWebhookSecret] WEBHOOK_SECRET is not set — all webhook calls will be rejected');
+        return false;
+    }
+    const provided = req.headers.get('x-webhook-secret') ?? '';
+    const providedBuf = Buffer.from(provided);
+    const secretBuf = Buffer.from(secret);
+    // Pre-check lengths to avoid RangeError from timingSafeEqual on mismatched buffers
+    if (providedBuf.length !== secretBuf.length) return false;
+    try {
+        return timingSafeEqual(providedBuf, secretBuf);
+    } catch (err) {
+        console.error('[verifyWebhookSecret] Unexpected crypto error:', err);
+        return false;
+    }
+}
 
 const BATCH_SIZE = 10;
 const CONTENT_TRUNCATE = 500;
@@ -64,6 +84,10 @@ function parseRatings(content: string): Array<{ id: string; score: number; reaso
  * Recursively fires itself until all records are rated.
  */
 export async function POST(request: NextRequest) {
+    if (!verifyWebhookSecret(request)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { jobId } = body;
 
@@ -130,15 +154,16 @@ export async function POST(request: NextRequest) {
 
             const result = await generateCompletionWithUsage(prompt, SYSTEM_PROMPT, { silent: true });
             parsedRatings = parseRatings(result.content);
-        } catch (aiError: any) {
-            console.error('[AIQualityRating] LLM error:', aiError.message);
+        } catch (aiError) {
+            const aiErrorMessage = aiError instanceof Error ? aiError.message : 'Unknown LLM error';
+            console.error('[AIQualityRating] LLM error:', aiErrorMessage);
             errorCount = records.length;
 
             await prisma.aIQualityJob.update({
                 where: { id: jobId },
                 data: {
                     errorCount: { increment: errorCount },
-                    errorMessage: aiError.message,
+                    errorMessage: aiErrorMessage,
                     updatedAt: new Date(),
                 },
             });
@@ -147,11 +172,13 @@ export async function POST(request: NextRequest) {
             const baseUrl = process.env.NEXT_PUBLIC_FLEET_APP_URL || 'http://localhost:3004';
             fetch(`${baseUrl}/api/ai-quality-rating/process`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-webhook-secret': process.env.WEBHOOK_SECRET ?? '' },
                 body: JSON.stringify({ jobId }),
-            }).catch(e => console.error('[AIQualityRating] Recursive fetch failed:', e));
+            }).then(res => {
+                if (!res.ok) console.error(`[AIQualityRating] Recursive fetch returned ${res.status} for jobId=${jobId}`);
+            }).catch(e => console.error('[AIQualityRating] Recursive fetch network error:', e));
 
-            return NextResponse.json({ completed: false, error: aiError.message });
+            return NextResponse.json({ completed: false, error: 'LLM request failed' });
         }
 
         // Build set of valid IDs from the batch to guard against hallucinations
@@ -194,24 +221,28 @@ export async function POST(request: NextRequest) {
         const baseUrl = process.env.NEXT_PUBLIC_FLEET_APP_URL || 'http://localhost:3004';
         fetch(`${baseUrl}/api/ai-quality-rating/process`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-webhook-secret': process.env.WEBHOOK_SECRET ?? '' },
             body: JSON.stringify({ jobId }),
         }).catch(e => console.error('[AIQualityRating] Recursive fetch failed:', e));
 
         return NextResponse.json({ completed: false, processed: validRatings.length });
-    } catch (error: any) {
+    } catch (error) {
         console.error('[AIQualityRating] Batch processing error:', error);
 
         // Mark job as failed on unexpected errors
         try {
             await prisma.aIQualityJob.update({
                 where: { id: jobId },
-                data: { status: 'FAILED', errorMessage: error.message, updatedAt: new Date() },
+                data: {
+                    status: 'FAILED',
+                    errorMessage: error instanceof Error ? error.message : 'Unknown error',
+                    updatedAt: new Date(),
+                },
             });
         } catch (updateError) {
             console.error('[AIQualityRating] Failed to update job status:', updateError);
         }
 
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Batch processing failed' }, { status: 500 });
     }
 }

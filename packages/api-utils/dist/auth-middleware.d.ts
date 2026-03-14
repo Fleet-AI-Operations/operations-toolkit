@@ -38,6 +38,15 @@ export declare function requireAuth(req: NextRequest): Promise<AuthResult>;
  */
 export declare function requireRole(req: NextRequest, roles: UserRole[]): Promise<RoleAuthResult>;
 /**
+ * Require a minimum role (hierarchical). Any role >= minRole is accepted.
+ * ADMIN > MANAGER/FLEET > CORE > QA > USER > PENDING
+ *
+ * Note: MANAGER and FLEET share the same weight (4), so requireMinRole(req, 'FLEET')
+ * also admits MANAGER users and vice versa. Use requireRole() with an explicit list
+ * if you need to distinguish between them.
+ */
+export declare function requireMinRole(req: NextRequest, minRole: UserRole): Promise<RoleAuthResult>;
+/**
  * Helper to check if auth result is successful
  */
 export declare function isAuthSuccess(result: AuthResult): result is AuthSuccess;

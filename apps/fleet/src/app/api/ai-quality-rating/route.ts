@@ -1,37 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@repo/auth/server';
 import { prisma } from '@repo/database';
 import { logAudit } from '@repo/core/audit';
+import { requireRole } from '@repo/api-utils';
 
 export const dynamic = 'force-dynamic';
-
-async function requireFleetAuth(request: NextRequest) {
-    const supabase = await createClient();
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    if (error || !user) {
-        return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-    }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-    if (!profile || !['FLEET', 'MANAGER', 'ADMIN'].includes(profile.role)) {
-        return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-    }
-
-    return { user, profile };
-}
 
 /**
  * GET /api/ai-quality-rating?environment=X
  * List AI quality jobs for an environment, most recent first.
  */
 export async function GET(request: NextRequest) {
-    const authResult = await requireFleetAuth(request);
+    const authResult = await requireRole(request, ['FLEET', 'MANAGER', 'ADMIN']);
     if (authResult.error) return authResult.error;
 
     const environment = request.nextUrl.searchParams.get('environment');
@@ -58,7 +37,7 @@ export async function GET(request: NextRequest) {
  * Body: { environment: string }
  */
 export async function POST(request: NextRequest) {
-    const authResult = await requireFleetAuth(request);
+    const authResult = await requireRole(request, ['FLEET', 'MANAGER', 'ADMIN']);
     if (authResult.error) return authResult.error;
 
     try {
@@ -114,13 +93,15 @@ export async function POST(request: NextRequest) {
         const baseUrl = process.env.NEXT_PUBLIC_FLEET_APP_URL || 'http://localhost:3004';
         fetch(`${baseUrl}/api/ai-quality-rating/process`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-webhook-secret': process.env.WEBHOOK_SECRET ?? '' },
             body: JSON.stringify({ jobId }),
-        }).catch(e => console.error('[AIQualityRating] Failed to start process:', e));
+        }).then(res => {
+            if (!res.ok) console.error(`[AIQualityRating] Failed to start process, status=${res.status} jobId=${jobId}`);
+        }).catch(e => console.error('[AIQualityRating] Failed to start process (network error):', e));
 
         return NextResponse.json({ jobId }, { status: 201 });
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error starting AI quality rating job:', error);
-        return NextResponse.json({ error: error.message || 'Failed to start job' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to start job' }, { status: 500 });
     }
 }

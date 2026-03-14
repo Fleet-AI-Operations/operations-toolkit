@@ -854,10 +854,12 @@ model TimeEntry {
 }
 
 enum UserRole {
+  PENDING
   USER
   QA
   CORE
   FLEET
+  MANAGER
   ADMIN
 
   @@schema("public")
