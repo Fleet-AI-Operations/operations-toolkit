@@ -7,11 +7,19 @@ export const maxDuration = 60;
 
 function verifyWebhookSecret(req: NextRequest): boolean {
     const secret = process.env.WEBHOOK_SECRET;
-    if (!secret) return false;
+    if (!secret) {
+        console.error('[verifyWebhookSecret] WEBHOOK_SECRET is not set — all webhook calls will be rejected');
+        return false;
+    }
     const provided = req.headers.get('x-webhook-secret') ?? '';
+    const providedBuf = Buffer.from(provided);
+    const secretBuf = Buffer.from(secret);
+    // Pre-check lengths to avoid RangeError from timingSafeEqual on mismatched buffers
+    if (providedBuf.length !== secretBuf.length) return false;
     try {
-        return timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
-    } catch {
+        return timingSafeEqual(providedBuf, secretBuf);
+    } catch (err) {
+        console.error('[verifyWebhookSecret] Unexpected crypto error:', err);
         return false;
     }
 }
@@ -146,15 +154,16 @@ export async function POST(request: NextRequest) {
 
             const result = await generateCompletionWithUsage(prompt, SYSTEM_PROMPT, { silent: true });
             parsedRatings = parseRatings(result.content);
-        } catch (aiError: any) {
-            console.error('[AIQualityRating] LLM error:', aiError.message);
+        } catch (aiError) {
+            const aiErrorMessage = aiError instanceof Error ? aiError.message : 'Unknown LLM error';
+            console.error('[AIQualityRating] LLM error:', aiErrorMessage);
             errorCount = records.length;
 
             await prisma.aIQualityJob.update({
                 where: { id: jobId },
                 data: {
                     errorCount: { increment: errorCount },
-                    errorMessage: aiError.message,
+                    errorMessage: aiErrorMessage,
                     updatedAt: new Date(),
                 },
             });
@@ -165,7 +174,9 @@ export async function POST(request: NextRequest) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-webhook-secret': process.env.WEBHOOK_SECRET ?? '' },
                 body: JSON.stringify({ jobId }),
-            }).catch(e => console.error('[AIQualityRating] Recursive fetch failed:', e));
+            }).then(res => {
+                if (!res.ok) console.error(`[AIQualityRating] Recursive fetch returned ${res.status} for jobId=${jobId}`);
+            }).catch(e => console.error('[AIQualityRating] Recursive fetch network error:', e));
 
             return NextResponse.json({ completed: false, error: 'LLM request failed' });
         }
@@ -210,7 +221,7 @@ export async function POST(request: NextRequest) {
         const baseUrl = process.env.NEXT_PUBLIC_FLEET_APP_URL || 'http://localhost:3004';
         fetch(`${baseUrl}/api/ai-quality-rating/process`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-webhook-secret': process.env.WEBHOOK_SECRET ?? '' },
             body: JSON.stringify({ jobId }),
         }).catch(e => console.error('[AIQualityRating] Recursive fetch failed:', e));
 

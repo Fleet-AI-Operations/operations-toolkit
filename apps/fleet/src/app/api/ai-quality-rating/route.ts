@@ -95,7 +95,9 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-webhook-secret': process.env.WEBHOOK_SECRET ?? '' },
             body: JSON.stringify({ jobId }),
-        }).catch(e => console.error('[AIQualityRating] Failed to start process:', e));
+        }).then(res => {
+            if (!res.ok) console.error(`[AIQualityRating] Failed to start process, status=${res.status} jobId=${jobId}`);
+        }).catch(e => console.error('[AIQualityRating] Failed to start process (network error):', e));
 
         return NextResponse.json({ jobId }, { status: 201 });
     } catch (error) {

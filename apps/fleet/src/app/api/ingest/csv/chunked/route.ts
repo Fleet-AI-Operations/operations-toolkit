@@ -31,7 +31,9 @@ export async function POST(req: NextRequest) {
         const { action } = body;
 
         // Opportunistic cleanup (non-blocking)
-        cleanupExpiredSessions().catch(() => {});
+        cleanupExpiredSessions().catch((err) => {
+            console.error('[ChunkedCSV] Opportunistic session cleanup failed:', err);
+        });
 
         switch (action) {
             case 'start': {
@@ -203,9 +205,8 @@ export async function POST(req: NextRequest) {
             default:
                 return NextResponse.json({ error: 'Invalid action. Use: start, chunk, complete' }, { status: 400 });
         }
-    } catch (error: unknown) {
+    } catch (error) {
         console.error('Chunked CSV Ingestion Error:', error);
-        const message = error instanceof Error ? error.message : 'Internal server error';
-        return NextResponse.json({ error: message }, { status: 500 });
+        return NextResponse.json({ error: 'Chunked ingestion failed' }, { status: 500 });
     }
 }

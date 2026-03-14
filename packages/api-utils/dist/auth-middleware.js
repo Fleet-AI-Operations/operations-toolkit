@@ -74,6 +74,10 @@ const ROLE_WEIGHTS = {
 /**
  * Require a minimum role (hierarchical). Any role >= minRole is accepted.
  * ADMIN > MANAGER/FLEET > CORE > QA > USER > PENDING
+ *
+ * Note: MANAGER and FLEET share the same weight (4), so requireMinRole(req, 'FLEET')
+ * also admits MANAGER users and vice versa. Use requireRole() with an explicit list
+ * if you need to distinguish between them.
  */
 export async function requireMinRole(req, minRole) {
     const authResult = await requireAuth(req);
@@ -85,7 +89,7 @@ export async function requireMinRole(req, minRole) {
         return {
             user: null,
             role: null,
-            error: NextResponse.json({ error: `Forbidden - ${minRole} or higher role required` }, { status: 403 })
+            error: NextResponse.json({ error: 'Forbidden - insufficient role' }, { status: 403 })
         };
     }
     return { user: authResult.user, role, error: null };

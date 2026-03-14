@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid endDate format' }, { status: 400 });
     }
 
-    // Build date filter using Prisma.sql tagged templates (safe from injection)
+    // Build date filter using Prisma.sql tagged templates — preferred over $queryRawUnsafe;
+    // parameters are automatically parameterized, eliminating manual index bookkeeping.
     const conditions: Prisma.Sql[] = [];
     if (startDate) conditions.push(Prisma.sql`work_date >= ${new Date(startDate)}`);
     if (endDate) conditions.push(Prisma.sql`work_date <= ${new Date(endDate)}`);

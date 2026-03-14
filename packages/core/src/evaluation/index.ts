@@ -85,7 +85,9 @@ export async function startBulkEvaluation(
     method: 'POST',
     headers: { [HTTPHeaders.CONTENT_TYPE]: 'application/json', 'x-webhook-secret': webhookSecret },
     body: JSON.stringify({ jobId: job.id })
-  }).catch(err => console.error('Failed to trigger initial batch:', err));
+  }).then(res => {
+    if (!res.ok) console.error(`[BulkEvaluation] Failed to trigger initial batch, status=${res.status} jobId=${job.id}`);
+  }).catch(err => console.error('[BulkEvaluation] Failed to trigger initial batch (network error):', err));
 
   return job.id;
 }
