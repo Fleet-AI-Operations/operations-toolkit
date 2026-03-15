@@ -96,6 +96,24 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Database query failed. Please try again.', errorId: ERROR_IDS.DB_QUERY_FAILED }, { status: 500 })
         }
 
+        if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+            console.error('[Spotlight API] Unknown database error:', {
+                errorId: ERROR_IDS.DB_QUERY_FAILED,
+                message: error.message,
+                userId: authResult.user.id,
+            })
+            return NextResponse.json({ error: 'Database query failed. Please try again.', errorId: ERROR_IDS.DB_QUERY_FAILED }, { status: 500 })
+        }
+
+        if (error instanceof Prisma.PrismaClientValidationError) {
+            console.error('[Spotlight API] Database validation error:', {
+                errorId: ERROR_IDS.INVALID_INPUT,
+                message: error.message,
+                userId: authResult.user.id,
+            })
+            return NextResponse.json({ error: 'Invalid query parameters.', errorId: ERROR_IDS.INVALID_INPUT }, { status: 400 })
+        }
+
         if (error instanceof Prisma.PrismaClientInitializationError) {
             console.error('[Spotlight API] Database connection failed:', {
                 errorId: ERROR_IDS.DB_CONNECTION_FAILED,
@@ -109,6 +127,7 @@ export async function GET(req: NextRequest) {
             errorId: ERROR_IDS.SYSTEM_ERROR,
             userId: authResult.user.id,
             error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
         })
         return NextResponse.json({ error: 'An unexpected error occurred. Please try again.', errorId: ERROR_IDS.SYSTEM_ERROR }, { status: 500 })
     }

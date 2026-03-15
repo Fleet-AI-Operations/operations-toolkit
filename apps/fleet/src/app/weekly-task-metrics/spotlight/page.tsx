@@ -111,10 +111,13 @@ export default function SpotlightPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
+    const [toggleError, setToggleError] = useState<string | null>(null);
+    const [rerollError, setRerollError] = useState<string | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = async (isReroll = false) => {
         setRefreshing(true);
-        setError(null);
+        setRerollError(null);
+        if (!isReroll) setError(null);
         try {
             const res = await fetch('/api/admin/weekly-task-metrics/spotlight');
 
@@ -138,7 +141,12 @@ export default function SpotlightPage() {
             setData(await res.json());
             setAuthorized(true);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load spotlight.');
+            const msg = err instanceof Error ? err.message : 'Failed to load spotlight.';
+            if (isReroll) {
+                setRerollError(msg);
+            } else {
+                setError(msg);
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -149,6 +157,7 @@ export default function SpotlightPage() {
 
     const handleToggleDailyGreat = async (id: string, current: boolean) => {
         setTogglingId(id);
+        setToggleError(null);
         try {
             const res = await fetch(`/api/daily-great-tasks/${id}`, {
                 method: 'PATCH',
@@ -157,16 +166,18 @@ export default function SpotlightPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-                console.error('[Spotlight] Failed to toggle Daily Great flag:', err.error);
+                console.error('[Spotlight] Failed to toggle Great Example flag:', err.error);
+                setToggleError('Failed to update flag. Please try again.');
                 return;
             }
-            // Update local state optimistically
+            // Update confirmed: apply state change after server success
             setData(prev => prev ? {
                 ...prev,
                 tasks: prev.tasks.map(t => t.id === id ? { ...t, isDailyGreat: !current } : t),
             } : prev);
         } catch (err) {
-            console.error('[Spotlight] Network error toggling Daily Great flag:', err instanceof Error ? err.message : String(err));
+            console.error('[Spotlight] Network error toggling Great Example flag:', err instanceof Error ? err.message : String(err));
+            setToggleError('Network error. Please check your connection and try again.');
         } finally {
             setTogglingId(null);
         }
@@ -238,16 +249,40 @@ export default function SpotlightPage() {
                                 : 'Loading...'}
                         </p>
                     </div>
-                    <button
-                        onClick={fetchData}
-                        disabled={refreshing}
-                        className="btn-secondary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
-                    >
-                        <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-                        Re-roll
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                        <button
+                            onClick={() => fetchData(true)}
+                            disabled={refreshing}
+                            className="btn-secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
+                        >
+                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                            Re-roll
+                        </button>
+                        {rerollError && (
+                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#ff4d4d', textAlign: 'right', maxWidth: '260px' }}>
+                                {rerollError}
+                            </p>
+                        )}
+                    </div>
                 </div>
+
+                {toggleError && (
+                    <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 16px', marginBottom: '16px',
+                        background: 'rgba(255, 77, 77, 0.1)', border: '1px solid rgba(255, 77, 77, 0.25)',
+                        borderRadius: '8px', fontSize: '0.85rem', color: '#ff4d4d',
+                    }}>
+                        {toggleError}
+                        <button
+                            onClick={() => setToggleError(null)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4d4d', padding: '0 0 0 12px', fontSize: '1rem', lineHeight: 1 }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
 
                 {data && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>

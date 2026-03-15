@@ -160,7 +160,7 @@ Returns 5 random TOP_10 tasks and 5 random TOP_10 feedback records from the prev
     content: string;
     createdByName: string | null;
     createdByEmail: string | null;
-    isDailyGreat: boolean;   // whether this record is currently flagged as a great example
+    isDailyGreat?: boolean;  // whether this record is currently flagged as a great example (only present on task objects)
   }>;
   feedback: Array<{
     id: string;
