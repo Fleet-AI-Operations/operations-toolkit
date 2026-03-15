@@ -274,7 +274,7 @@ export default function SimilarityFlagsPage() {
                     {([
                         { value: '', label: 'All types' },
                         { value: 'USER_HISTORY', label: 'User History' },
-                        { value: 'DAILY_GREAT', label: 'Daily Great Task' },
+                        { value: 'DAILY_GREAT', label: 'Great Example Task' },
                     ] as { value: MatchTypeFilter; label: string }[]).map(({ value, label }) => (
                         <button
                             key={value || 'all'}
@@ -450,7 +450,7 @@ export default function SimilarityFlagsPage() {
                                                         borderRadius: '4px',
                                                         padding: '1px 6px',
                                                     }}>
-                                                        Daily Great Task
+                                                        Great Example Task
                                                     </span>
                                                     {flag.matchedTaskKey && (
                                                         <span style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'rgba(165,180,252,0.8)' }}>

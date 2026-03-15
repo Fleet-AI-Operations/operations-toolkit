@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Loader2, ShieldAlert, RefreshCw, Copy, Check, ChevronDown } from 'lucide-react';
+import { BarChart3, Loader2, ShieldAlert, RefreshCw, Copy, Check, ChevronDown, Star } from 'lucide-react';
 
 interface EnvironmentCount {
     environment: string;
@@ -224,6 +224,14 @@ export default function WeeklyTaskMetricsPage() {
                         </p>
                     </div>
                     <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={() => router.push('/weekly-task-metrics/spotlight')}
+                            className="btn-secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
+                        >
+                            <Star size={16} />
+                            Top 10 Spotlight
+                        </button>
                         <button
                             onClick={copyToClipboard}
                             disabled={!metrics}
