@@ -133,6 +133,27 @@ describe('GET /api/task-disputes', () => {
     );
   });
 
+  it('applies search filter as OR across person name and email fields', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.count).mockResolvedValue(0 as any);
+
+    await GET(makeRequest({ search: 'jane' }));
+
+    expect(vi.mocked(prisma.taskDispute.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { disputerName: { contains: 'jane', mode: 'insensitive' } },
+            { disputerEmail: { contains: 'jane', mode: 'insensitive' } },
+            { qaReviewerName: { contains: 'jane', mode: 'insensitive' } },
+            { qaReviewerEmail: { contains: 'jane', mode: 'insensitive' } },
+            { resolverName: { contains: 'jane', mode: 'insensitive' } },
+          ],
+        }),
+      })
+    );
+  });
+
   it('applies taskKey filter as case-insensitive contains', async () => {
     const { prisma } = await import('@repo/database');
     vi.mocked(prisma.taskDispute.count).mockResolvedValue(0 as any);

@@ -27,6 +27,10 @@ interface Dispute {
   isHelpful: boolean | null;
   disputerName: string | null;
   disputerEmail: string | null;
+  qaReviewerName: string | null;
+  qaReviewerEmail: string | null;
+  originalFeedbackPositive: boolean | null;
+  originalFeedbackContent: string | null;
   resolverName: string | null;
   teamName: string | null;
   taskKey: string;
@@ -91,20 +95,20 @@ export default function TaskDisputesPage() {
 
   const [statusFilter, setStatusFilter] = useState('');
   const [envFilter, setEnvFilter] = useState('');
-  const [emailFilter, setEmailFilter] = useState('');
-  const [emailInput, setEmailInput] = useState('');
+  const [personFilter, setPersonFilter] = useState('');
+  const [personInput, setPersonInput] = useState('');
   const [modalityFilter, setModalityFilter] = useState('');
   const [matchedFilter, setMatchedFilter] = useState('');
   const [taskKeyFilter, setTaskKeyFilter] = useState('');
   const [taskKeyInput, setTaskKeyInput] = useState('');
 
-  const emailDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const personDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const taskKeyDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleEmailInput = (value: string) => {
-    setEmailInput(value);
-    if (emailDebounce.current) clearTimeout(emailDebounce.current);
-    emailDebounce.current = setTimeout(() => setEmailFilter(value), 300);
+  const handlePersonInput = (value: string) => {
+    setPersonInput(value);
+    if (personDebounce.current) clearTimeout(personDebounce.current);
+    personDebounce.current = setTimeout(() => setPersonFilter(value), 300);
   };
 
   const handleTaskKeyInput = (value: string) => {
@@ -114,6 +118,16 @@ export default function TaskDisputesPage() {
   };
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = (key: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const LIMIT = 25;
 
@@ -124,7 +138,7 @@ export default function TaskDisputesPage() {
       const params = new URLSearchParams({ page: String(p), limit: String(LIMIT) });
       if (statusFilter) params.set('status', statusFilter);
       if (envFilter) params.set('env', envFilter);
-      if (emailFilter) params.set('email', emailFilter);
+      if (personFilter) params.set('search', personFilter);
       if (modalityFilter) params.set('modality', modalityFilter);
       if (matchedFilter) params.set('matched', matchedFilter);
       if (taskKeyFilter) params.set('taskKey', taskKeyFilter);
@@ -140,7 +154,7 @@ export default function TaskDisputesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, envFilter, emailFilter, modalityFilter, matchedFilter, taskKeyFilter]);
+  }, [statusFilter, envFilter, personFilter, modalityFilter, matchedFilter, taskKeyFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -155,15 +169,15 @@ export default function TaskDisputesPage() {
   const clearFilters = () => {
     setStatusFilter('');
     setEnvFilter('');
-    setEmailFilter('');
-    setEmailInput('');
+    setPersonFilter('');
+    setPersonInput('');
     setModalityFilter('');
     setMatchedFilter('');
     setTaskKeyFilter('');
     setTaskKeyInput('');
   };
 
-  const hasFilters = statusFilter || envFilter || emailFilter || modalityFilter || matchedFilter || taskKeyFilter;
+  const hasFilters = statusFilter || envFilter || personFilter || modalityFilter || matchedFilter || taskKeyFilter;
   const totalPages = Math.ceil(total / LIMIT);
   const grandTotal = stats ? stats.totalMatched + stats.totalUnmatched : 0;
   const matchPct = stats && grandTotal > 0 ? Math.round((stats.totalMatched / grandTotal) * 100) : 0;
@@ -226,20 +240,20 @@ export default function TaskDisputesPage() {
       {/* Filters */}
       <div className="glass-card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
-          {/* Email */}
-          <div className="flex flex-col gap-1" style={{ width: '200px' }}>
-            <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Email</label>
+          {/* Person search */}
+          <div className="flex flex-col gap-1" style={{ width: '220px' }}>
+            <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Name / Email</label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-secondary)]" />
               <input
                 type="text"
-                placeholder="Filter by email"
-                value={emailInput}
-                onChange={e => handleEmailInput(e.target.value)}
+                placeholder="Disputer, QA, resolver…"
+                value={personInput}
+                onChange={e => handlePersonInput(e.target.value)}
                 className="w-full pl-8 pr-7 py-1.5 text-sm border border-[var(--border)] rounded-lg bg-[var(--bg)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30"
               />
-              {emailInput && (
-                <button onClick={() => { setEmailInput(''); setEmailFilter(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
+              {personInput && (
+                <button onClick={() => { setPersonInput(''); setPersonFilter(''); }} className="absolute right-2 top-1/2 -translate-y-1/2">
                   <X className="w-3 h-3 text-[var(--text-secondary)]" />
                 </button>
               )}
@@ -498,12 +512,45 @@ export default function TaskDisputesPage() {
                                     <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'rgba(255,255,255,0.85)' }}>{d.resolutionReason}</div>
                                   </div>
                                 )}
-                                {d.reportText && (
-                                  <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Report</div>
-                                    <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'rgba(255,255,255,0.85)', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.reportText}</div>
-                                  </div>
-                                )}
+                                {d.reportText && (() => {
+                                  const key = `${d.id}-report`;
+                                  const isExpanded = expandedSections.has(key);
+                                  const isTruncatable = d.reportText.length > 300;
+                                  return (
+                                    <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Report</div>
+                                      <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'rgba(255,255,255,0.85)', ...(!isExpanded && isTruncatable ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}) }}>{d.reportText}</div>
+                                      {isTruncatable && (
+                                        <button onClick={e => toggleSection(key, e)} style={{ marginTop: '6px', fontSize: '12px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}>
+                                          {isExpanded ? 'Show less' : 'Show more'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                {d.originalFeedbackContent && (() => {
+                                  const key = `${d.id}-feedback`;
+                                  const isExpanded = expandedSections.has(key);
+                                  const isTruncatable = d.originalFeedbackContent.length > 300;
+                                  return (
+                                    <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Original Feedback</div>
+                                        {d.originalFeedbackPositive !== null && (
+                                          <span style={{ fontSize: '11px', padding: '1px 7px', borderRadius: '4px', fontWeight: 600, background: d.originalFeedbackPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: d.originalFeedbackPositive ? '#34d399' : '#f87171' }}>
+                                            {d.originalFeedbackPositive ? 'Positive' : 'Negative'}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'rgba(255,255,255,0.85)', ...(!isExpanded && isTruncatable ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}) }}>{d.originalFeedbackContent}</div>
+                                      {isTruncatable && (
+                                        <button onClick={e => toggleSection(key, e)} style={{ marginTop: '6px', fontSize: '12px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}>
+                                          {isExpanded ? 'Show less' : 'Show more'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
 
                                 {/* Metadata chips */}
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -523,6 +570,13 @@ export default function TaskDisputesPage() {
                                     <div style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
                                       <span style={{ color: 'rgba(255,255,255,0.4)' }}>Helpful </span>
                                       <span style={{ color: d.isHelpful ? '#34d399' : '#f87171', fontWeight: 500 }}>{d.isHelpful ? 'Yes' : 'No'}</span>
+                                    </div>
+                                  )}
+                                  {d.qaReviewerName && (
+                                    <div style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                      <span style={{ color: 'rgba(255,255,255,0.4)' }}>QA Reviewer </span>
+                                      <span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>{d.qaReviewerName}</span>
+                                      {d.qaReviewerEmail && <span style={{ color: 'rgba(255,255,255,0.4)' }}> · {d.qaReviewerEmail}</span>}
                                     </div>
                                   )}
                                   {d.resolverName && (

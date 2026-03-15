@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
  *   limit         (optional, default 50, max 200)
  *   status        (optional) — filter by dispute_status
  *   env           (optional) — filter by env_key
- *   email         (optional) — filter by disputer_email
+ *   search        (optional) — case-insensitive contains across disputer/QA reviewer/resolver name and email
  *   modality      (optional) — filter by task_modality
  *   matched       (optional) — 'true' | 'false' — filter by whether eval_task_id is linked
  */
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     const status = searchParams.get('status') || null;
     const env = searchParams.get('env') || null;
-    const email = searchParams.get('email') || null;
+    const search = searchParams.get('search') || null;
     const modality = searchParams.get('modality') || null;
     const matchedParam = searchParams.get('matched');
     const taskKey = searchParams.get('taskKey') || null;
@@ -39,7 +39,15 @@ export async function GET(req: NextRequest) {
     const where: Record<string, unknown> = {};
     if (status) where.disputeStatus = status;
     if (env) where.envKey = env;
-    if (email) where.disputerEmail = email;
+    if (search) {
+      where.OR = [
+        { disputerName: { contains: search, mode: 'insensitive' } },
+        { disputerEmail: { contains: search, mode: 'insensitive' } },
+        { qaReviewerName: { contains: search, mode: 'insensitive' } },
+        { qaReviewerEmail: { contains: search, mode: 'insensitive' } },
+        { resolverName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
     if (modality) where.taskModality = modality;
     if (matchedParam === 'true') where.evalTaskId = { not: null };
     if (matchedParam === 'false') where.evalTaskId = null;

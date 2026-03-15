@@ -20,6 +20,11 @@ interface CSVRow {
   disputer_user_id: string;
   disputer_name: string;
   disputer_email: string;
+  qa_reviewer_user_id: string;
+  qa_reviewer_name: string;
+  qa_reviewer_email: string;
+  original_feedback_positive: string;
+  original_feedback_content: string;
   resolver_user_id: string;
   resolver_name: string;
   team_id: string;
@@ -163,6 +168,11 @@ export async function POST(req: NextRequest) {
             disputerUserId: row.disputer_user_id || null,
             disputerName: row.disputer_name || null,
             disputerEmail: row.disputer_email || null,
+            qaReviewerUserId: row.qa_reviewer_user_id || null,
+            qaReviewerName: row.qa_reviewer_name || null,
+            qaReviewerEmail: row.qa_reviewer_email || null,
+            originalFeedbackPositive: row.original_feedback_positive === 'True' ? true : row.original_feedback_positive === 'False' ? false : null,
+            originalFeedbackContent: row.original_feedback_content || null,
             resolverUserId: row.resolver_user_id || null,
             resolverName: row.resolver_name || null,
             teamId: row.team_id || null,
