@@ -147,10 +147,24 @@ export async function POST(req: NextRequest) {
           let isHelpful: boolean | null = null;
           if (row.is_helpful === 'True') isHelpful = true;
           else if (row.is_helpful === 'False') isHelpful = false;
+          else if (row.is_helpful && row.is_helpful !== '') {
+            summary.errors.push(`Row ${rowNum}: unrecognised value for is_helpful: "${row.is_helpful}" (expected "True" or "False")`);
+          }
+
+          let originalFeedbackPositive: boolean | null = null;
+          if (row.original_feedback_positive === 'True') originalFeedbackPositive = true;
+          else if (row.original_feedback_positive === 'False') originalFeedbackPositive = false;
+          else if (row.original_feedback_positive && row.original_feedback_positive !== '') {
+            summary.errors.push(`Row ${rowNum}: unrecognised value for original_feedback_positive: "${row.original_feedback_positive}" (expected "True" or "False")`);
+          }
 
           let disputeData: object | null = null;
           if (row.dispute_data) {
-            try { disputeData = JSON.parse(row.dispute_data); } catch { /* leave null */ }
+            try {
+              disputeData = JSON.parse(row.dispute_data);
+            } catch (parseErr) {
+              summary.errors.push(`Row ${rowNum}: invalid JSON in dispute_data — ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
+            }
           }
 
           const data = {
@@ -171,7 +185,7 @@ export async function POST(req: NextRequest) {
             qaReviewerUserId: row.qa_reviewer_user_id || null,
             qaReviewerName: row.qa_reviewer_name || null,
             qaReviewerEmail: row.qa_reviewer_email || null,
-            originalFeedbackPositive: row.original_feedback_positive === 'True' ? true : row.original_feedback_positive === 'False' ? false : null,
+            originalFeedbackPositive,
             originalFeedbackContent: row.original_feedback_content || null,
             resolverUserId: row.resolver_user_id || null,
             resolverName: row.resolver_name || null,

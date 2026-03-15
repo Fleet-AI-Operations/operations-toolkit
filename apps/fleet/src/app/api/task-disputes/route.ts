@@ -14,9 +14,10 @@ export const dynamic = 'force-dynamic';
  *   limit         (optional, default 50, max 200)
  *   status        (optional) — filter by dispute_status
  *   env           (optional) — filter by env_key
- *   search        (optional) — case-insensitive contains across disputer/QA reviewer/resolver name and email
+ *   search        (optional) — case-insensitive contains across disputer/QA reviewer/resolver name and email (max 200 chars)
  *   modality      (optional) — filter by task_modality
  *   matched       (optional) — 'true' | 'false' — filter by whether eval_task_id is linked
+ *   taskKey       (optional) — case-insensitive substring filter on task_key
  */
 export async function GET(req: NextRequest) {
   const authResult = await requireRole(req, ['FLEET', 'ADMIN']);
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     const status = searchParams.get('status') || null;
     const env = searchParams.get('env') || null;
-    const search = searchParams.get('search') || null;
+    const search = (searchParams.get('search') || '').slice(0, 200) || null;
     const modality = searchParams.get('modality') || null;
     const matchedParam = searchParams.get('matched');
     const taskKey = searchParams.get('taskKey') || null;

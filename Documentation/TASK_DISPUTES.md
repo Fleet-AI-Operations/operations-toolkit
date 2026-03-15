@@ -56,7 +56,7 @@ Click any status card to filter the table to that status. Click again to clear.
 
 | Filter | Type | Description |
 |--------|------|-------------|
-| Person | Text (debounced) | Case-insensitive substring search across disputer name/email, QA reviewer name/email, and resolver name |
+| Person | Text (debounced) | Case-insensitive substring search across disputer name/email, QA reviewer name/email, and resolver name (no resolver email is stored) |
 | Task Key | Text (debounced) | Filter by task key (substring, case-insensitive) |
 | Environment | Dropdown | Filter by `env_key` |
 | Status | Dropdown | Filter by dispute status |
@@ -67,7 +67,7 @@ Text inputs are debounced (300ms) to avoid excessive API calls while typing. A r
 
 ### Disputes Table
 
-The table shows 25 disputes per page, ordered by source creation date (newest first). Columns:
+The table shows 50 disputes per page by default (configurable up to 200), ordered by source creation date (newest first). Columns:
 
 | Column | Description |
 |--------|-------------|
@@ -172,7 +172,7 @@ Re-importing the same CSV is safe — rows are upserted by `externalId`. The **M
 | `imported_at` | `timestamptz` | When the row was first imported |
 | `updated_at` | `timestamptz` | Auto-updated on every change (via trigger) |
 
-Indexes: `dispute_status`, `disputer_email`, `env_key`, `task_key`, `eval_task_id`, `created_at_source DESC`.
+Indexes: `dispute_status`, `disputer_email`, `env_key`, `task_key`, `eval_task_id`.
 
 ---
 
@@ -192,7 +192,7 @@ Returns paginated disputes and summary stats.
 | `limit` | integer | Page size (default: 50, max: 200) |
 | `status` | string | Filter by `dispute_status` |
 | `env` | string | Filter by `env_key` |
-| `search` | string | Case-insensitive substring search across disputer name/email, QA reviewer name/email, and resolver name |
+| `search` | string | Case-insensitive substring search across disputer name/email, QA reviewer name/email, and resolver name (max 200 chars; no resolver email field is stored) |
 | `modality` | string | Filter by `task_modality` |
 | `matched` | `true \| false` | Filter by whether `eval_task_id` is set |
 | `taskKey` | string | Substring filter on `task_key` (case-insensitive) |
@@ -203,7 +203,7 @@ Returns paginated disputes and summary stats.
   "disputes": [...],
   "total": 338,
   "page": 1,
-  "limit": 25,
+  "limit": 50,
   "stats": {
     "byStatus": { "pending": 10, "approved": 200, ... },
     "byEnv": [{ "env": "fos-accounting", "count": 150 }, ...],

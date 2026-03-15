@@ -339,4 +339,71 @@ describe('POST /api/task-disputes/import', () => {
     const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
     expect(upsertCall.create.originalFeedbackContent).toBe('Great work on this task.');
   });
+
+  it('sets originalFeedbackContent to null when column is empty', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_content: '' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.originalFeedbackContent).toBeNull();
+  });
+
+  it('records a warning for unrecognised original_feedback_positive value', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    const res = await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_positive: 'true' }))));
+    const { summary } = await res.json();
+    expect(summary.errors[0]).toMatch(/unrecognised value for original_feedback_positive/i);
+    // Row is still imported — it is a warning, not a skip
+    expect(summary.imported).toBe(1);
+    expect(summary.skipped).toBe(0);
+  });
+
+  it('records a warning for unrecognised is_helpful value', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    const res = await POST(makeRequest(makeCSV(makeCSVRow({ is_helpful: 'yes' }))));
+    const { summary } = await res.json();
+    expect(summary.errors[0]).toMatch(/unrecognised value for is_helpful/i);
+    expect(summary.imported).toBe(1);
+    expect(summary.skipped).toBe(0);
+  });
+
+  it('records a warning when dispute_data contains invalid JSON', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    const res = await POST(makeRequest(makeCSV(makeCSVRow({ dispute_data: '{not valid json' }))));
+    const { summary } = await res.json();
+    expect(summary.errors[0]).toMatch(/invalid JSON in dispute_data/i);
+    // Row still imports with disputeData = null
+    expect(summary.imported).toBe(1);
+    expect(summary.skipped).toBe(0);
+  });
+
+  it('sets disputeData to null when dispute_data is invalid JSON', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ dispute_data: '{bad json' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    // disputeData: null passes as undefined to Prisma (|| undefined pattern)
+    expect(upsertCall.create.disputeData == null).toBe(true);
+  });
+
+  it('includes originalFeedbackPositive in the update payload (upsert update branch)', async () => {
+    const { prisma } = await import('@repo/database');
+    // Row already exists → goes to update path
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([{ externalId: 1001 }] as any);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_positive: 'True' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.update.originalFeedbackPositive).toBe(true);
+  });
 });

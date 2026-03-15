@@ -163,6 +163,8 @@ export default function TaskDisputesPage() {
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
+    setExpandedId(null);
+    setExpandedSections(new Set());
     fetchDisputes(newPage);
   };
 
@@ -443,7 +445,7 @@ export default function TaskDisputesPage() {
                         }}
                         onMouseEnter={e => { if (expandedId !== d.id) (e.currentTarget as HTMLElement).style.background = 'rgba(0,112,243,0.05)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = expandedId === d.id ? 'rgba(0,112,243,0.08)' : idx % 2 === 1 ? 'rgba(255,255,255,0.025)' : 'transparent'; }}
-                        onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}
+                        onClick={() => { setExpandedId(expandedId === d.id ? null : d.id); setExpandedSections(new Set()); }}
                       >
                         <td style={{ padding: '12px 16px', borderRight: '1px solid rgba(255,255,255,0.06)', fontFamily: 'monospace', fontSize: '12px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
                           #{d.externalId}
