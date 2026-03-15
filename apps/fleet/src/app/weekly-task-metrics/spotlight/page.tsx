@@ -214,7 +214,7 @@ export default function SpotlightPage() {
                 <div style={{ padding: '24px', background: 'rgba(255, 77, 77, 0.1)', borderRadius: '12px', marginBottom: '24px', maxWidth: '500px', margin: '0 auto' }}>
                     <ShieldAlert size={48} color="#ff4d4d" style={{ marginBottom: '16px' }} />
                     <p style={{ color: '#ff4d4d', marginBottom: '16px', fontSize: '1.1rem' }}>{error}</p>
-                    <button onClick={fetchData} className="btn-primary" style={{ padding: '12px 32px' }}>Retry</button>
+                    <button onClick={() => fetchData()} className="btn-primary" style={{ padding: '12px 32px' }}>Retry</button>
                 </div>
             </div>
         );
