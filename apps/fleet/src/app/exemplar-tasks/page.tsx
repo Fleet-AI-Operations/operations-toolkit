@@ -901,7 +901,7 @@ export default function ExemplarTasksPage() {
                         style={tabStyle(activeTab === 'daily-great')}
                         onClick={() => setActiveTab('daily-great')}
                     >
-                        Daily Great Tasks
+                        Great Example Tasks
                     </button>
                 </div>
             </div>
@@ -1304,7 +1304,7 @@ export default function ExemplarTasksPage() {
                                                         borderRadius: '5px',
                                                         padding: '1px 7px',
                                                     }}>
-                                                        Daily Great
+                                                        Great Example
                                                     </span>
                                                 )}
                                             </div>
@@ -1368,7 +1368,7 @@ export default function ExemplarTasksPage() {
                                 borderRadius: '10px',
                                 fontSize: '0.9rem',
                             }}>
-                                No daily great tasks flagged yet. Search above to flag records.
+                                No great example tasks flagged yet. Search above to flag records.
                             </div>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
@@ -1495,7 +1495,7 @@ export default function ExemplarTasksPage() {
                     <div>
                         <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '12px' }}>On-Demand Compare</h2>
                         <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', marginBottom: '16px' }}>
-                            Compare all tasks in an environment against the flagged daily great records.
+                            Compare all tasks in an environment against the flagged great example records.
                         </p>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -1579,10 +1579,10 @@ export default function ExemplarTasksPage() {
                         {dgCompareResult && (
                             <div>
                                 <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
-                                    Compared {dgCompareResult.totalTasks} task{dgCompareResult.totalTasks !== 1 ? 's' : ''} against {dgCompareResult.totalDailyGreat} daily great record{dgCompareResult.totalDailyGreat !== 1 ? 's' : ''}.
+                                    Compared {dgCompareResult.totalTasks} task{dgCompareResult.totalTasks !== 1 ? 's' : ''} against {dgCompareResult.totalDailyGreat} great example record{dgCompareResult.totalDailyGreat !== 1 ? 's' : ''}.
                                     {dgCompareResult.missingEmbeddings > 0 && (
                                         <span style={{ color: 'rgba(255,180,0,0.7)', marginLeft: '8px' }}>
-                                            {dgCompareResult.missingEmbeddings} daily great record{dgCompareResult.missingEmbeddings !== 1 ? 's' : ''} skipped (no embedding).
+                                            {dgCompareResult.missingEmbeddings} great example record{dgCompareResult.missingEmbeddings !== 1 ? 's' : ''} skipped (no embedding).
                                         </span>
                                     )}
                                     {' '}Found <strong style={{ color: 'var(--text)' }}>{dgCompareResult.matches.length}</strong> match{dgCompareResult.matches.length !== 1 ? 'es' : ''} above {dgThreshold}%.
@@ -1649,7 +1649,7 @@ export default function ExemplarTasksPage() {
                                                                 )}
                                                             </div>
                                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.8rem' }}>
-                                                                <span style={{ color: '#d97706', fontWeight: 700, flexShrink: 0 }}>→ Daily Great</span>
+                                                                <span style={{ color: '#d97706', fontWeight: 700, flexShrink: 0 }}>→ Great Example</span>
                                                                 <div style={{ color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
                                                                     {match.exemplarTaskKey && (
                                                                         <span style={{ fontFamily: 'monospace', marginRight: '6px', color: 'rgba(165,180,252,0.7)' }}>

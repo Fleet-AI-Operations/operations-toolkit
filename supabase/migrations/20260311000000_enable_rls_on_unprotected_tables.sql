@@ -16,6 +16,7 @@
 -- ============================================================
 ALTER TABLE public._duplicates_to_delete ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "duplicates_to_delete_fleet_admin_all" ON public._duplicates_to_delete;
 CREATE POLICY "duplicates_to_delete_fleet_admin_all"
     ON public._duplicates_to_delete FOR ALL
     TO authenticated
@@ -38,6 +39,7 @@ CREATE POLICY "duplicates_to_delete_fleet_admin_all"
 -- ============================================================
 ALTER TABLE public.worker_flags ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "worker_flags_fleet_admin_all" ON public.worker_flags;
 CREATE POLICY "worker_flags_fleet_admin_all"
     ON public.worker_flags FOR ALL
     TO authenticated
@@ -60,6 +62,7 @@ CREATE POLICY "worker_flags_fleet_admin_all"
 -- ============================================================
 ALTER TABLE public.mentorship_pods ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "mentorship_pods_fleet_admin_all" ON public.mentorship_pods;
 CREATE POLICY "mentorship_pods_fleet_admin_all"
     ON public.mentorship_pods FOR ALL
     TO authenticated
@@ -82,6 +85,7 @@ CREATE POLICY "mentorship_pods_fleet_admin_all"
 -- ============================================================
 ALTER TABLE public.mentorship_pod_members ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "mentorship_pod_members_fleet_admin_all" ON public.mentorship_pod_members;
 CREATE POLICY "mentorship_pod_members_fleet_admin_all"
     ON public.mentorship_pod_members FOR ALL
     TO authenticated

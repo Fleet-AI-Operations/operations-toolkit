@@ -31,7 +31,8 @@ Documentation/
 │
 ├── Feature Guides/
 │   ├── Exemplar Tasks             → ./EXEMPLAR_TASKS.md
-│   ├── Daily Great Tasks          → ./DAILY_GREAT_TASKS.md
+│   ├── Great Example Tasks        → ./GREAT_EXAMPLE_TASKS.md
+│   ├── Weekly Task Metrics        → ./WEEKLY_TASK_METRICS.md
 │   ├── Task Search                → ./TASK_SEARCH.md
 │   ├── Task Creator Deep-Dive     → see API Reference § Prompt Authenticity
 │   ├── Mentorship Program         → ./MENTORSHIP.md
@@ -85,7 +86,8 @@ Documentation/
 → [User Management](./USER_MANAGEMENT.md)
 → [Bug Reports](./BUG_REPORTS.md)
 → [Exemplar Tasks](./EXEMPLAR_TASKS.md) (Fleet)
-→ [Daily Great Tasks](./DAILY_GREAT_TASKS.md) (Fleet)
+→ [Great Example Tasks](./GREAT_EXAMPLE_TASKS.md) (Fleet)
+→ [Weekly Task Metrics & Spotlight](./WEEKLY_TASK_METRICS.md) (Fleet)
 → [Task Search](./TASK_SEARCH.md) (Core)
 → [Task Creator Deep-Dive](./Reference/API_REFERENCE.md#prompt-authenticity--task-creator-deep-dive) (Core)
 → [Workforce Monitoring Guide](./UserGuides/WORKFORCE_MONITORING_GUIDE.md) (Fleet)
@@ -333,4 +335,4 @@ Can't find what you're looking for?
 
 ---
 
-*Last Updated: 2026-03-12* — Added Task Disputes feature docs (TASK_DISPUTES.md)
+*Last Updated: 2026-03-14* — Added Weekly Task Metrics doc; renamed Daily Great Tasks → Great Example Tasks

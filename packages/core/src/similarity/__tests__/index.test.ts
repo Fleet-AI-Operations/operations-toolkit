@@ -418,7 +418,7 @@ describe('runSimilarityDetection (via startSimilarityDetection)', () => {
     consoleSpy.mockRestore();
   });
 
-  it('creates DAILY_GREAT flags when new records match daily great task records', async () => {
+  it('creates DAILY_GREAT flags when new records match great example task records', async () => {
     vi.mocked(cosineSimilarity).mockReturnValue(0.92); // above default 0.80 threshold
 
     $queryRaw.mockResolvedValueOnce([{ id: 'job-dg' }]);      // INSERT similarity_job
@@ -432,7 +432,7 @@ describe('runSimilarityDetection (via startSimilarityDetection)', () => {
     }]);
     // historicalRecords for worker@example.com → empty (no USER_HISTORY flags)
     $queryRaw.mockResolvedValueOnce([]);
-    // dailyGreatRecords → one flagged record
+    // greatExampleRecords → one flagged record
     $queryRaw.mockResolvedValueOnce([{
       id: 'great-1',
       content: 'featured great task',
