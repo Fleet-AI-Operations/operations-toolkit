@@ -56,7 +56,7 @@ Click any status card to filter the table to that status. Click again to clear.
 
 | Filter | Type | Description |
 |--------|------|-------------|
-| Email | Text (debounced) | Filter by disputer email (substring) |
+| Person | Text (debounced) | Case-insensitive substring search across disputer name/email, QA reviewer name/email, and resolver name |
 | Task Key | Text (debounced) | Filter by task key (substring, case-insensitive) |
 | Environment | Dropdown | Filter by `env_key` |
 | Status | Dropdown | Filter by dispute status |
@@ -87,7 +87,10 @@ Click any row to expand it.
 Expanded rows show two panels:
 
 **Dispute Details**
-- Reason, Resolution, and Report text (each in its own card)
+- Reason, Resolution, Report text, and Original Feedback — each in its own card
+- Report text and Original Feedback cards are truncated to 4 lines by default; click **Show more / Show less** to expand or collapse
+- Original Feedback card includes a **Positive / Negative** badge when `original_feedback_positive` is set
+- QA Reviewer chip: shown when the dispute has a QA reviewer (name · email)
 - Metadata chips: Team, Category, Helpful (Yes/No, colour-coded), Resolved by + date
 
 **Linked Record**
@@ -107,10 +110,12 @@ Upload the `feedback_disputes_report.csv` export from the external platform. The
 ```
 id, created_at, updated_at, feedback_id, eval_task_id, dispute_status,
 dispute_reason, resolution_reason, resolved_at, report_text, is_helpful,
-disputer_user_id, disputer_name, disputer_email, resolver_user_id,
-resolver_name, team_id, team_name, task_key, task_lifecycle_status,
-env_key, env_data_key, task_modality, dispute_data, leased_by,
-lease_expires_at
+disputer_user_id, disputer_name, disputer_email,
+qa_reviewer_user_id, qa_reviewer_name, qa_reviewer_email,
+original_feedback_positive, original_feedback_content,
+resolver_user_id, resolver_name, team_id, team_name, task_key,
+task_lifecycle_status, env_key, env_data_key, task_modality,
+dispute_data, leased_by, lease_expires_at
 ```
 
 **Constraints:**
@@ -154,7 +159,13 @@ Re-importing the same CSV is safe — rows are upserted by `externalId`. The **M
 | `eval_task_id` | `text` | Foreign key → `data_records.id` (nullable) |
 | `task_key` | `text` | Source task key (used for matching) |
 | `dispute_status` | `text` | `pending \| approved \| rejected \| discarded` |
-| `disputer_email` | `text` | Email of the disputer |
+| `disputer_name` | `text` | Name of the person who filed the dispute |
+| `disputer_email` | `text` | Email of the person who filed the dispute |
+| `qa_reviewer_user_id` | `text` | External user ID of the QA reviewer (nullable) |
+| `qa_reviewer_name` | `text` | Name of the QA reviewer (nullable) |
+| `qa_reviewer_email` | `text` | Email of the QA reviewer (nullable) |
+| `original_feedback_positive` | `boolean` | Whether the original feedback was positive (nullable) |
+| `original_feedback_content` | `text` | Full text of the original feedback being disputed (nullable) |
 | `env_key` | `text` | Environment identifier |
 | `task_modality` | `text` | `computer_use \| tool_use` |
 | `dispute_data` | `jsonb` | Structured dispute metadata (category, etc.) |
@@ -181,7 +192,7 @@ Returns paginated disputes and summary stats.
 | `limit` | integer | Page size (default: 50, max: 200) |
 | `status` | string | Filter by `dispute_status` |
 | `env` | string | Filter by `env_key` |
-| `email` | string | Filter by `disputer_email` |
+| `search` | string | Case-insensitive substring search across disputer name/email, QA reviewer name/email, and resolver name |
 | `modality` | string | Filter by `task_modality` |
 | `matched` | `true \| false` | Filter by whether `eval_task_id` is set |
 | `taskKey` | string | Substring filter on `task_key` (case-insensitive) |
@@ -237,4 +248,4 @@ Imports a disputes CSV via multipart form upload.
 
 ---
 
-*Last Updated: 2026-03-12*
+*Last Updated: 2026-03-15*

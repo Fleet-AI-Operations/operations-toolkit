@@ -23,7 +23,9 @@ const makeAuthError = (status: number) => ({
 const CSV_HEADER =
   'id,created_at,updated_at,feedback_id,eval_task_id,dispute_status,dispute_reason,' +
   'resolution_reason,resolved_at,report_text,is_helpful,disputer_user_id,disputer_name,' +
-  'disputer_email,resolver_user_id,resolver_name,team_id,team_name,task_key,' +
+  'disputer_email,qa_reviewer_user_id,qa_reviewer_name,qa_reviewer_email,' +
+  'original_feedback_positive,original_feedback_content,' +
+  'resolver_user_id,resolver_name,team_id,team_name,task_key,' +
   'task_lifecycle_status,env_key,env_data_key,task_modality,dispute_data,leased_by,lease_expires_at';
 
 const makeCSVRow = (overrides: Record<string, string> = {}) => {
@@ -42,6 +44,11 @@ const makeCSVRow = (overrides: Record<string, string> = {}) => {
     disputer_user_id: 'user-ext-1',
     disputer_name: 'Jane Smith',
     disputer_email: 'jane@example.com',
+    qa_reviewer_user_id: '',
+    qa_reviewer_name: '',
+    qa_reviewer_email: '',
+    original_feedback_positive: '',
+    original_feedback_content: '',
     resolver_user_id: '',
     resolver_name: '',
     team_id: 'team-1',
@@ -259,5 +266,77 @@ describe('POST /api/task-disputes/import', () => {
 
     const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
     expect(upsertCall.create.evalTaskId).toBeNull();
+  });
+
+  // ── QA reviewer fields ──────────────────────────────────────────────────────
+
+  it('maps qa_reviewer fields to camelCase on upsert', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({
+      qa_reviewer_user_id: 'qa-ext-1',
+      qa_reviewer_name: 'Alice QA',
+      qa_reviewer_email: 'alice@example.com',
+    }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.qaReviewerUserId).toBe('qa-ext-1');
+    expect(upsertCall.create.qaReviewerName).toBe('Alice QA');
+    expect(upsertCall.create.qaReviewerEmail).toBe('alice@example.com');
+  });
+
+  it('sets qa_reviewer fields to null when columns are empty', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow())));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.qaReviewerUserId).toBeNull();
+    expect(upsertCall.create.qaReviewerName).toBeNull();
+    expect(upsertCall.create.qaReviewerEmail).toBeNull();
+  });
+
+  // ── original_feedback_positive parsing ──────────────────────────────────────
+
+  it('parses original_feedback_positive "True" as true', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_positive: 'True' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.originalFeedbackPositive).toBe(true);
+  });
+
+  it('parses original_feedback_positive "False" as false', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_positive: 'False' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.originalFeedbackPositive).toBe(false);
+  });
+
+  it('sets originalFeedbackPositive to null when column is empty', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_positive: '' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.originalFeedbackPositive).toBeNull();
+  });
+
+  it('maps original_feedback_content to upsert payload', async () => {
+    const { prisma } = await import('@repo/database');
+    vi.mocked(prisma.taskDispute.findMany).mockResolvedValue([]);
+
+    await POST(makeRequest(makeCSV(makeCSVRow({ original_feedback_content: 'Great work on this task.' }))));
+
+    const upsertCall = vi.mocked(prisma.taskDispute.upsert).mock.calls[0][0];
+    expect(upsertCall.create.originalFeedbackContent).toBe('Great work on this task.');
   });
 });
